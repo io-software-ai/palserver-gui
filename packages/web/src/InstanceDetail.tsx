@@ -168,11 +168,13 @@ function OverviewTab({ client, detail }: { client: AgentClient; detail: Detail }
 
   const rows: [string, string][] = [
     ["狀態", STATUS_LABELS[detail.status]],
+    ["運行方式", detail.backend === "native" ? "原生" : "Docker 容器"],
     ["版本", detail.flavor === "vanilla" ? "原味" : "模組版"],
     ["遊戲埠(UDP)", String(detail.gamePort)],
-    ["REST API", detail.settings.RESTAPIEnabled ? `啟用(容器內 ${detail.settings.RESTAPIPort})` : "停用"],
-    ["RCON", detail.settings.RCONEnabled ? `啟用(容器內 ${detail.settings.RCONPort})` : "停用"],
-    ["容器 ID", detail.containerId ? detail.containerId.slice(0, 12) : "—"],
+    ["REST API", detail.settings.RESTAPIEnabled ? `啟用(${detail.settings.RESTAPIPort})` : "停用"],
+    ["RCON", detail.settings.RCONEnabled ? `啟用(${detail.settings.RCONPort})` : "停用"],
+    [detail.backend === "native" ? "行程 PID" : "容器 ID", detail.runtimeId ? detail.runtimeId.slice(0, 12) : "—"],
+    ["伺服器目錄", detail.serverDir ?? "agent 管理"],
     ["建立時間", new Date(detail.createdAt).toLocaleString()],
   ];
 

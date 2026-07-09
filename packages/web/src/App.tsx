@@ -200,6 +200,8 @@ function CreateDialog({
   onCreated: () => void;
 }) {
   const [name, setName] = useState("");
+  const [backend, setBackend] = useState<"native" | "docker">("native");
+  const [serverDir, setServerDir] = useState("");
   const [gamePort, setGamePort] = useState(8211);
   const [maxPlayers, setMaxPlayers] = useState(32);
   const [serverPassword, setServerPassword] = useState("");
@@ -213,8 +215,10 @@ function CreateDialog({
     try {
       await client.createInstance({
         name,
+        backend,
         flavor: "vanilla",
         gamePort,
+        serverDir: backend === "native" && serverDir.trim() ? serverDir.trim() : undefined,
         settings: { ServerPlayerMaxNum: maxPlayers, ServerPassword: serverPassword },
       });
       onCreated();
@@ -245,6 +249,28 @@ function CreateDialog({
             required
           />
         </label>
+        <label className={labelCls}>
+          運行方式
+          <select
+            className={inputCls}
+            value={backend}
+            onChange={(e) => setBackend(e.target.value as "native" | "docker")}
+          >
+            <option value="native">原生(直接在這台主機上運行,推薦)</option>
+            <option value="docker">Docker 容器</option>
+          </select>
+        </label>
+        {backend === "native" && (
+          <label className={labelCls}>
+            既有伺服器路徑(選填)
+            <input
+              className={inputCls}
+              value={serverDir}
+              onChange={(e) => setServerDir(e.target.value)}
+              placeholder="留空 = 自動下載;或填入現有 PalServer 安裝目錄"
+            />
+          </label>
+        )}
         <label className={labelCls}>
           遊戲埠(UDP)
           <input

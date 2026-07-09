@@ -7,8 +7,12 @@ import { DATA_DIR } from "./env.js";
 export interface InstanceRecord {
   id: string;
   name: string;
+  backend: "native" | "docker";
   flavor: "vanilla" | "modded";
   gamePort: number;
+  /** native only: adopted existing server install; undefined = agent-managed
+   * install under instanceDir/server. */
+  serverDir?: string;
   settings: WorldSettings;
   createdAt: string;
 }
@@ -30,6 +34,8 @@ export class InstanceStore {
         // Migrate settings saved by older schema versions: fill new options
         // with defaults, drop keys we no longer know.
         rec.settings = WorldSettingsSchema.parse(rec.settings);
+        // Records created before the native backend existed were docker-based.
+        rec.backend ??= "docker";
         this.instances.set(rec.id, rec);
       }
       this.flush();

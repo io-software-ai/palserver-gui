@@ -9,21 +9,34 @@ import {
 } from "@palserver/shared";
 import { AGENT_VERSION } from "./env.js";
 import type { InstanceStore, InstanceRecord } from "./store.js";
+import type { DriverContext, ServerDriver } from "./driver.js";
 import * as dockerOps from "./docker.js";
+import { nativeDriver } from "./native.js";
 
-async function toSummary(rec: InstanceRecord): Promise<InstanceSummary> {
-  const { status } = await dockerOps.getStatus(rec);
-  return {
-    id: rec.id,
-    name: rec.name,
-    flavor: rec.flavor,
-    gamePort: rec.gamePort,
-    status,
-    createdAt: rec.createdAt,
-  };
-}
+const drivers: Record<InstanceRecord["backend"], ServerDriver> = {
+  native: nativeDriver,
+  docker: dockerOps.dockerDriver,
+};
 
 export function registerRoutes(app: FastifyInstance, store: InstanceStore): void {
+  const ctxOf = (rec: InstanceRecord): DriverContext => ({
+    instanceDir: store.instanceDir(rec.id),
+  });
+  const driverOf = (rec: InstanceRecord) => drivers[rec.backend];
+
+  const toSummary = async (rec: InstanceRecord): Promise<InstanceSummary> => {
+    const { status } = await driverOf(rec).status(rec, ctxOf(rec));
+    return {
+      id: rec.id,
+      name: rec.name,
+      backend: rec.backend,
+      flavor: rec.flavor,
+      gamePort: rec.gamePort,
+      status,
+      createdAt: rec.createdAt,
+    };
+  };
+
   const getOr404 = (id: string): InstanceRecord => {
     const rec = store.get(id);
     if (!rec) {
@@ -35,11 +48,14 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
   };
 
   app.get("/api/info", async (): Promise<AgentInfo> => {
-    const version = await dockerOps.docker.version();
+    const dockerVersion = await dockerOps.docker
+      .version()
+      .then((v) => v.Version)
+      .catch(() => "unavailable");
     return {
       name: "palserver-agent",
       version: AGENT_VERSION,
-      dockerVersion: version.Version,
+      dockerVersion,
       instanceCount: store.list().length,
     };
   });
@@ -64,19 +80,29 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
     });
     const rec = store.create({
       name: input.name,
+      backend: input.backend,
       flavor: input.flavor,
       gamePort: input.gamePort,
+      serverDir: input.serverDir,
       settings,
     });
-    dockerOps.writeConfig(store.instanceDir(rec.id), settings);
+    if (rec.backend === "docker") {
+      dockerOps.writeConfig(store.instanceDir(rec.id), settings);
+    }
     reply.code(201);
     return toSummary(rec);
   });
 
   app.get("/api/instances/:id", async (req): Promise<InstanceDetail> => {
     const rec = getOr404((req.params as { id: string }).id);
-    const { status, containerId } = await dockerOps.getStatus(rec);
-    return { ...(await toSummary(rec)), status, containerId, settings: rec.settings };
+    const { status, runtimeId } = await driverOf(rec).status(rec, ctxOf(rec));
+    return {
+      ...(await toSummary(rec)),
+      status,
+      runtimeId,
+      serverDir: rec.serverDir ?? null,
+      settings: rec.settings,
+    };
   });
 
   app.put("/api/instances/:id/settings", async (req) => {
@@ -85,41 +111,46 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
     const updated = store.update(rec.id, {
       settings: WorldSettingsSchema.parse({ ...rec.settings, ...patch }),
     });
-    dockerOps.writeConfig(store.instanceDir(rec.id), updated.settings);
+    // The driver re-renders the ini on every start; pre-render for docker so
+    // the bind-mounted config is already in place.
+    if (rec.backend === "docker") {
+      dockerOps.writeConfig(store.instanceDir(rec.id), updated.settings);
+    }
     return { applied: "on-next-restart", settings: updated.settings };
   });
 
   app.post("/api/instances/:id/start", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
-    await dockerOps.startInstance(rec, store.instanceDir(rec.id));
+    await driverOf(rec).start(rec, ctxOf(rec));
     return toSummary(rec);
   });
 
   app.post("/api/instances/:id/stop", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
-    await dockerOps.stopInstance(rec);
+    await driverOf(rec).stop(rec, ctxOf(rec));
     return toSummary(rec);
   });
 
   app.post("/api/instances/:id/restart", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
-    await dockerOps.restartInstance(rec, store.instanceDir(rec.id));
+    await driverOf(rec).stop(rec, ctxOf(rec));
+    await driverOf(rec).start(rec, ctxOf(rec));
     return toSummary(rec);
   });
 
   app.delete("/api/instances/:id", async (req, reply) => {
     const rec = getOr404((req.params as { id: string }).id);
-    await dockerOps.removeInstanceContainer(rec);
+    await driverOf(rec).remove(rec, ctxOf(rec));
     store.remove(rec.id);
-    // Save data under instanceDir is kept on disk deliberately; deleting
-    // world saves should be an explicit, separate action.
+    // World saves under the instance/server dir are kept on disk deliberately;
+    // deleting them should be an explicit, separate action.
     reply.code(204);
   });
 
   app.get("/api/instances/:id/stats", async (req, reply) => {
     const rec = getOr404((req.params as { id: string }).id);
-    const stats = await dockerOps.getStats(rec);
-    if (!stats) return reply.code(409).send({ error: "container not running" });
+    const stats = await driverOf(rec).stats(rec, ctxOf(rec));
+    if (!stats) return reply.code(409).send({ error: "server not running" });
     return stats;
   });
 
@@ -130,9 +161,10 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
       return;
     }
     let cleanup: (() => void) | null = null;
-    dockerOps
+    driverOf(rec)
       .streamLogs(
         rec,
+        ctxOf(rec),
         (line) => socket.send(line),
         () => socket.close(1000, "log stream ended"),
       )

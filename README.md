@@ -1,11 +1,23 @@
 # palserver GUI v2
 
-Docker-based Palworld dedicated server management — an agent daemon runs next to Docker on the host, a React Web UI connects to it remotely.
+Palworld dedicated server management — an agent daemon runs on the server host, a React Web UI connects to it remotely.
 
 ```
-Web UI (React) ──HTTPS/WSS + Bearer token──▶ Agent (Node/TS, Fastify)
-                                              └─▶ Docker Engine API ──▶ PalServer containers
+Web UI (React) ──HTTP/WS + Bearer token──▶ Agent (Node/TS, Fastify)
+                                            ├─▶ native driver (default): spawns PalServer
+                                            │     directly on the host, no Docker needed
+                                            └─▶ docker driver (optional): PalServer containers
 ```
+
+**Backends** (chosen per instance at creation):
+
+- **native** (default) — the agent spawns `PalServer.exe` / `PalServer.sh` as a
+  detached host process. It can adopt an existing dedicated-server install
+  (point `serverDir` at it) or auto-install one via DepotDownloader. Survives
+  agent restarts (pid-file reattach); graceful stop via the server's REST API
+  when enabled, force-kill fallback. Works on any Windows/Linux box — no Docker.
+- **docker** — the original container flavor, kept for Linux hosts and
+  isolation-minded setups.
 
 ## Packages
 
@@ -66,10 +78,11 @@ Real-server verification needs an x86_64 Linux host.
 - [x] Agent: instance CRUD, start/stop/restart, log streaming, stats, token auth
 - [x] Web UI: connect → dashboard → instance detail (overview / world settings / logs)
 - [x] World-settings editor: schema-driven, 80+ options, category tabs, apply-on-restart
-- [x] Vanilla image via DepotDownloader (works under Rosetta for downloads; server itself needs x86_64 Linux)
-- [x] dev-stub image for macOS development
-- [ ] Modded image (Proton/Wine + UE4SS + Palguard) — feasibility spike next
+- [x] Native backend (default): spawn/adopt host PalServer, DepotDownloader auto-install,
+      pid reattach across agent restarts, REST-API graceful shutdown
+- [x] Docker backend (optional): vanilla image via DepotDownloader; dev-stub image for macOS
+- [ ] UE4SS + Palguard management on the native backend (v1 parity — core theme)
 - [ ] Player management via Palworld REST API / RCON passthrough
-- [ ] Crash-loop detection surfaced in UI; auto-recreate container when image updates
-- [ ] Shared game-files volume so multiple instances don't re-download
+- [ ] Save migration: import an existing world into an instance (v1 parity)
+- [ ] Failure detection surfaced in UI (process exits / container crash loops)
 - [ ] Backups & schedules, multi-host aggregation in the UI, TLS guidance, i18n (reuse v1 locales)

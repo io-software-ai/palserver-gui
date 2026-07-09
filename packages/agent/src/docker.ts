@@ -23,11 +23,11 @@ async function findContainer(rec: InstanceRecord): Promise<Docker.Container | nu
 
 export async function getStatus(
   rec: InstanceRecord,
-): Promise<{ status: InstanceStatus; containerId: string | null }> {
+): Promise<{ status: InstanceStatus; runtimeId: string | null }> {
   const container = await findContainer(rec);
   // No container yet (never started, or removed): treated as "created" —
   // starting the instance will (re)materialize it from stored settings.
-  if (!container) return { status: "created", containerId: null };
+  if (!container) return { status: "created", runtimeId: null };
   const info = await container.inspect();
   const state = info.State.Status; // created|running|paused|restarting|exited|dead
   const status: InstanceStatus =
@@ -35,7 +35,7 @@ export async function getStatus(
     : state === "restarting" ? "restarting"
     : state === "exited" || state === "dead" ? "exited"
     : "created";
-  return { status, containerId: info.Id };
+  return { status, runtimeId: info.Id };
 }
 
 /** Write the ini into the bind-mounted config dir; picked up on next (re)start. */
@@ -178,3 +178,14 @@ export async function streamLogs(
     (logStream as unknown as { destroy: () => void }).destroy();
   };
 }
+
+import type { ServerDriver } from "./driver.js";
+
+export const dockerDriver: ServerDriver = {
+  status: (rec) => getStatus(rec),
+  start: (rec, ctx) => startInstance(rec, ctx.instanceDir),
+  stop: (rec) => stopInstance(rec),
+  remove: (rec) => removeInstanceContainer(rec),
+  stats: (rec) => getStats(rec),
+  streamLogs: (rec, _ctx, onLine, onEnd) => streamLogs(rec, onLine, onEnd),
+};

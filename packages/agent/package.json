@@ -20,11 +20,13 @@
     "@palserver/shared": "workspace:*",
     "dockerode": "^4.0.2",
     "fastify": "^5.2.0",
+    "pidusage": "^4.0.1",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/dockerode": "^3.3.0",
     "@types/node": "^22.0.0",
+    "@types/pidusage": "^2.0.5",
     "@types/ws": "^8.5.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
