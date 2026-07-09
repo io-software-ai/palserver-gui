@@ -7,6 +7,8 @@ import type {
   InstanceStats,
   InstanceSummary,
   LiveStatus,
+  LogSource,
+  LogSourceId,
   ModComponent,
   ModsStatus,
   RconCommandsResponse,
@@ -184,8 +186,14 @@ export class AgentClient {
     return body as { uploaded: string; size: number };
   }
 
-  logsSocket(id: string): WebSocket {
+  logSources(id: string): Promise<LogSource[]> {
+    return this.request(`/api/instances/${id}/logs/sources`);
+  }
+
+  logsSocket(id: string, source: LogSourceId = "agent"): WebSocket {
     const wsUrl = this.conn.url.replace(/^http/, "ws");
-    return new WebSocket(`${wsUrl}/api/instances/${id}/logs?token=${encodeURIComponent(this.conn.token)}`);
+    return new WebSocket(
+      `${wsUrl}/api/instances/${id}/logs?token=${encodeURIComponent(this.conn.token)}&source=${source}`,
+    );
   }
 }

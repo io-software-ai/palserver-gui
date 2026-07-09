@@ -1,4 +1,4 @@
-import type { InstanceStats, InstanceStatus } from "@palserver/shared";
+import type { InstanceStats, InstanceStatus, LogSource, LogSourceId } from "@palserver/shared";
 import type { InstanceRecord } from "./store.js";
 
 /** Per-instance paths the agent owns on disk. */
@@ -26,5 +26,9 @@ export interface ServerDriver {
     ctx: DriverContext,
     onLine: (line: string) => void,
     onEnd: () => void,
+    source?: LogSourceId,
   ): Promise<() => void>;
+
+  /** Which log streams this instance can serve. */
+  logSources(rec: InstanceRecord, ctx: DriverContext): LogSource[];
 }

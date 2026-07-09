@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FiArrowLeft, FiPlay, FiSquare, FiRefreshCw, FiTrash2 } from "react-icons/fi";
-import type { InstanceDetail as Detail, InstanceStats, WorldSettings } from "@palserver/shared";
+import type {
+  InstanceDetail as Detail,
+  InstanceStats,
+  LogSource,
+  LogSourceId,
+  WorldSettings,
+} from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { SettingsEditor } from "./SettingsEditor";
 import { ModsTab } from "./ModsTab";
@@ -248,12 +254,18 @@ function Meter({ label, text, ratio }: { label: string; text: string; ratio: num
 }
 
 function LogsTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
+  const [sources, setSources] = useState<LogSource[]>([]);
+  const [source, setSource] = useState<LogSourceId>("agent");
   const [lines, setLines] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    client.logSources(instanceId).then(setSources).catch(() => setSources([]));
+  }, [client, instanceId]);
+
+  useEffect(() => {
     setLines([]);
-    const socket = client.logsSocket(instanceId);
+    const socket = client.logsSocket(instanceId, source);
     socket.onmessage = (ev) => setLines((prev) => [...prev.slice(-999), String(ev.data)]);
     socket.onclose = (ev) => {
       if (ev.code !== 1000 && ev.code !== 1005) {
@@ -261,16 +273,37 @@ function LogsTab({ client, instanceId }: { client: AgentClient; instanceId: stri
       }
     };
     return () => socket.close();
-  }, [client, instanceId]);
+  }, [client, instanceId, source]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [lines]);
 
   return (
-    <pre className="h-[440px] overflow-auto rounded-(--radius-cute) bg-[#1c1927] p-4 font-mono text-xs whitespace-pre-wrap break-all text-[#cfd6df]">
-      {lines.length ? lines.join("\n") : "(尚無日誌 — 伺服器未啟動過)"}
-      <div ref={bottomRef} />
-    </pre>
+    <div className="flex flex-col gap-3">
+      {sources.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {sources.map((s) => (
+            <button
+              key={s.id}
+              className={
+                s.id === source
+                  ? "rounded-full bg-pal px-4 py-1.5 text-[13px] font-extrabold text-white"
+                  : "rounded-full border-2 border-line bg-card-soft px-4 py-1.5 text-[13px] font-extrabold text-ink-muted transition hover:border-pal disabled:opacity-40 disabled:hover:border-line"
+              }
+              onClick={() => setSource(s.id)}
+              disabled={!s.available}
+              title={s.available ? undefined : "此日誌尚未產生"}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <pre className="h-[440px] overflow-auto rounded-(--radius-cute) bg-[#1c1927] p-4 font-mono text-xs whitespace-pre-wrap break-all text-[#cfd6df]">
+        {lines.length ? lines.join("\n") : "(尚無日誌)"}
+        <div ref={bottomRef} />
+      </pre>
+    </div>
   );
 }

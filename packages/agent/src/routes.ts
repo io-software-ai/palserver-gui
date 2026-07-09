@@ -226,6 +226,8 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
     return { saved: true };
   });
 
+  const LogSourceSchema = z.enum(["agent", "game", "paldefender"]);
+
   // ── RCON console ──
   app.get("/api/instances/:id/rcon/commands", async (req): Promise<RconCommandsResponse> => {
     const rec = getOr404((req.params as { id: string }).id);
@@ -306,12 +308,20 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
     return { uploaded: rel, size: fs.statSync(target).size };
   });
 
+  app.get("/api/instances/:id/logs/sources", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return driverOf(rec).logSources(rec, ctxOf(rec));
+  });
+
   app.get("/api/instances/:id/logs", { websocket: true }, (socket, req) => {
     const rec = store.get((req.params as { id: string }).id);
     if (!rec) {
       socket.close(4004, "instance not found");
       return;
     }
+    const source = LogSourceSchema.catch("agent").parse(
+      (req.query as { source?: string }).source,
+    );
     let cleanup: (() => void) | null = null;
     driverOf(rec)
       .streamLogs(
@@ -319,6 +329,7 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
         ctxOf(rec),
         (line) => socket.send(line),
         () => socket.close(1000, "log stream ended"),
+        source,
       )
       .then((stop) => {
         cleanup = stop;

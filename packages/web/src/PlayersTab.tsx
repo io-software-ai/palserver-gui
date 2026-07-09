@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { FiUsers, FiSend, FiSave, FiSlash, FiLogOut, FiRefreshCw } from "react-icons/fi";
+import {
+  FiUsers,
+  FiSend,
+  FiSave,
+  FiSlash,
+  FiLogOut,
+  FiRefreshCw,
+  FiEye,
+  FiEyeOff,
+  FiCopy,
+  FiCheck,
+} from "react-icons/fi";
 import { savToMap, type LiveStatus, type RestPlayer } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { btn, btnGhost, card, errorCls, inputCls } from "./ui";
@@ -9,6 +20,48 @@ const fmtUptime = (seconds: number) => {
   const m = Math.floor((seconds % 3600) / 60);
   return h > 0 ? `${h} 小時 ${m} 分` : `${m} 分`;
 };
+
+/** Steam IDs identify a real person, so show them masked by default —
+ * enough to tell players apart, not enough to paste into a lookup site. */
+function maskSteamId(userId: string): string {
+  const digits = userId.replace(/^steam_/, "");
+  if (digits.length <= 8) return digits;
+  return `${digits.slice(0, 4)}${"•".repeat(6)}${digits.slice(-4)}`;
+}
+
+function SteamId({ userId }: { userId: string }) {
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const raw = userId.replace(/^steam_/, "");
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(raw).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <span className="inline-flex items-center gap-1.5 font-mono text-xs text-ink-muted">
+      {revealed ? raw : maskSteamId(userId)}
+      <button
+        onClick={() => setRevealed((v) => !v)}
+        className="text-ink-muted transition hover:text-pal"
+        aria-label={revealed ? "隱藏 Steam ID" : "顯示 Steam ID"}
+        title={revealed ? "隱藏" : "顯示完整 Steam ID"}
+      >
+        {revealed ? <FiEyeOff className="size-3.5" /> : <FiEye className="size-3.5" />}
+      </button>
+      <button
+        onClick={copy}
+        className="text-ink-muted transition hover:text-pal"
+        aria-label="複製 Steam ID"
+        title="複製"
+      >
+        {copied ? <FiCheck className="size-3.5 text-grass" /> : <FiCopy className="size-3.5" />}
+      </button>
+    </span>
+  );
+}
 
 export function PlayersTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
   const [live, setLive] = useState<LiveStatus | null>(null);
@@ -151,6 +204,9 @@ export function PlayersTab({ client, instanceId }: { client: AgentClient; instan
                   <p className="text-xs text-ink-muted">
                     Lv.{p.level} · Ping {Math.round(p.ping)} ms · 建築 {p.building_count} · 座標{" "}
                     {Math.round(loc.x)}, {Math.round(loc.y)}
+                  </p>
+                  <p className="mt-0.5">
+                    <SteamId userId={p.userId} />
                   </p>
                 </div>
                 <p className="hidden text-xs text-ink-muted sm:block">{p.ip}</p>

@@ -187,5 +187,7 @@ export const dockerDriver: ServerDriver = {
   stop: (rec) => stopInstance(rec),
   remove: (rec) => removeInstanceContainer(rec),
   stats: (rec) => getStats(rec),
+  // Container stdout carries everything; there are no separate sources.
+  logSources: () => [{ id: "agent", label: "容器輸出", available: true }],
   streamLogs: (rec, _ctx, onLine, onEnd) => streamLogs(rec, onLine, onEnd),
 };

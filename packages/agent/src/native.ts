@@ -291,21 +291,90 @@ export const nativeDriver: ServerDriver = {
     } satisfies InstanceStats;
   },
 
-  async streamLogs(rec, ctx, onLine, _onEnd) {
-    // Two sources merged into one stream:
-    //  - the agent-side capture (install progress + server stdout)
-    //  - the game's own UE log, which is where the Windows server actually
-    //    writes (its stdout is nearly silent)
-    // Files may not exist yet (first boot) — the follower attaches when
-    // they appear, so the socket stays open instead of closing early.
-    const gameLog = path.join(serverRoot(rec, ctx), "Pal", "Saved", "Logs", "Pal.log");
-    const stops = [
-      followFile(logFile(ctx), onLine),
-      followFile(gameLog, onLine, 100),
+  logSources(rec, ctx) {
+    return [
+      { id: "agent" as const, label: "agent", available: fs.existsSync(logFile(ctx)) },
+      { id: "game" as const, label: "遊戲", available: fs.existsSync(gameLogFile(rec, ctx)) },
+      {
+        id: "paldefender" as const,
+        label: "PalDefender",
+        available: palDefenderLogDir(rec, ctx) !== null,
+      },
     ];
-    return () => stops.forEach((stop) => stop());
+  },
+
+  async streamLogs(rec, ctx, onLine, _onEnd, source = "agent") {
+    // Files may not exist yet (first boot) — the followers attach when they
+    // appear, so the socket stays open instead of closing early.
+    if (source === "game") return followFile(gameLogFile(rec, ctx), onLine, 200);
+    if (source === "paldefender") {
+      const dir = palDefenderLogDir(rec, ctx);
+      if (!dir) {
+        onLine("(找不到 PalDefender 日誌 — 安裝後啟動一次伺服器即會產生)");
+        return () => {};
+      }
+      // PalDefender writes a new, timestamped file per run; follow the newest
+      // and switch over when it rotates.
+      return followNewestInDir(dir, onLine);
+    }
+    // "agent": our own capture — install progress and server stdout.
+    return followFile(logFile(ctx), onLine);
   },
 };
+
+const gameLogFile = (rec: InstanceRecord, ctx: DriverContext) =>
+  path.join(serverRoot(rec, ctx), "Pal", "Saved", "Logs", "Pal.log");
+
+/** PalDefender's log dir; the plugin was formerly named Palguard and older
+ * installs still write to palguard/logs. Returns null when neither exists. */
+function palDefenderLogDir(rec: InstanceRecord, ctx: DriverContext): string | null {
+  const win64 = path.join(serverRoot(rec, ctx), "Pal", "Binaries", "Win64");
+  for (const name of ["PalDefender", "palguard"]) {
+    const dir = path.join(win64, name, "logs");
+    if (fs.existsSync(dir)) return dir;
+  }
+  return null;
+}
+
+function newestFile(dir: string): string | null {
+  try {
+    const entries = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isFile())
+      .map((e) => {
+        const full = path.join(dir, e.name);
+        return { full, mtime: fs.statSync(full).mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    return entries[0]?.full ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Follow whichever file in `dir` is newest, re-attaching when it rotates. */
+function followNewestInDir(dir: string, onLine: (line: string) => void): () => void {
+  let current: string | null = null;
+  let stopCurrent: (() => void) | null = null;
+  const timer = setInterval(() => {
+    const newest = newestFile(dir);
+    if (newest && newest !== current) {
+      stopCurrent?.();
+      current = newest;
+      onLine(`— 跟隨日誌檔:${path.basename(newest)} —`);
+      stopCurrent = followFile(newest, onLine, 200);
+    }
+  }, 1000);
+  const initial = newestFile(dir);
+  if (initial) {
+    current = initial;
+    stopCurrent = followFile(initial, onLine, 200);
+  }
+  return () => {
+    clearInterval(timer);
+    stopCurrent?.();
+  };
+}
 
 /** Tail -f a file: replay the last `replay` lines once it exists, then
  * follow appended bytes. Handles truncation/rotation (position reset) and

@@ -4,8 +4,10 @@ import { GiShield } from "react-icons/gi";
 import {
   COMMAND_CATEGORY_LABELS,
   buildCommand,
+  type CommandArg,
   type CommandSpec,
   type RconCommandsResponse,
+  type RestPlayer,
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { btn, btnGhost, card, errorCls, inputCls, labelCls } from "./ui";
@@ -14,6 +16,52 @@ interface LogEntry {
   command: string;
   output: string;
   failed: boolean;
+}
+
+/** A command argument. `userid` arguments get a picker of online players
+ * (falling back to free text — the target may be offline, e.g. /unban). */
+function ArgField({
+  arg,
+  players,
+  value,
+  onChange,
+}: {
+  arg: CommandArg;
+  players: RestPlayer[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const isPlayerArg = arg.name === "userid";
+  const known = players.some((p) => p.userId === value);
+
+  return (
+    <label className={labelCls}>
+      {arg.label}
+      {!arg.required && <span className="font-normal">(選填)</span>}
+      {isPlayerArg && players.length > 0 && (
+        <select
+          className={inputCls}
+          value={known ? value : ""}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">— 從在線玩家選擇 —</option>
+          {players.map((p) => (
+            <option key={p.userId} value={p.userId}>
+              {p.name}(Lv.{p.level})
+            </option>
+          ))}
+        </select>
+      )}
+      <input
+        className={inputCls}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={
+          isPlayerArg && players.length > 0 ? "或直接輸入 UserId(離線玩家)" : arg.placeholder
+        }
+      />
+    </label>
+  );
 }
 
 export function ConsoleTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
@@ -27,6 +75,8 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const [players, setPlayers] = useState<RestPlayer[]>([]);
+
   const load = useCallback(async () => {
     try {
       setCatalog(await client.rconCommands(instanceId));
@@ -39,6 +89,19 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Online players feed the UserId pickers; the REST API may be off, in which
+  // case the fields simply stay free-text.
+  useEffect(() => {
+    const poll = () =>
+      client
+        .live(instanceId)
+        .then((live) => setPlayers(live.available ? live.players : []))
+        .catch(() => setPlayers([]));
+    void poll();
+    const timer = setInterval(poll, 10000);
+    return () => clearInterval(timer);
+  }, [client, instanceId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -163,16 +226,13 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
                 <p className="mt-1 text-[13px] text-ink-muted">{selected.label}</p>
               </div>
               {selected.args.map((arg) => (
-                <label key={arg.name} className={labelCls}>
-                  {arg.label}
-                  {!arg.required && <span className="font-normal">(選填)</span>}
-                  <input
-                    className={inputCls}
-                    value={values[arg.name] ?? ""}
-                    onChange={(e) => setValues((v) => ({ ...v, [arg.name]: e.target.value }))}
-                    placeholder={arg.placeholder}
-                  />
-                </label>
+                <ArgField
+                  key={arg.name}
+                  arg={arg}
+                  players={players}
+                  value={values[arg.name] ?? ""}
+                  onChange={(value) => setValues((v) => ({ ...v, [arg.name]: value }))}
+                />
               ))}
               <div className="flex items-center gap-3">
                 <button className={`${btn} inline-flex items-center gap-1.5`} disabled={busy}>

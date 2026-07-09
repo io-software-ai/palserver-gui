@@ -108,6 +108,18 @@ export interface ModsStatus {
 
 export type ModComponent = "ue4ss" | "paldefender";
 
+/** A log stream the instance can serve. `agent` is our own capture (install
+ * progress + stdout); `game` is the server's UE log; `paldefender` is the
+ * plugin's own rotating log. */
+export type LogSourceId = "agent" | "game" | "paldefender";
+
+export interface LogSource {
+  id: LogSourceId;
+  label: string;
+  /** false when the underlying file/dir doesn't exist (yet). */
+  available: boolean;
+}
+
 /** One entry in the instance file browser (rooted at the server dir). */
 export interface DirEntry {
   name: string;
