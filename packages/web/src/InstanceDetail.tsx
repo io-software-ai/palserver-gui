@@ -174,6 +174,7 @@ export function InstanceDetailPage({
         {TABS.filter((t) => t.id !== "paldefender" || palDefender).map((t) => (
           <button
             key={t.id}
+            data-tab={t.id}
             className={
               t.id === tab
                 ? "-mb-0.5 border-b-[3px] border-pal px-4 py-2 text-sm font-extrabold whitespace-nowrap text-pal"

@@ -78,12 +78,14 @@ function Shell({ conn, onDisconnect }: { conn: Connection; onDisconnect: () => v
           <button
             className={`${btnGhost} inline-flex items-center gap-1.5`}
             onClick={() => setShowCredits(true)}
+            data-testid="open-credits"
           >
             <FiHeart className="size-4" /> {t("感謝名單")}
           </button>
           <button
             className={`${btnGhost} inline-flex items-center gap-1.5`}
             onClick={() => setShowSettings(true)}
+            data-testid="open-settings"
           >
             <FiSettings className="size-4" /> {t("設定")}
           </button>
@@ -138,7 +140,11 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
       {error && <p className={errorCls}>{error}</p>}
       <div className="flex items-center justify-between">
         <h2 className="my-3.5 text-[17px] font-extrabold">{t("伺服器")}</h2>
-        <button className={`${btn} inline-flex items-center gap-1.5`} onClick={() => setShowCreate(true)}>
+        <button
+          className={`${btn} inline-flex items-center gap-1.5`}
+          onClick={() => setShowCreate(true)}
+          data-testid="create-server"
+        >
           <FiPlus className="size-4" /> {t("建立伺服器")}
         </button>
       </div>
