@@ -2,6 +2,8 @@
 
 **繁體中文** | [English](README.en.md) | [日本語](README.ja.md)
 
+<p align="center"><a href="https://palserver-GUI.iosoftware.ai"><b>官方網站 palserver-GUI.iosoftware.ai</b></a> —— 下載、教學、常見問題</p>
+
 **幻獸帕魯(Palworld)專用伺服器的圖形化管理工具。**
 在你的主機上跑一支 agent,然後用瀏覽器管理伺服器 —— 開服、改設定、看玩家、備份存檔、裝模組,全都不用碰指令列。
 
@@ -296,6 +298,7 @@ PALSERVER_IMAGE_VANILLA=palserver/dev-stub:latest pnpm dev:agent
 > *License: source-available under PolyForm Noncommercial 1.0.0 — free for personal and
 > noncommercial use; **commercial use is not permitted**. Contact us for commercial licensing.*
 
+- **官方網站:** <https://palserver-GUI.iosoftware.ai>
 - **常見問題:** <https://faq.toc.icu/>
 - **Discord:** <https://discord.gg/sgMMdUZd3V>
 - **安裝與連線教學(玩家向):** [docs/INSTALL.zh-TW.md](docs/INSTALL.zh-TW.md)

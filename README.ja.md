@@ -2,6 +2,8 @@
 
 [繁體中文](README.md) | [English](README.en.md) | **日本語**
 
+<p align="center"><a href="https://palserver-GUI.iosoftware.ai"><b>公式サイト palserver-GUI.iosoftware.ai</b></a> —— ダウンロード・ガイド・FAQ</p>
+
 **Palworld(パルワールド)専用サーバーの GUI 管理ツール。**
 ホストマシンで agent を 1 つ動かし、あとはブラウザからサーバーを管理 —— サーバー起動、設定変更、プレイヤー確認、セーブのバックアップ、MOD 導入まで、コマンドラインは一切不要です。
 
@@ -296,6 +298,7 @@ PALSERVER_IMAGE_VANILLA=palserver/dev-stub:latest pnpm dev:agent
 **商用・営利目的での利用は一切禁止**(本ソフトウェアの販売、有料サービスへの組み込みなど)。
 商用ライセンスは <contact@iosoftware.ai> までご連絡ください。
 
+- **公式サイト:** <https://palserver-GUI.iosoftware.ai>
 - **FAQ:** <https://faq.toc.icu/>
 - **Discord:** <https://discord.gg/sgMMdUZd3V>
 - **インストール・接続ガイド(プレイヤー向け、中国語):** [docs/INSTALL.zh-TW.md](docs/INSTALL.zh-TW.md)

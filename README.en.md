@@ -2,6 +2,8 @@
 
 [繁體中文](README.md) | **English** | [日本語](README.ja.md)
 
+<p align="center"><a href="https://palserver-GUI.iosoftware.ai"><b>Official site: palserver-GUI.iosoftware.ai</b></a> — downloads, guides & FAQ</p>
+
 **A graphical management tool for Palworld dedicated servers.**
 Run one agent on your host machine, then manage the server from a browser — start the server, tweak settings, watch players, back up saves, install mods, all without touching a command line.
 
@@ -308,6 +310,7 @@ PalDefender features like Pal import rules. See [TODO.md](TODO.md) for the roadm
 noncommercial purposes; **any commercial / for-profit use is not permitted** (selling this software, bundling it into a
 paid service, etc.). For commercial licensing contact <contact@iosoftware.ai>.
 
+- **Official site:** <https://palserver-GUI.iosoftware.ai>
 - **FAQ:** <https://faq.toc.icu/>
 - **Discord:** <https://discord.gg/sgMMdUZd3V>
 - **Install & connection guide (for players, Chinese):** [docs/INSTALL.zh-TW.md](docs/INSTALL.zh-TW.md)
