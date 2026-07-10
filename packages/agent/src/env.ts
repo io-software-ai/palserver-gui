@@ -1,7 +1,12 @@
 import path from "node:path";
 import os from "node:os";
 
-export const AGENT_VERSION = "2.0.0-alpha.0";
+/**
+ * 版本字串。release 打包時由 bundle-agent.mjs 依 git tag 用 esbuild define 注入
+ * process.env.PALSERVER_AGENT_VERSION(所以免安裝執行檔的版本永遠等於它被建置的那個
+ * tag)。開發時沒注入就退回下面這個字面值。務必:每次發版讓 tag 決定版本,不要再靠手改。
+ */
+export const AGENT_VERSION = process.env.PALSERVER_AGENT_VERSION ?? "2.0.0-alpha.2";
 
 export const DATA_DIR = process.env.PALSERVER_DATA_DIR
   ? path.resolve(process.env.PALSERVER_DATA_DIR)

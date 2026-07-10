@@ -10,7 +10,14 @@ import { renderPalWorldSettingsIni } from "./settings-ini.js";
 export const docker = new Docker(); // default: /var/run/docker.sock
 
 function containerName(rec: InstanceRecord): string {
-  return `${CONTAINER_PREFIX}${rec.name}`;
+  // 容器名只是給人看的 —— agent 一律靠 label(INSTANCE_LABEL=id)找容器,不靠名字。
+  // 因此把顯示名稱正規化成 Docker 允許的字元(中文等非 ASCII 會被濾掉),再接上唯一的
+  // id,確保容器名永遠合法(Docker 只收 [a-zA-Z0-9_.-])且不會撞名。
+  const slug = rec.name
+    .replace(/[^a-zA-Z0-9_.-]/g, "")
+    .replace(/^[-_.]+/, "")
+    .slice(0, 40);
+  return `${CONTAINER_PREFIX}${slug ? `${slug}-` : ""}${rec.id}`;
 }
 
 async function findContainer(rec: InstanceRecord): Promise<Docker.Container | null> {

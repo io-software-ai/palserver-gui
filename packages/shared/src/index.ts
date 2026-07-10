@@ -53,11 +53,9 @@ export const BackendSchema = z.enum(["native", "docker"]);
 export type Backend = z.infer<typeof BackendSchema>;
 
 export const CreateInstanceSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(32)
-    .regex(/^[a-z0-9][a-z0-9-]*$/, "lowercase letters, digits and dashes"),
+  // 顯示名稱,允許中文、底線、破折號、空白等任意字元。實際的資料夾用隨機 id、
+  // Docker 容器名會自動正規化,所以名稱不需要限制字元集,只要非空、長度合理即可。
+  name: z.string().trim().min(1).max(40),
   backend: BackendSchema.default("native"),
   flavor: z.enum(["vanilla", "modded"]).default("vanilla"),
   /** UDP port the server listens on (host port for docker). */

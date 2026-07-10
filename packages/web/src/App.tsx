@@ -260,8 +260,8 @@ function CreateDialog({
             className={inputCls}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="my-server"
-            pattern="[a-z0-9][a-z0-9-]*"
+            placeholder={t("例:我的帕魯伺服器")}
+            maxLength={40}
             required
           />
         </label>
