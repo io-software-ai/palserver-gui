@@ -41,16 +41,16 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
         <i className="b" />
       </div>
       <Nav d={d.nav} lang={lang} />
-      <Hero d={d.hero} />
+      <Hero d={d.hero} lang={lang} />
       <main>
         <Stats d={d.stats} />
         <Why d={d.why} />
         <HowItWorks d={d.how} />
-        <Features d={d.features} />
+        <Features d={d.features} lang={lang} />
         <Audience d={d.audience} />
         <Wishes d={d.wishes} />
-        <GetStarted d={d.getStarted} />
-        <NiceDetails d={d.niceDetails} />
+        <GetStarted d={d.getStarted} lang={lang} />
+        <NiceDetails d={d.niceDetails} lang={lang} />
         <Team d={d.team} />
         <ClosingCta d={d.closing} />
       </main>

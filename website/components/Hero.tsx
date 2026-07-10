@@ -1,7 +1,8 @@
 import Shot from './Shot';
 import type { Dictionary } from '@/i18n/dictionaries';
+import type { Locale } from '@/i18n/config';
 
-export default function Hero({ d }: { d: Dictionary['hero'] }) {
+export default function Hero({ d, lang }: { d: Dictionary['hero']; lang: Locale }) {
   return (
     <header id="top">
       <div className="wrap">
@@ -35,7 +36,7 @@ export default function Hero({ d }: { d: Dictionary['hero'] }) {
           ))}
         </div>
         <div className="hero-shot">
-          <Shot src="/assets/overview.jpg" alt={d.shotAlt} label={d.shotLabel} width={1320} height={848} priority />
+          <Shot src={`/assets/${lang}/overview.jpg`} alt={d.shotAlt} label={d.shotLabel} width={1320} height={848} priority />
         </div>
       </div>
     </header>

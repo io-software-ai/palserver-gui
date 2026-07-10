@@ -1,18 +1,19 @@
 import Shot from './Shot';
 import { Check } from './icons';
 import type { Dictionary } from '@/i18n/dictionaries';
+import type { Locale } from '@/i18n/config';
 
-/** 每個功能對應的截圖與版面(圖片檔、尺寸、左右交錯、技術小標),文字則來自字典。 */
-const SHOTS: { kick: string; src: string; width: number; height: number; reverse?: boolean }[] = [
-  { kick: 'Dashboard', src: '/assets/dashboard.jpg', width: 1320, height: 848 },
-  { kick: 'Settings & Tuning', src: '/assets/engine.jpg', width: 1320, height: 848, reverse: true },
-  { kick: 'Mods', src: '/assets/mods.jpg', width: 1320, height: 848 },
-  { kick: 'Performance', src: '/assets/performance.jpg', width: 1300, height: 835, reverse: true },
-  { kick: 'World settings', src: '/assets/world.jpg', width: 1320, height: 848 },
-  { kick: 'Multi-device', src: '/assets/settings-modal.jpg', width: 1320, height: 1012, reverse: true },
+/** 每個功能對應的截圖與版面(圖片名、尺寸、左右交錯、技術小標),文字與圖片語系由外層帶入。 */
+const SHOTS: { kick: string; name: string; width: number; height: number; reverse?: boolean }[] = [
+  { kick: 'Dashboard', name: 'dashboard', width: 1320, height: 848 },
+  { kick: 'Settings & Tuning', name: 'engine', width: 1320, height: 848, reverse: true },
+  { kick: 'Mods', name: 'mods', width: 1320, height: 848 },
+  { kick: 'Performance', name: 'performance', width: 1300, height: 835, reverse: true },
+  { kick: 'World settings', name: 'world', width: 1320, height: 848 },
+  { kick: 'Multi-device', name: 'settings-modal', width: 1320, height: 1012, reverse: true },
 ];
 
-export default function Features({ d }: { d: Dictionary['features'] }) {
+export default function Features({ d, lang }: { d: Dictionary['features']; lang: Locale }) {
   return (
     <section id="features">
       <div className="wrap">
@@ -45,7 +46,7 @@ export default function Features({ d }: { d: Dictionary['features'] }) {
                     </ul>
                   )}
                 </div>
-                <Shot src={s.src} alt={f.alt} label={f.label} width={s.width} height={s.height} />
+                <Shot src={`/assets/${lang}/${s.name}.jpg`} alt={f.alt} label={f.label} width={s.width} height={s.height} />
               </div>
             );
           })}

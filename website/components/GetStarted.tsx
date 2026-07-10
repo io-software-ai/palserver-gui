@@ -1,7 +1,8 @@
 import Shot from './Shot';
 import type { Dictionary } from '@/i18n/dictionaries';
+import type { Locale } from '@/i18n/config';
 
-export default function GetStarted({ d }: { d: Dictionary['getStarted'] }) {
+export default function GetStarted({ d, lang }: { d: Dictionary['getStarted']; lang: Locale }) {
   return (
     <section id="start">
       <div className="wrap">
@@ -19,7 +20,7 @@ export default function GetStarted({ d }: { d: Dictionary['getStarted'] }) {
           ))}
         </div>
         <div style={{ marginTop: 34 }}>
-          <Shot src="/assets/login.jpg" alt={d.shotAlt} label={d.shotLabel} width={1320} height={984} />
+          <Shot src={`/assets/${lang}/login.jpg`} alt={d.shotAlt} label={d.shotLabel} width={1320} height={984} />
         </div>
         <figcaption>{d.figcaption}</figcaption>
       </div>
