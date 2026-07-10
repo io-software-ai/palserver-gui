@@ -15,12 +15,20 @@ Set-Location (Join-Path $PSScriptRoot "..")
 $before = (git rev-parse --short HEAD)
 Write-Host "[目前版本] $before" -ForegroundColor DarkGray
 
-# 本機若有未提交改動, git pull 會中止 -> 先講清楚, 不要默默失敗
+# package.json / pnpm-lock.yaml 常因 Windows 上跑 pnpm install 而漂移, 這會讓
+# git pull 每次中止 -> 卡在舊版. 這兩個檔不該手改, 直接還原成 repo 版本再 pull.
+$drift = (git status --porcelain -- package.json pnpm-lock.yaml)
+if ($drift) {
+  Write-Host "[修正] package.json / pnpm-lock.yaml 有本機漂移, 還原以便更新 ..." -ForegroundColor Yellow
+  git checkout -- package.json pnpm-lock.yaml
+}
+
+# 其餘若還有未提交改動, 明確提示 (不自動丟棄, 可能是你要保留的)
 $dirty = (git status --porcelain)
 if ($dirty) {
-  Write-Host "[警告] 偵測到本機有未提交的改動, git pull 可能會失敗:" -ForegroundColor Yellow
+  Write-Host "[警告] 本機仍有未提交改動, git pull 可能中止:" -ForegroundColor Yellow
   Write-Host $dirty
-  Write-Host "若這些不是你要保留的, 執行  git stash  後再跑本腳本." -ForegroundColor Yellow
+  Write-Host "若不需保留, 執行  git stash  後再跑本腳本." -ForegroundColor Yellow
 }
 
 Write-Host "[1/3] git pull ..." -ForegroundColor Cyan
