@@ -38,13 +38,19 @@ export function ModsTab({
 }) {
   useI18n();
   const [mods, setMods] = useState<ModsStatus | null>(null);
+  const [pakMods, setPakMods] = useState<{ name: string; size: number; enabled: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [browsing, setBrowsing] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      setMods(await client.mods(instanceId));
+      const [modStatus, pakList] = await Promise.allSettled([
+        client.mods(instanceId),
+        client.listPakMods(instanceId),
+      ]);
+      if (modStatus.status === "fulfilled") setMods(modStatus.value);
+      if (pakList.status === "fulfilled") setPakMods(pakList.value.mods);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -100,9 +106,27 @@ export function ModsTab({
 
   if (!mods.supported) {
     return (
-      <div className="rounded-(--radius-cute) border-2 border-dashed border-line px-6 py-12 text-center text-ink-muted">
-        <FiPackage className="mx-auto mb-2 size-11" />
-        {mods.reason}
+      <div className="flex flex-col gap-4">
+        {error && <p className={errorCls}>{error}</p>}
+        <div className="rounded-(--radius-cute) border-2 border-dashed border-line px-6 py-8 text-center text-ink-muted">
+          <FiPackage className="mx-auto mb-2 size-11" />
+          {mods.reason}
+        </div>
+        <PakModCard
+          pakMods={pakMods}
+          busy={!!busy}
+          onToggle={async (name, enabled) => {
+            try { setBusy(name); await client.togglePakMod(instanceId, name, enabled); await refresh(); }
+            catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+            finally { setBusy(null); }
+          }}
+          onRemove={async (name) => {
+            if (!confirm(t("確定要移除 {name}？", { name }))) return;
+            try { setBusy(name); await client.removePakMod(instanceId, name); await refresh(); }
+            catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+            finally { setBusy(null); }
+          }}
+        />
       </div>
     );
   }
@@ -272,6 +296,81 @@ export function ModsTab({
             void refresh();
           }}
         />
+      )}
+
+      <PakModCard
+        pakMods={pakMods}
+        busy={!!busy}
+        onToggle={async (name, enabled) => {
+          try { setBusy(name); await client.togglePakMod(instanceId, name, enabled); await refresh(); }
+          catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+          finally { setBusy(null); }
+        }}
+        onRemove={async (name) => {
+          if (!confirm(t("確定要移除 {name}？", { name }))) return;
+          try { setBusy(name); await client.removePakMod(instanceId, name); await refresh(); }
+          catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+          finally { setBusy(null); }
+        }}
+      />
+    </div>
+  );
+}
+
+/** Pak mod 管理卡片（跨平台：native/docker/k8s）。 */
+function PakModCard({
+  pakMods,
+  busy,
+  onToggle,
+  onRemove,
+}: {
+  pakMods: { name: string; size: number; enabled: boolean }[];
+  busy: boolean;
+  onToggle: (name: string, enabled: boolean) => Promise<void>;
+  onRemove: (name: string) => Promise<void>;
+}) {
+  const fmtSize = (n: number) =>
+    n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : n > 0 ? `${(n / (1 << 10)).toFixed(0)} KB` : "—";
+
+  return (
+    <div className={card}>
+      <div className="mb-2 flex items-center gap-2">
+        <FiPackage className="size-5 text-grass" />
+        <h3 className="text-sm font-extrabold">{t("Pak 模組")}</h3>
+        <span className="rounded-full bg-grass/10 px-2 py-0.5 text-[11px] font-bold text-grass">
+          {t("跨平台")}
+        </span>
+      </div>
+      <p className="mb-3 text-[13px] text-ink-muted">
+        {t(".pak 檔放入 Pal/Content/Paks/ 後由遊戲引擎自動載入,不需 UE4SS。透過檔案管理上傳 pak 後在此管理。")}
+      </p>
+      {pakMods.length === 0 ? (
+        <p className="text-[13px] text-ink-muted">{t("目前沒有 pak 模組。")}</p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {pakMods.map((mod) => (
+            <li key={mod.name} className="flex items-center justify-between gap-2 rounded-lg bg-cream px-3 py-2 text-[13px]">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${mod.enabled ? "bg-grass/15 text-grass" : "bg-ink/10 text-ink-muted"}`}
+                  onClick={() => onToggle(mod.name, !mod.enabled)}
+                  disabled={busy}
+                >
+                  {mod.enabled ? t("啟用") : t("停用")}
+                </button>
+                <span className="truncate font-mono">{mod.name}</span>
+                <span className="shrink-0 text-ink-muted">{fmtSize(mod.size)}</span>
+              </div>
+              <button
+                className="shrink-0 text-error/70 hover:text-error"
+                onClick={() => onRemove(mod.name)}
+                disabled={busy}
+              >
+                <FiTrash2 className="size-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

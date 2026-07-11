@@ -189,6 +189,42 @@ export async function streamLogs(
 
 import type { ServerDriver } from "./driver.js";
 
+/** Run a command inside the instance's Docker container and return stdout. */
+export async function execInContainer(
+  rec: InstanceRecord,
+  command: string[],
+): Promise<string> {
+  const container = await findContainer(rec);
+  if (!container) throw Object.assign(new Error("找不到容器"), { statusCode: 409 });
+  const exec = await container.exec({
+    Cmd: command,
+    AttachStdout: true,
+    AttachStderr: true,
+  });
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const chunks: Buffer[] = [];
+  stdout.on("data", (c) => chunks.push(Buffer.from(c)));
+  await new Promise<void>((resolve, reject) => {
+    exec.start({ hijack: true, stdin: false }, (err, stream) => {
+      if (err) return reject(err);
+      if (!stream) return reject(new Error("exec stream is null"));
+      docker.modem.demuxStream(stream, stdout, stderr);
+      stream.on("end", resolve);
+      stream.on("error", reject);
+    });
+  });
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/** List files in a directory inside the container. */
+export async function listInContainer(
+  rec: InstanceRecord,
+  dirPath: string,
+): Promise<string> {
+  return execInContainer(rec, ["ls", "-1", dirPath]).then((s) => s.trim());
+}
+
 export const dockerDriver: ServerDriver = {
   status: (rec) => getStatus(rec),
   start: (rec, ctx) => startInstance(rec, ctx.instanceDir),
