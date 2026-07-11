@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import '../globals.css';
 import { locales, isLocale, defaultLocale, htmlLang, ogLocale, alternateLanguages, type Locale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
 
@@ -119,11 +118,11 @@ export default async function LangLayout({
   };
 
   return (
-    <html lang={htmlLang[lang]}>
-      <body>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-        {children}
-      </body>
-    </html>
+    <>
+      {/* 根 layout 的 <html lang> 預設繁中,這裡依語系即時修正(parse 時就跑,先於水合)。 */}
+      <script dangerouslySetInnerHTML={{ __html: `document.documentElement.lang=${JSON.stringify(htmlLang[lang])}` }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {children}
+    </>
   );
 }

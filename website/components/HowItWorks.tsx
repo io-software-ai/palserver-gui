@@ -4,7 +4,7 @@ export default function HowItWorks({ d }: { d: Dictionary['how'] }) {
   return (
     <section id="how" className="band">
       <div className="wrap">
-        <div className="col">
+        <div className="col reveal">
           <p className="eyebrow">{d.eyebrow}</p>
           <h2>{d.h2}</h2>
           <p className="sec-lead">{d.lead}</p>

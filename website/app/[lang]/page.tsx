@@ -36,6 +36,7 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
+      <div className="prog" aria-hidden="true" />
       <div className="bg" aria-hidden="true">
         <i className="a" />
         <i className="b" />

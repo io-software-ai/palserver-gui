@@ -30,8 +30,23 @@ export const WEB_ORIGINS = (process.env.PALSERVER_WEB_ORIGINS ?? "")
 /** 設 =1 以 HTTPS 監聽(自簽憑證自動生成於 data-dir/tls,或放自己的憑證進去)。 */
 export const TLS_ENABLED = process.env.PALSERVER_TLS === "1";
 
-/** 啟動時自動打開瀏覽器到本機管理介面;當服務/headless 執行時設 PALSERVER_NO_OPEN=1 關閉。 */
-export const OPEN_BROWSER = process.env.PALSERVER_NO_OPEN !== "1";
+/** 是否以「免安裝執行檔」執行(玩家雙擊的那顆),而非開發模式的 node/tsx。
+ *  判斷依據:execPath 的檔名就是我們的執行檔;開發時它會是 node 或 tsx。 */
+export const IS_PORTABLE_EXE = (() => {
+  const base = path.basename(process.execPath).toLowerCase();
+  return base === "palserver-agent" || base === "palserver-agent.exe";
+})();
+
+/** 啟動時自動打開瀏覽器到本機管理介面。
+ *  預設只在免安裝執行檔(玩家雙擊)時開 —— 開發模式(pnpm dev / tsx watch)不開,
+ *  否則每次存檔重啟都會彈一個新分頁。可用環境變數覆寫:
+ *    PALSERVER_NO_OPEN=1 一律不開;PALSERVER_OPEN=1 一律開(即使開發模式)。 */
+export const OPEN_BROWSER =
+  process.env.PALSERVER_NO_OPEN === "1"
+    ? false
+    : process.env.PALSERVER_OPEN === "1"
+      ? true
+      : IS_PORTABLE_EXE;
 
 /** Docker images used for each flavor; override to pin versions or use a registry. */
 export const IMAGES: Record<"vanilla" | "modded", string> = {
@@ -51,6 +66,9 @@ export const STATS_URL =
 
 /** 設 PALSERVER_TELEMETRY=0 強制停用匿名使用統計(優先於 GUI 內的開關)。 */
 export const TELEMETRY_DISABLED_BY_ENV = process.env.PALSERVER_TELEMETRY === "0";
+
+/** 贊助者識別碼(先行版授權)驗證端 —— 與 stats 同一個 worker,可用環境變數覆寫。 */
+export const LICENSE_URL = process.env.PALSERVER_LICENSE_URL ?? STATS_URL;
 
 export const CONTAINER_PREFIX = "palserver-";
 export const INSTANCE_LABEL = "app.palserver.instance";

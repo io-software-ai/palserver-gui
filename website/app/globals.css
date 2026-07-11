@@ -10,7 +10,7 @@
 :root[data-theme="light"]{--paper:#F7F5FB;--card:#FFFFFF;--card-2:#F3F0FB;--ink:#28243A;--muted:#7C778F;--line:#E7E2F2;--pal:#7A5FCF;--pal-deep:#5F45BE;--pal-soft:#EFE9FB;--on-pal:#FFFFFF;--shadow:0 16px 40px -18px rgba(70,50,140,.22);--nav:rgba(247,245,251,.82)}
 :root[data-theme="dark"]{--paper:#201C2C;--card:#2C2839;--card-2:#322E42;--ink:#ECEAF2;--muted:#A9A5BB;--line:#403C52;--pal:#A594E8;--pal-deep:#A594E8;--pal-soft:rgba(124,99,216,.14);--on-pal:#0F0C17;--shadow:0 18px 44px -18px rgba(0,0,0,.6);--nav:rgba(32,28,44,.82)}
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;overflow-x:clip}
 body{margin:0;background:var(--paper);color:var(--ink);line-height:1.75;-webkit-font-smoothing:antialiased;
   font-family:"PingFang TC","Noto Sans TC","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   -webkit-user-select:none;user-select:none}
@@ -41,10 +41,31 @@ nav .sp{flex:1}
 .btn-g{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
 .btn-sm{padding:8px 15px;font-size:13.5px}
 .btn svg{flex-shrink:0}
-@media(max-width:420px){
-  nav .in{padding:10px 14px;gap:8px}
-  nav .logo{font-size:14px}
-  .btn-sm{padding:7px 12px;font-size:12.5px;gap:6px}
+/* header 控制項統一高度:切換器與按鈕同高,border-box 讓有無邊框都吸進 38px */
+nav .lang,nav .in .btn{height:38px}
+nav .in .btn{padding:0 15px}
+/* 桌機:控制項排成一列;手機收進漢堡選單 */
+nav .navctl{display:inline-flex;align-items:center;gap:12px}
+/* 漢堡按鈕(手機才顯示) */
+nav .menu{display:none;position:relative}
+.burger{width:40px;height:40px;padding:0;border-radius:14px;border:1.5px solid var(--line);background:var(--card);display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;flex-shrink:0}
+.burger span{display:block;width:18px;height:2px;border-radius:2px;background:var(--ink);transition:transform .2s ease,opacity .2s ease}
+.burger[aria-expanded="true"] span:nth-child(1){transform:translateY(6px) rotate(45deg)}
+.burger[aria-expanded="true"] span:nth-child(2){opacity:0}
+.burger[aria-expanded="true"] span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+/* 下拉面板 */
+/* 面板從漢堡按鈕那角落放大展開(transform-origin 對齊按鈕);圓角與按鈕統一為 14px */
+.panel{position:absolute;top:calc(100% + 10px);right:0;min-width:216px;max-width:calc(100vw - 28px);display:flex;flex-direction:column;gap:6px;padding:12px;background:var(--card);border:1.5px solid var(--line);border-radius:14px;box-shadow:var(--shadow);z-index:60;transform-origin:top right;transform:translateY(-8px) scale(.92);opacity:0;visibility:hidden;transition:transform .2s cubic-bezier(.2,.85,.3,1.25),opacity .15s ease,visibility 0s linear .2s}
+.panel.open{transform:translateY(0) scale(1);opacity:1;visibility:visible;transition:transform .22s cubic-bezier(.2,.85,.3,1.25),opacity .18s ease}
+@media(prefers-reduced-motion:reduce){.panel,.panel.open{transition:none}}
+.panel a:not(.btn){font-size:14.5px;font-weight:600;color:var(--muted);padding:9px 12px;border-radius:10px;white-space:nowrap}
+.panel a:not(.btn):hover{color:var(--ink);background:var(--card-2)}
+.panel .lang{align-self:center;margin:4px 0}
+.panel .btn{width:100%;justify-content:center}
+.pdiv{height:1px;background:var(--line);margin:4px 2px}
+@media(max-width:860px){
+  nav .navctl{display:none}
+  nav .menu{display:inline-flex;align-items:center}
 }
 
 /* ambient */
@@ -171,9 +192,14 @@ figcaption{color:var(--muted);font-size:13.5px;margin-top:12px}
 footer{padding:44px 0 72px;text-align:center;color:var(--muted);font-size:13px}
 footer .flogo{display:inline-block;margin-bottom:18px;transition:transform .15s ease}
 footer .flogo:hover{transform:translateY(-2px)}
-footer .flogo img{height:84px;width:auto;border-radius:16px;display:block;box-shadow:0 10px 28px -12px rgba(0,0,0,.4)}
-@media(max-width:640px){footer .flogo img{height:68px;border-radius:14px}}
+footer .flogo img{height:76px;width:auto;display:block}
+@media(max-width:640px){footer .flogo img{height:56px}}
+/* 去背 logo 字符為淺色:深色模式維持原樣,淺色模式反相成深色才看得見 */
+@media(prefers-color-scheme:light){footer .flogo img{filter:invert(1)}}
+:root[data-theme="light"] footer .flogo img{filter:invert(1)}
+:root[data-theme="dark"] footer .flogo img{filter:none}
 footer p{margin:0 0 6px}
+footer .credit{text-wrap:balance}
 
 /* 手機優化 */
 @media(max-width:640px){
@@ -188,13 +214,77 @@ footer p{margin:0 0 6px}
   .wish{padding:18px 16px}
 }
 
-.reveal{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s ease}
+/* ============ 捲動特效 scroll effects ============ */
+/* 進場基礎:更順的緩動 + 位移 + 微縮放 */
+.reveal{opacity:0;transform:translateY(30px) scale(.985);transition:opacity .7s cubic-bezier(.22,.61,.36,1),transform .85s cubic-bezier(.22,.61,.36,1)}
 .reveal.in{opacity:1;transform:none}
-@media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}.btn:hover{transform:none}html{scroll-behavior:auto}.flow i,.node.mid::before{animation:none}.stats.reveal .stat b{opacity:1;transform:none;transition:none}}
+
+/* 功能列:左右交錯滑入;列內截圖交給整列動畫,關掉自身位移避免疊加 */
+.frow.reveal{transform:translateX(-48px)}
+.frow.reveal.rev{transform:translateX(48px)}
+.frow.reveal.in{transform:none}
+.frow .shot.reveal{opacity:1;transform:none;transition:none}
+
+/* 區塊標題層疊:eyebrow → 標題 → 說明 依序浮現(整塊不隱藏,只動子元素) */
+.col.reveal{opacity:1;transform:none}
+.col.reveal .eyebrow,.col.reveal h2,.col.reveal h3,.col.reveal .sec-lead{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .7s cubic-bezier(.22,.61,.36,1)}
+.col.reveal.in .eyebrow{opacity:1;transform:none}
+.col.reveal.in h2,.col.reveal.in h3{opacity:1;transform:none;transition-delay:.09s}
+.col.reveal.in .sec-lead{opacity:1;transform:none;transition-delay:.18s}
+
+/* 卡片網格依序層疊 */
+.split .aud.reveal:nth-child(2){transition-delay:.1s}
+.steps .step.reveal:nth-child(2){transition-delay:.12s}
+.steps .step.reveal:nth-child(3){transition-delay:.24s}
+.wishg .wish.reveal:nth-child(2){transition-delay:.08s}
+.wishg .wish.reveal:nth-child(3){transition-delay:.16s}
+.wishg .wish.reveal:nth-child(4){transition-delay:.24s}
+
+/* 團隊成員:整塊 reveal 後依序彈入 */
+.teamg.reveal .mem{opacity:0;transform:translateY(20px) scale(.96)}
+.teamg.reveal.in .mem{animation:popIn .6s cubic-bezier(.2,.8,.3,1.2) both}
+.teamg.reveal.in .mem:nth-child(2){animation-delay:.07s}
+.teamg.reveal.in .mem:nth-child(3){animation-delay:.14s}
+.teamg.reveal.in .mem:nth-child(4){animation-delay:.21s}
+.teamg.reveal.in .mem:nth-child(5){animation-delay:.28s}
+.teamg.reveal.in .mem:nth-child(6){animation-delay:.35s}
+@keyframes popIn{from{opacity:0;transform:translateY(20px) scale(.96)}to{opacity:1;transform:none}}
+
+/* Hero 進場層疊(載入即播,不需捲動) */
+@media(prefers-reduced-motion:no-preference){
+  header .eyebrow,header h1,header .sub,header .cta,header .chips,header .hero-shot{animation:heroIn .85s cubic-bezier(.22,.61,.36,1) both}
+  header h1{animation-delay:.07s}
+  header .sub{animation-delay:.15s}
+  header .cta{animation-delay:.23s}
+  header .chips{animation-delay:.31s}
+  header .hero-shot{animation-delay:.4s;animation-duration:1.05s}
+  .hero-shot .shot.reveal{opacity:1;transform:none;transition:none}
+}
+@keyframes heroIn{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+
+/* 頂端捲動進度條 + 環境光暈視差(scroll-driven, 由合成緒處理, 效能佳) */
+.prog{position:fixed;inset:0 0 auto 0;height:3px;transform-origin:0 50%;transform:scaleX(0);background:linear-gradient(90deg,var(--pal),var(--sky));box-shadow:0 0 12px -2px var(--pal);z-index:100;pointer-events:none}
+@supports (animation-timeline:scroll()){@media(prefers-reduced-motion:no-preference){
+  .prog{animation:progGrow linear both;animation-timeline:scroll(root)}
+  .bg .a{animation:floatA linear both;animation-timeline:scroll(root)}
+  .bg .b{animation:floatB linear both;animation-timeline:scroll(root)}
+}}
+@keyframes progGrow{to{transform:scaleX(1)}}
+@keyframes floatA{to{transform:translateY(260px)}}
+@keyframes floatB{to{transform:translateY(-220px)}}
+
+@media(prefers-reduced-motion:reduce){
+  .reveal,.frow.reveal,.frow.reveal.rev,.col.reveal .eyebrow,.col.reveal h2,.col.reveal h3,.col.reveal .sec-lead,.teamg.reveal .mem{opacity:1!important;transform:none!important;transition:none!important;animation:none!important}
+  .btn:hover{transform:none}
+  html{scroll-behavior:auto}
+  .flow i,.node.mid::before{animation:none}
+  .stats.reveal .stat b{opacity:1;transform:none;transition:none}
+  .prog{display:none}
+}
 
 /* language switch */
-nav .lang{display:inline-flex;align-items:center;gap:1px;padding:2px;border:1.5px solid var(--line);border-radius:999px;background:var(--card);flex-shrink:0}
-nav .lang a{font-size:12px;font-weight:700;color:var(--muted);padding:5px 9px;border-radius:999px;white-space:nowrap;line-height:1;transition:color .15s ease,background .15s ease}
+/* align-items:stretch 讓選中膠囊填滿內軌高度,圓角半徑才與外框同心、弧度一致 */
+nav .lang{display:inline-flex;align-items:stretch;gap:1px;padding:2px;border:1.5px solid var(--line);border-radius:999px;background:var(--card);flex-shrink:0}
+nav .lang a{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--muted);padding:4px 11px;border-radius:999px;white-space:nowrap;line-height:1;transition:color .15s ease,background .15s ease}
 nav .lang a:hover{color:var(--ink)}
 nav .lang a.on{background:var(--pal);color:var(--on-pal)}
-@media(max-width:600px){nav .lang a{padding:5px 7px;font-size:11px}nav a.btn-g.btn-sm{display:none}}

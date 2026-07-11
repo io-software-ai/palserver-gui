@@ -5,6 +5,7 @@ export * from "./options.js";
 export * from "./commands.js";
 export * from "./engine-options.js";
 export * from "./paldefender-options.js";
+export * from "./features.js";
 
 /** Value type an option can hold at runtime. */
 export type WorldOptionValue = string | number | boolean;
@@ -73,6 +74,62 @@ export const CreateInstanceSchema = z.object({
 });
 export type CreateInstanceInput = z.infer<typeof CreateInstanceSchema>;
 
+/**
+ * 自訂帕魯(贊助者先行版功能 custom-pal):透過 PalDefender 的 PalTemplate + RCON
+ * `givepal_j` 發一隻客製帕魯給玩家。欄位對應 PalTemplate:詞條=Passives、體質=IVs、
+ * 星星=CondensedPals、靈魂=PalSouls。省略的欄位就用 PalDefender 預設。
+ */
+export const CustomPalSchema = z
+  .object({
+    /** 給予方式:pal=直接給帕魯(givepal_j,需玩家);egg=給帕魯蛋(giveegg_j,需蛋 ID)。 */
+    mode: z.enum(["pal", "egg"]).default("pal"),
+    /** 目標玩家的 UserId(givepal_j 的第一個參數;egg 模式不需要)。 */
+    userId: z.string().trim().max(128).optional(),
+    /** 蛋 ID,例:PalEgg_Ice_01(giveegg_j 的第一個參數;pal 模式不需要)。 */
+    eggId: z.string().trim().max(64).optional(),
+    /** 帕魯種類 ID,例:Anubis(paldb.cc 可查)。 */
+    palId: z.string().trim().min(1).max(64),
+  nickname: z.string().trim().max(40).optional(),
+  gender: z.enum(["Male", "Female", "None"]).optional(),
+  level: z.number().int().min(1).max(100).optional(),
+  /** 主動技(最多 3 個技能 ID)。 */
+  activeSkills: z.array(z.string().trim().min(1).max(64)).max(3).optional(),
+  /** 詞條 / 被動技(技能 ID)。 */
+  passives: z.array(z.string().trim().min(1).max(64)).max(8).optional(),
+  /** 體質 / IV,0–255。 */
+  ivs: z
+    .object({
+      health: z.number().int().min(0).max(255).optional(),
+      attackMelee: z.number().int().min(0).max(255).optional(),
+      attackShot: z.number().int().min(0).max(255).optional(),
+      defense: z.number().int().min(0).max(255).optional(),
+    })
+    .optional(),
+  /** 星星 / 濃縮等級,0–4。 */
+  condensedPals: z.number().int().min(0).max(4).optional(),
+  /** 靈魂強化,每項 0–20。 */
+  souls: z
+    .object({
+      health: z.number().int().min(0).max(20).optional(),
+      attack: z.number().int().min(0).max(20).optional(),
+      defense: z.number().int().min(0).max(20).optional(),
+      craftSpeed: z.number().int().min(0).max(20).optional(),
+    })
+    .optional(),
+    partnerSkillLevel: z.number().int().min(1).max(5).optional(),
+  })
+  .refine((d) => (d.mode === "egg" ? !!d.eggId : !!d.userId), {
+    message: "pal 模式需要 userId,egg 模式需要 eggId",
+  });
+export type CustomPalInput = z.infer<typeof CustomPalSchema>;
+
+/** 最後一次安裝/更新失敗的原因,讓 UI 不用翻日誌就能看到。
+ *  code=disk-full 讓前端翻成友善的當地語言提示;其餘顯示 message 原文。 */
+export interface InstallError {
+  code: "disk-full" | "error";
+  message: string;
+}
+
 export interface InstanceSummary {
   id: string;
   name: string;
@@ -86,13 +143,19 @@ export interface InstanceSummary {
   updateAvailable: boolean | null;
   /** installed enhancements (PalDefender / UE4SS), for the 原味/強化 label */
   enhancements: string[];
+  /** 最後一次安裝/更新失敗的原因(成功或安裝中時為 null);僅 native。 */
+  installError: InstallError | null;
 }
 
 export interface InstanceDetail extends InstanceSummary {
   settings: WorldSettings;
   /** docker: container id · native: process id (null when not running). */
   runtimeId: string | null;
+  /** user-configured server dir; null when the agent picks the folder. */
   serverDir: string | null;
+  /** the actual absolute path the server files live in — resolved even when
+   * agent-managed (native only; null for docker). */
+  effectiveServerDir: string | null;
 }
 
 export interface InstanceStats {

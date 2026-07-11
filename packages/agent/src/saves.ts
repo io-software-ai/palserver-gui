@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import type { Readable } from "node:stream";
 import { promisify } from "node:util";
 import type { BackupInfo, SavesStatus, WorldSave } from "@palserver/shared";
 import type { DriverContext } from "./driver.js";
@@ -10,6 +11,41 @@ import { rest } from "./restapi.js";
 import { execInPod, listDirInPod, readFileInPod, tarDirInPod, untarIntoPod, writeFileInPod } from "./k8s.js";
 
 const execFileP = promisify(execFile);
+
+/**
+ * 「輕量可攜」匯出/複製要帶的東西:世界存檔 + ini 設定 + PalDefender 設定,
+ * 刻意排除可重新下載的遊戲執行檔(數十 GB)。路徑相對於 serverRoot,一律用
+ * 正斜線 —— tar 與 Node fs 在 Windows 也都吃正斜線。 */
+const PORTABLE_PATHS = [
+  "Pal/Saved/SaveGames",
+  "Pal/Saved/Config",
+  "Pal/Binaries/Win64/PalDefender/Config.json",
+];
+
+/** 存在於此 serverRoot 底下的可攜路徑(相對)。 */
+function existingPortablePaths(root: string): string[] {
+  return PORTABLE_PATHS.filter((p) => fs.existsSync(path.join(root, p)));
+}
+
+/** 匯出成 tar.gz 的可讀串流(存檔+設定,不含遊戲執行檔);沒東西可匯出時回 null。 */
+export function exportArchiveStream(rec: InstanceRecord, ctx: DriverContext): Readable | null {
+  const root = serverRoot(rec, ctx);
+  const rel = existingPortablePaths(root);
+  if (rel.length === 0) return null;
+  const child = spawn("tar", ["-czf", "-", "-C", root, ...rel], { windowsHide: true });
+  child.on("error", () => {}); // tar 不在時別讓它變成未捕捉例外;串流會提前結束
+  return child.stdout;
+}
+
+/** 把來源的存檔+設定複製到新實例的 serverRoot(複製伺服器用,不含遊戲執行檔)。 */
+export function copyPortableData(srcRoot: string, destRoot: string): void {
+  for (const rel of existingPortablePaths(srcRoot)) {
+    const from = path.join(srcRoot, rel);
+    const to = path.join(destRoot, rel);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.cpSync(from, to, { recursive: true });
+  }
+}
 
 /**
  * World-save and backup management.

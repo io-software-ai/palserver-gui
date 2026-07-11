@@ -8,7 +8,10 @@
     "typecheck": "tsc --noEmit",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:schema": "wrangler d1 execute palserver-stats --remote --file=schema.sql"
+    "db:schema": "wrangler d1 execute palserver-stats --remote --file=schema.sql",
+    "license:test": "node manage.mjs test-webhook",
+    "license:issue": "node manage.mjs issue",
+    "license:reset": "node manage.mjs reset"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260620.0",

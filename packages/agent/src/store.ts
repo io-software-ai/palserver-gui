@@ -77,7 +77,10 @@ export class InstanceStore {
     return full;
   }
 
-  update(id: string, patch: Partial<Pick<InstanceRecord, "settings">>): InstanceRecord {
+  update(
+    id: string,
+    patch: Partial<Pick<InstanceRecord, "settings" | "serverDir" | "serverDirManaged">>,
+  ): InstanceRecord {
     const rec = this.instances.get(id);
     if (!rec) throw new Error(`instance ${id} not found`);
     const next = { ...rec, ...patch };

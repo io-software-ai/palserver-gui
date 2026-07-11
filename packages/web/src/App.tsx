@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GiSheep, GiEggClutch } from "react-icons/gi";
-import { FiDownload, FiHeart, FiHelpCircle, FiPlus, FiSettings } from "react-icons/fi";
+import { FiDownload, FiHeart, FiHelpCircle, FiPlus, FiSettings, FiAlertTriangle } from "react-icons/fi";
 import type { InstanceSummary } from "@palserver/shared";
 import { AgentClient, loadConnection, saveConnection, type Connection } from "./api";
 import { usePromoConfig } from "./promoConfig";
@@ -177,6 +177,11 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
               {inst.updateAvailable && (
                 <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-sun/40 bg-sun/15 px-2.5 py-1 text-xs font-bold text-sun">
                   <FiDownload className="size-3.5" /> {t("有新版本可更新")}
+                </p>
+              )}
+              {inst.installError && (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-berry/40 bg-berry/10 px-2.5 py-1 text-xs font-bold text-berry">
+                  <FiAlertTriangle className="size-3.5" /> {t("安裝失敗")}
                 </p>
               )}
             </button>
