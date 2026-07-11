@@ -49,7 +49,7 @@ function ArgField({
   // Item/Pal id args get an icon search picker backed by the catalogs.
   if ((arg.name === "itemid" || arg.name === "eggid") && gameData) {
     return (
-      <label className={labelCls}>
+      <label className={`${labelCls} min-w-0`}>
         {t(arg.label)}
         {!arg.required && <span className="font-normal">{t("(選填)")}</span>}
         <EntityPicker
@@ -64,7 +64,7 @@ function ArgField({
   }
   if (arg.name === "palid" && gameData) {
     return (
-      <label className={labelCls}>
+      <label className={`${labelCls} min-w-0`}>
         {t(arg.label)}
         {!arg.required && <span className="font-normal">{t("(選填)")}</span>}
         <EntityPicker
@@ -84,15 +84,17 @@ function ArgField({
     const known = roster.find((p) => p.userId === value);
     if (value) {
       return (
-        <label className={labelCls}>
+        <label className={`${labelCls} min-w-0`}>
           {t(arg.label)}
           {!arg.required && <span className="font-normal">{t("(選填)")}</span>}
-          <div className={`${inputCls} flex items-center gap-2`}>
-            {known && <span className="font-bold text-ink">{known.name}</span>}
-            <SteamId userId={value} />
+          <div className={`${inputCls} flex min-w-0 items-center gap-2`}>
+            {known && <span className="truncate font-bold text-ink">{known.name}</span>}
+            <span className="min-w-0 flex-1 truncate">
+              <SteamId userId={value} />
+            </span>
             <button
               type="button"
-              className="ml-auto text-ink-muted transition hover:text-berry"
+              className="shrink-0 text-ink-muted transition hover:text-berry"
               onClick={() => onChange("")}
               aria-label={t("清除")}
             >
@@ -103,7 +105,7 @@ function ArgField({
       );
     }
     return (
-      <label className={labelCls}>
+      <label className={`${labelCls} min-w-0`}>
         {t(arg.label)}
         {!arg.required && <span className="font-normal">{t("(選填)")}</span>}
         {roster.length > 0 && (
@@ -140,7 +142,7 @@ function ArgField({
   }
 
   return (
-    <label className={labelCls}>
+    <label className={`${labelCls} min-w-0`}>
       {t(arg.label)}
       {!arg.required && <span className="font-normal">{t("(選填)")}</span>}
       <input

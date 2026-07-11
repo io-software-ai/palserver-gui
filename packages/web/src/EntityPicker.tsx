@@ -60,29 +60,33 @@ export function EntityPicker({
   // A value not in the catalog (raw id) is shown as-is in the text field.
   if (value && !open) {
     return (
-      <div className="flex items-center gap-2">
-        <div className={`${inputCls} flex flex-1 items-center gap-2`}>
-          {selected?.icon ? (
-            <img src={iconUrl(selected.icon)} alt="" className="size-6 shrink-0" />
+      <div className={`${inputCls} flex min-w-0 items-center gap-2`}>
+        {selected?.icon ? (
+          <img src={iconUrl(selected.icon)} alt="" className="size-6 shrink-0" />
+        ) : (
+          <span className="size-6 shrink-0 rounded bg-card-soft" />
+        )}
+        <span className="min-w-0 flex-1 truncate">
+          {selected ? (
+            <>
+              {displayName(selected)}
+              <span className="ml-2 font-mono text-xs text-ink-muted">{value}</span>
+            </>
           ) : (
-            <span className="size-6 shrink-0 rounded bg-card-soft" />
+            <span className="font-mono">{value}</span>
           )}
-          <span className="truncate">
-            {selected ? displayName(selected) : value}
-            <span className="ml-2 font-mono text-xs text-ink-muted">{value}</span>
-          </span>
-          <button
-            type="button"
-            className="ml-auto text-ink-muted transition hover:text-berry"
-            onClick={() => {
-              onChange("");
-              setOpen(true);
-            }}
-            aria-label={t("清除")}
-          >
-            <FiX className="size-4" />
-          </button>
-        </div>
+        </span>
+        <button
+          type="button"
+          className="shrink-0 text-ink-muted transition hover:text-berry"
+          onClick={() => {
+            onChange("");
+            setOpen(true);
+          }}
+          aria-label={t("清除")}
+        >
+          <FiX className="size-4" />
+        </button>
       </div>
     );
   }
@@ -131,11 +135,11 @@ export function EntityPicker({
               ) : (
                 <span className="size-7 shrink-0 rounded bg-card-soft" />
               )}
-              <span className="flex-1 truncate text-sm font-bold">
+              <span className="min-w-0 flex-1 truncate text-sm font-bold">
                 {displayName(entity)}
                 {entity.zh && <span className="ml-1.5 text-xs font-normal text-ink-muted">{entity.name}</span>}
               </span>
-              <span className="font-mono text-xs text-ink-muted">{entity.id}</span>
+              <span className="max-w-[45%] shrink-0 truncate font-mono text-xs text-ink-muted">{entity.id}</span>
             </button>
           ))}
         </div>
