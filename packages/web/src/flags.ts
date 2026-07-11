@@ -5,4 +5,4 @@
  * 全部隱藏。要正式公開時把這個改成 true(未來也可改接環境變數 / 遠端設定)即可,
  * 不用動各處元件。後端路由本來就有授權閘門,隱藏入口即足夠。
  */
-export const SHOW_SPONSOR_FEATURES = false;
+export const SHOW_SPONSOR_FEATURES = true;
