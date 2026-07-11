@@ -23,12 +23,7 @@ export default function RevealObserver() {
       { threshold: 0, rootMargin: '0px 0px -8% 0px' },
     );
     els.forEach((el) => io.observe(el));
-    // 安全網:1.6 秒後把還沒顯示的一律顯示(例如用錨點跳轉時), 絕不讓內容卡在隱藏。
-    const t = setTimeout(() => els.forEach(show), 1600);
-    return () => {
-      clearTimeout(t);
-      io.disconnect();
-    };
+    return () => io.disconnect();
   }, []);
   return null;
 }

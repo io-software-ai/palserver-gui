@@ -6,7 +6,7 @@ export default function GetStarted({ d, lang }: { d: Dictionary['getStarted']; l
   return (
     <section id="start">
       <div className="wrap">
-        <div className="col">
+        <div className="col reveal">
           <p className="eyebrow">{d.eyebrow}</p>
           <h2>{d.h2}</h2>
           <p className="sec-lead">{d.lead}</p>

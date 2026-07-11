@@ -17,7 +17,7 @@ export default function Features({ d, lang }: { d: Dictionary['features']; lang:
   return (
     <section id="features">
       <div className="wrap">
-        <div className="col">
+        <div className="col reveal">
           <p className="eyebrow">{d.eyebrow}</p>
           <h2>{d.h2}</h2>
           <p className="sec-lead">{d.lead}</p>

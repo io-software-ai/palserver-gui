@@ -1,5 +1,6 @@
 import { GitHubIcon, LogoMark } from './icons';
 import LangSwitch from './LangSwitch';
+import NavMenu from './NavMenu';
 import type { Dictionary } from '@/i18n/dictionaries';
 import type { Locale } from '@/i18n/config';
 
@@ -11,7 +12,7 @@ export default function Nav({ d, lang }: { d: Dictionary['nav']; lang: Locale })
           <span className="m">
             <LogoMark />
           </span>
-          palserver GUI
+          <span className="lt">palserver GUI</span>
         </a>
         <div className="links">
           <a href="#features">{d.features}</a>
@@ -20,14 +21,21 @@ export default function Nav({ d, lang }: { d: Dictionary['nav']; lang: Locale })
           <a href="#team">{d.team}</a>
         </div>
         <div className="sp" />
-        <LangSwitch current={lang} />
-        <a className="btn btn-g btn-sm" href="https://github.com/io-software-ai/palserver-gui">
-          <GitHubIcon />
-          {d.github}
-        </a>
-        <a className="btn btn-p btn-sm" href="https://github.com/io-software-ai/palserver-gui/releases">
-          {d.download}
-        </a>
+        {/* 桌機:一整排控制項;手機隱藏,改由 NavMenu 漢堡收納 */}
+        <div className="navctl">
+          <LangSwitch current={lang} />
+          <a className="btn btn-g btn-sm" href="https://github.com/io-software-ai/palserver-gui">
+            <GitHubIcon />
+            {d.github}
+          </a>
+          <a
+            className="btn btn-p btn-sm"
+            href="https://github.com/io-software-ai/palserver-gui/releases"
+          >
+            {d.download}
+          </a>
+        </div>
+        <NavMenu d={d} lang={lang} />
       </div>
     </nav>
   );
