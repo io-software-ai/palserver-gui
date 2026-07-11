@@ -29,6 +29,7 @@ import { dockerDriver } from "./docker.js";
 import { registerRoutes } from "./routes.js";
 import { announceBoot, trackPlayers } from "./telemetry.js";
 import { cleanupOldBinaries, startUpdateChecker, type UpdateOps } from "./self-update.js";
+import { refreshLicense } from "./license.js";
 import { startTray } from "./tray.js";
 
 // 啟動流程包在 async main() 內,讓 entry 沒有頂層 await —— 這樣才能打包成
@@ -171,6 +172,10 @@ registerRoutes(app, store, presence, scheduler, supervisor, auth, updateOps);
 await app.listen({ host: HOST, port: PORT });
 
 startUpdateChecker(updateOps);
+
+// 贊助者識別碼:啟動時驗證一次,之後定期重驗(內部有 12h 節流;訂閱到期/取消會在此收斂)。
+void refreshLicense(true).catch(() => {});
+setInterval(() => void refreshLicense().catch(() => {}), 6 * 60 * 60 * 1000).unref();
 
 app.log.info(`palserver-agent v${AGENT_VERSION} · data dir: ${DATA_DIR}`);
 

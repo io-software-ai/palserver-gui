@@ -67,5 +67,8 @@ export const STATS_URL =
 /** 設 PALSERVER_TELEMETRY=0 強制停用匿名使用統計(優先於 GUI 內的開關)。 */
 export const TELEMETRY_DISABLED_BY_ENV = process.env.PALSERVER_TELEMETRY === "0";
 
+/** 贊助者識別碼(先行版授權)驗證端 —— 與 stats 同一個 worker,可用環境變數覆寫。 */
+export const LICENSE_URL = process.env.PALSERVER_LICENSE_URL ?? STATS_URL;
+
 export const CONTAINER_PREFIX = "palserver-";
 export const INSTANCE_LABEL = "app.palserver.instance";

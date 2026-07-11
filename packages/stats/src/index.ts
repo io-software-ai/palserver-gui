@@ -14,6 +14,9 @@ export interface Env {
   /** 選填(wrangler secret put GITHUB_TOKEN):GitHub API 匿名請求常被限流,
    * 放一個唯讀 fine-grained token 可穩定抓下載數。 */
   GITHUB_TOKEN?: string;
+  /** 發/管理贊助者識別碼的管理密鑰(wrangler secret put ADMIN_TOKEN)。
+   * 沒設時 /api/license/issue 與 /reset 一律拒絕。 */
+  ADMIN_TOKEN?: string;
 }
 
 const EVENT_TYPES = ["hello", "instance_created", "server_started", "players_seen"] as const;
@@ -37,6 +40,10 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
     if (req.method === "POST" && url.pathname === "/api/event") return handleEvent(req, env);
     if (req.method === "GET" && url.pathname === "/api/stats") return handleStats(env);
+    // 贊助者識別碼(先行版授權)
+    if (req.method === "POST" && url.pathname === "/api/license/activate") return handleLicenseActivate(req, env);
+    if (req.method === "POST" && url.pathname === "/api/license/issue") return handleLicenseIssue(req, env);
+    if (req.method === "POST" && url.pathname === "/api/license/reset") return handleLicenseReset(req, env);
     return json({ error: "not found" }, 404);
   },
 } satisfies ExportedHandler<Env>;
@@ -148,4 +155,118 @@ async function githubDownloads(env: Env): Promise<number | null> {
   } catch {
     return cached?.total ?? null;
   }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * 贊助者識別碼(先行版授權)
+ *  - /api/license/activate {code, machineId} — 驗證 + 首次啟用綁機器(公開)
+ *  - /api/license/issue    {tier?, features?, sponsor?, expiresAt?} — 發碼(管理)
+ *  - /api/license/reset    {code} — 解除綁定,讓贊助者換機(管理)
+ * 管理端點需 header `X-Admin-Token: <ADMIN_TOKEN>`。
+ * ──────────────────────────────────────────────────────────────────────── */
+
+interface LicenseRow {
+  code: string;
+  tier: string;
+  features: string;
+  sponsor: string | null;
+  created_at: string;
+  expires_at: string | null;
+  bound_to: string | null;
+  activated_at: string | null;
+}
+
+const isAdmin = (req: Request, env: Env) =>
+  !!env.ADMIN_TOKEN && req.headers.get("X-Admin-Token") === env.ADMIN_TOKEN;
+
+/** 好念的識別碼:PAL-XXXX-XXXX-XXXX,字母表排除易混字(0/O/1/I）。 */
+function generateCode(): string {
+  const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  const chars = Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]);
+  return "PAL-" + [chars.slice(0, 4), chars.slice(4, 8), chars.slice(8, 12)].map((g) => g.join("")).join("-");
+}
+
+async function handleLicenseActivate(req: Request, env: Env): Promise<Response> {
+  let body: { code?: unknown; machineId?: unknown };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return json({ valid: false, reason: "invalid" }, 400);
+  }
+  const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
+  const machineId = typeof body.machineId === "string" ? body.machineId.slice(0, 64) : "";
+  if (!code || !machineId) return json({ valid: false, reason: "invalid" }, 400);
+
+  const row = await env.DB.prepare("SELECT * FROM licenses WHERE code = ?1").bind(code).first<LicenseRow>();
+  if (!row) return json({ valid: false, reason: "invalid" });
+
+  const now = new Date().toISOString();
+  if (row.expires_at && now > row.expires_at) {
+    return json({ valid: false, reason: "expired", tier: row.tier });
+  }
+  if (!row.bound_to) {
+    // 首次啟用:綁定這台機器。
+    await env.DB.prepare("UPDATE licenses SET bound_to = ?1, activated_at = ?2 WHERE code = ?3")
+      .bind(machineId, now, code)
+      .run();
+  } else if (row.bound_to !== machineId) {
+    return json({ valid: false, reason: "bound-to-another" });
+  }
+  return json({
+    valid: true,
+    tier: row.tier,
+    features: JSON.parse(row.features) as string[],
+    expiresAt: row.expires_at,
+  });
+}
+
+async function handleLicenseIssue(req: Request, env: Env): Promise<Response> {
+  if (!isAdmin(req, env)) return json({ error: "unauthorized" }, 401);
+  let body: { tier?: unknown; features?: unknown; sponsor?: unknown; expiresAt?: unknown };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    body = {};
+  }
+  const tier = typeof body.tier === "string" ? body.tier.slice(0, 32) : "sponsor";
+  const features = Array.isArray(body.features)
+    ? body.features.filter((f): f is string => typeof f === "string").slice(0, 32)
+    : ["custom-pal"];
+  const sponsor = typeof body.sponsor === "string" ? body.sponsor.slice(0, 200) : null;
+  const expiresAt = typeof body.expiresAt === "string" ? body.expiresAt.slice(0, 32) : null;
+  const now = new Date().toISOString();
+
+  // 極小機率撞碼就重試幾次。
+  for (let i = 0; i < 5; i++) {
+    const code = generateCode();
+    try {
+      await env.DB.prepare(
+        `INSERT INTO licenses (code, tier, features, sponsor, created_at, expires_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      )
+        .bind(code, tier, JSON.stringify(features), sponsor, now, expiresAt)
+        .run();
+      return json({ code, tier, features, sponsor, expiresAt });
+    } catch {
+      /* 撞主鍵,換一個 */
+    }
+  }
+  return json({ error: "could not allocate code" }, 500);
+}
+
+async function handleLicenseReset(req: Request, env: Env): Promise<Response> {
+  if (!isAdmin(req, env)) return json({ error: "unauthorized" }, 401);
+  let body: { code?: unknown };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    body = {};
+  }
+  const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
+  if (!code) return json({ error: "missing code" }, 400);
+  const res = await env.DB.prepare("UPDATE licenses SET bound_to = NULL, activated_at = NULL WHERE code = ?1")
+    .bind(code)
+    .run();
+  return json({ ok: true, reset: res.meta.changes ?? 0 });
 }

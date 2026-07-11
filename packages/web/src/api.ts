@@ -15,6 +15,7 @@ import type {
   InstanceStats,
   InstanceSummary,
   KnownPlayer,
+  LicenseStatus,
   LiveStatus,
   LogSource,
   LogSourceId,
@@ -157,6 +158,19 @@ export class AgentClient {
 
   setTelemetry(enabled: boolean): Promise<TelemetryStatus> {
     return this.request("/api/telemetry", { method: "PUT", body: JSON.stringify({ enabled }) });
+  }
+
+  /** 贊助者識別碼(先行版授權)狀態。 */
+  license(): Promise<LicenseStatus> {
+    return this.request("/api/license");
+  }
+
+  setLicense(code: string): Promise<LicenseStatus> {
+    return this.request("/api/license", { method: "PUT", body: JSON.stringify({ code }) });
+  }
+
+  clearLicense(): Promise<LicenseStatus> {
+    return this.request("/api/license", { method: "DELETE" });
   }
 
   listInstances(): Promise<InstanceSummary[]> {

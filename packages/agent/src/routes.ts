@@ -43,6 +43,7 @@ import { getConfigHealth, regenerateConfig } from "./config-health.js";
 import { getPalDefenderConfig, writePalDefenderConfig } from "./paldefender-config.js";
 import { getPlayerDetail, getPdRestStatus, setPdRestEnabled, provisionPdToken } from "./paldefender-rest.js";
 import { setTelemetryEnabled, telemetryStatus, track } from "./telemetry.js";
+import { licenseStatus, setLicenseKey, clearLicenseKey } from "./license.js";
 import { applyUpdate, getUpdateStatus, setUpdatePrefs, type UpdateOps } from "./self-update.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -160,6 +161,14 @@ export function registerRoutes(
     const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
     return setTelemetryEnabled(enabled);
   });
+
+  // 贊助者識別碼(先行版授權):填碼 -> 立即向 worker 啟用/驗證;一碼綁一台。
+  app.get("/api/license", async () => licenseStatus());
+  app.put("/api/license", async (req) => {
+    const { code } = z.object({ code: z.string().trim().min(1).max(64) }).parse(req.body);
+    return setLicenseKey(code);
+  });
+  app.delete("/api/license", async () => clearLicenseKey());
 
   // 配對:遠端裝置用好念的配對碼換發長 token。此端點本身免 token(靠配對碼保護)。
   app.post("/api/pair", async (req, reply) => {

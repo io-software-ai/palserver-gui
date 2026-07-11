@@ -5,6 +5,7 @@ export * from "./options.js";
 export * from "./commands.js";
 export * from "./engine-options.js";
 export * from "./paldefender-options.js";
+export * from "./features.js";
 
 /** Value type an option can hold at runtime. */
 export type WorldOptionValue = string | number | boolean;

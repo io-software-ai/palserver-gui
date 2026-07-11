@@ -24,3 +24,16 @@ CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- 贊助者識別碼(先行版授權)。一碼綁一台:第一次啟用時把 bound_to 設成該機器碼,
+-- 之後只有同一台能再驗證通過。features 是解鎖的功能 id JSON 陣列。
+CREATE TABLE IF NOT EXISTS licenses (
+  code TEXT PRIMARY KEY,
+  tier TEXT NOT NULL DEFAULT 'sponsor',
+  features TEXT NOT NULL DEFAULT '[]',
+  sponsor TEXT,               -- 備註:發給誰
+  created_at TEXT NOT NULL,
+  expires_at TEXT,            -- null = 永久
+  bound_to TEXT,              -- 機器碼,首次啟用前為 null
+  activated_at TEXT
+);

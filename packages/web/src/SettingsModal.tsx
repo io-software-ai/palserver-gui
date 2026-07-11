@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { FiX, FiCopy, FiCheck, FiRefreshCw, FiSmartphone, FiKey, FiWifi, FiTrash2 } from "react-icons/fi";
+import { FiX, FiCopy, FiCheck, FiRefreshCw, FiSmartphone, FiKey, FiWifi, FiTrash2, FiStar } from "react-icons/fi";
+import type { LicenseStatus } from "@palserver/shared";
 import type { AgentClient, Connection, TelemetryStatus } from "./api";
 import { copyText } from "./clipboard";
 import { PrivacyModal } from "./PrivacyModal";
@@ -28,12 +29,35 @@ export function SettingsModal({
   const [showToken, setShowToken] = useState(false);
   const [telemetry, setTelemetry] = useState<TelemetryStatus | null>(null);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [lic, setLic] = useState<LicenseStatus | null>(null);
+  const [licInput, setLicInput] = useState("");
+  const [licBusy, setLicBusy] = useState(false);
 
   useEffect(() => {
     client.pairingCode().then((r) => setCode(r.pairingCode)).catch(() => setCode(null));
     client.agentAddresses().then((r) => setAddrs(r.addresses)).catch(() => setAddrs([]));
     client.telemetry().then(setTelemetry).catch(() => setTelemetry(null));
+    client.license().then(setLic).catch(() => setLic(null));
   }, [client]);
+
+  const saveLicense = async () => {
+    if (!licInput.trim()) return;
+    setLicBusy(true);
+    try {
+      setLic(await client.setLicense(licInput.trim()));
+      setLicInput("");
+    } finally {
+      setLicBusy(false);
+    }
+  };
+  const clearLicense = async () => {
+    setLicBusy(true);
+    try {
+      setLic(await client.clearLicense());
+    } finally {
+      setLicBusy(false);
+    }
+  };
 
   // 用自己連進來的網址推得 scheme 與 port,組給其他裝置的登入連結。
   let scheme = "http:";
@@ -159,6 +183,57 @@ export function SettingsModal({
         {/* GUI 自我更新(對接 GitHub Releases) */}
         <UpdateCard client={client} />
 
+        {/* 贊助者識別碼(先行版) */}
+        {lic && (
+          <div className="border-t border-line pt-3">
+            <h3 className="inline-flex items-center gap-1.5 text-sm font-extrabold">
+              <FiStar className="size-4 text-pal" /> {t("贊助者識別碼")}
+            </h3>
+            <p className="mt-1 text-xs text-ink-muted">
+              {t("輸入贊助者識別碼即可搶先體驗先行版功能。一組識別碼只能綁定一台伺服器,這台的機器碼為")}{" "}
+              <span className="font-mono">{lic.machineId}</span>。
+            </p>
+            {lic.hasKey ? (
+              <div className="mt-2 flex flex-col gap-2">
+                <div
+                  className={`inline-flex w-fit items-center gap-1.5 rounded-full border-[1.5px] px-2.5 py-1 text-xs font-bold ${
+                    lic.valid
+                      ? "border-grass/40 bg-grass/10 text-grass"
+                      : "border-sun/50 bg-sun/10 text-sun"
+                  }`}
+                >
+                  {lic.valid ? (
+                    <>
+                      <FiCheck className="size-3.5" />
+                      {t("已啟用")}
+                      {lic.tier ? ` · ${lic.tier}` : ""}
+                      {lic.expiresAt ? ` · ${t("有效至")} ${lic.expiresAt.slice(0, 10)}` : ""}
+                    </>
+                  ) : (
+                    <>{t("無法啟用")}:{licReason(t, lic.reason)}</>
+                  )}
+                </div>
+                <button className={`${btnGhost} inline-flex w-fit items-center gap-1.5`} onClick={clearLicense} disabled={licBusy}>
+                  <FiTrash2 className="size-4" /> {t("移除識別碼")}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  className="min-w-0 flex-1 rounded-lg border-2 border-line bg-card px-3 py-1.5 font-mono text-sm outline-none focus:border-pal"
+                  placeholder="PAL-XXXX-XXXX-XXXX"
+                  value={licInput}
+                  onChange={(e) => setLicInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void saveLicense()}
+                />
+                <button className={`${btn} inline-flex items-center gap-1.5`} onClick={saveLicense} disabled={licBusy || !licInput.trim()}>
+                  {licBusy ? t("驗證中…") : t("啟用")}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 匿名使用統計 */}
         {telemetry && (
           <div className="border-t border-line pt-3">
@@ -218,6 +293,22 @@ export function SettingsModal({
       </div>
     </Overlay>
   );
+}
+
+/** 把 worker 回的無效原因碼轉成友善說明。 */
+function licReason(t: (s: string) => string, reason: string | null): string {
+  switch (reason) {
+    case "invalid":
+      return t("識別碼不存在");
+    case "bound-to-another":
+      return t("此識別碼已綁定另一台伺服器");
+    case "expired":
+      return t("識別碼已到期");
+    case "offline":
+      return t("暫時連不上驗證伺服器(離線寬限期已過)");
+    default:
+      return t("驗證失敗");
+  }
 }
 
 function Copyable({ text, mono, big }: { text: string; mono?: boolean; big?: boolean }) {
