@@ -97,3 +97,19 @@ body {
   height: 100%;
   object-fit: cover;
 }
+
+/* Guild base-camp markers: a coloured rounded badge with a home glyph. */
+.leaflet-div-icon.pmap-base-wrap {
+  background: transparent;
+  border: none;
+}
+.pmap-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+}

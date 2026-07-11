@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FiRefreshCw } from "react-icons/fi";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { savToMap, type LiveStatus, type RestPlayer } from "@palserver/shared";
+import { savToMap, type LiveStatus, type RestPlayer, type PdGuild } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { useGameData, palIconUrl, type GameData } from "./gameData";
 import { t, useI18n } from "./i18n";
@@ -32,6 +32,13 @@ const IMAGE_BOUNDS = L.latLngBounds([-1000, -1000], [1000, 1000]);
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
 
+/** A distinct, stable colour per guild (so a guild's bases and members match). */
+function guildColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return `hsl(${hash % 360} 70% 52%)`;
+}
+
 /** Same deterministic "random Pal" avatar as the player list (PlayerAvatar):
  * hash the userId and pick a Pal that has artwork. Returns its icon URL. */
 function avatarIconUrl(seed: string, gameData: GameData | null): string | null {
@@ -47,6 +54,7 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
   useI18n();
   const gameData = useGameData();
   const [live, setLive] = useState<LiveStatus | null>(null);
+  const [guilds, setGuilds] = useState<PdGuild[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -56,6 +64,11 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
+    // 公會據點來自 PalDefender REST(沒開就沒有,靜默略過,不擋地圖)。
+    client
+      .guilds(instanceId)
+      .then((g) => setGuilds(g.available ? g.guilds : []))
+      .catch(() => setGuilds([]));
   }, [client, instanceId]);
 
   useEffect(() => {
@@ -79,14 +92,17 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
       {error && <p className={errorCls}>{error}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] font-bold text-ink-muted">{t("在線玩家 {n} 人", { n: live.players.length })}</p>
+        <p className="text-[13px] font-bold text-ink-muted">
+          {t("在線玩家 {n} 人", { n: live.players.length })}
+          {guilds.length > 0 && ` · ${t("{n} 個公會據點", { n: guilds.reduce((s, g) => s + g.bases.length, 0) })}`}
+        </p>
         <button className={btnGhost} onClick={refresh} aria-label={t("重新整理")}>
           <FiRefreshCw className="size-4" />
         </button>
       </div>
 
       <div className={`${card} overflow-hidden p-2`}>
-        <PlayerMap players={live.players} gameData={gameData} />
+        <PlayerMap players={live.players} guilds={guilds} gameData={gameData} />
       </div>
 
       <p className="text-[13px] text-ink-muted">
@@ -96,8 +112,17 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
   );
 }
 
-/** Leaflet CRS.Simple map + one avatar marker per online player. */
-function PlayerMap({ players, gameData }: { players: RestPlayer[]; gameData: GameData | null }) {
+/** Leaflet CRS.Simple map + avatar markers for players and base markers for
+ * guilds (both from savToMap, so they share the players' coordinate frame). */
+function PlayerMap({
+  players,
+  guilds,
+  gameData,
+}: {
+  players: RestPlayer[];
+  guilds: PdGuild[];
+  gameData: GameData | null;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
@@ -149,29 +174,65 @@ function PlayerMap({ players, gameData }: { players: RestPlayer[]; gameData: Gam
     if (!group) return;
     group.clearLayers();
     const SIZE = 40;
+
+    // Map every guild member (PlayerUID) to its guild, so a player's avatar can
+    // be ringed and labelled with their guild colour/name.
+    const guildByMember = new Map<string, PdGuild>();
+    for (const g of guilds) for (const uid of g.members) guildByMember.set(uid, g);
+    const guildOf = (p: RestPlayer) => guildByMember.get(p.playerId) ?? guildByMember.get(p.userId);
+
+    // Guild bases first (under players). world_pos → savToMap, same frame.
+    for (const g of guilds) {
+      const color = guildColor(g.id);
+      for (const b of g.bases) {
+        const { x, y } = savToMap(b.worldX, b.worldY);
+        const icon = L.divIcon({
+          className: "pmap-base-wrap",
+          iconSize: [26, 26],
+          iconAnchor: [13, 13],
+          tooltipAnchor: [0, -13],
+          html:
+            `<span class="pmap-base" style="background:${color}">` +
+            `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>` +
+            `</span>`,
+        });
+        L.marker([y, x], { icon })
+          .bindTooltip(
+            `<div style="font-weight:800">${escapeHtml(g.name || "—")}</div>` +
+              `<div>${t("公會據點")} · Lv.${g.level} · ${t("{n} 名成員", { n: g.memberCount })}</div>`,
+            { direction: "top", className: "pmap-detail" },
+          )
+          .addTo(group);
+      }
+    }
+
     for (const p of players) {
       const { x, y } = savToMap(p.location_x, p.location_y);
       const iconUrl = avatarIconUrl(p.userId, gameData);
+      const guild = guildOf(p);
+      const ring = guild ? guildColor(guild.id) : "#ffffff";
       // A round Pal-avatar pin (same random Pal as the player list), built as a
-      // div-icon so it can hold an <img>. Details show on hover, not always.
+      // div-icon so it can hold an <img>. The border is the guild colour when
+      // the player is in one. Details show on hover, not always.
       const icon = L.divIcon({
         className: "pmap-avatar-wrap",
         iconSize: [SIZE, SIZE],
         iconAnchor: [SIZE / 2, SIZE / 2],
         tooltipAnchor: [0, -SIZE / 2],
-        html: `<span class="pmap-avatar" style="width:${SIZE}px;height:${SIZE}px">${
+        html: `<span class="pmap-avatar" style="width:${SIZE}px;height:${SIZE}px;border-color:${ring}">${
           iconUrl ? `<img src="${escapeHtml(iconUrl)}" alt="" />` : ""
         }</span>`,
       });
       const marker = L.marker([y, x], { icon, riseOnHover: true });
       marker.bindTooltip(
         `<div style="font-weight:800">${escapeHtml(p.name || "—")}</div>` +
+          (guild ? `<div style="color:${ring}">${escapeHtml(guild.name)}</div>` : "") +
           `<div>${t("座標")} ${Math.round(x)}, ${Math.round(y)} · Lv.${p.level}</div>`,
         { direction: "top", className: "pmap-detail" },
       );
       group.addLayer(marker);
     }
-  }, [players, gameData]);
+  }, [players, guilds, gameData]);
 
   return <div ref={containerRef} className="aspect-square w-full rounded-xl bg-card-soft" />;
 }

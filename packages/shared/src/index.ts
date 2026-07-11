@@ -264,6 +264,33 @@ export interface PdPlayerList {
   players: PdPlayerSummary[];
 }
 
+/** 一個公會據點。座標用 world_pos(Unreal 世界座標),前端一律走 savToMap 轉圖上座標,
+ * 跟玩家點用同一套轉換,保證對齊。 */
+export interface PdGuildBase {
+  id: string;
+  worldX: number;
+  worldY: number;
+}
+
+/** PalDefender /guilds 的一個公會。 */
+export interface PdGuild {
+  id: string;
+  name: string;
+  level: number;
+  adminName: string;
+  memberCount: number;
+  /** 成員的 PlayerUID 清單。 */
+  members: string[];
+  bases: PdGuildBase[];
+}
+
+/** PalDefender /guilds 回傳。 */
+export interface PdGuildList {
+  available: boolean;
+  reason?: string;
+  guilds: PdGuild[];
+}
+
 /** Whether the agent can reach PalDefender's REST API for this instance. */
 export interface PdRestStatus {
   /** PalDefender plugin present */

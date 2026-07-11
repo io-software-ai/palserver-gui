@@ -25,6 +25,7 @@ import type {
   ModsStatus,
   PalDefenderConfig,
   PalDefenderConfigStatus,
+  PdGuildList,
   PdPlayerList,
   PdRestStatus,
   PlayerDetail,
@@ -345,6 +346,10 @@ export class AgentClient {
   /** PalDefender 統一玩家名冊(含離線,需 1.8+)。 */
   palDefenderPlayers(id: string): Promise<PdPlayerList> {
     return this.request(`/api/instances/${id}/paldefender-players`);
+  }
+
+  guilds(id: string): Promise<PdGuildList> {
+    return this.request(`/api/instances/${id}/guilds`);
   }
 
   palDefenderRest(id: string): Promise<PdRestStatus> {

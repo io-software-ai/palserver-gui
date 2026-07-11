@@ -4,6 +4,8 @@ import crypto from "node:crypto";
 import type {
   PdPal,
   PdItemSlot,
+  PdGuild,
+  PdGuildList,
   PdPlayerList,
   PdPlayerSummary,
   PdRestStatus,
@@ -250,6 +252,40 @@ export async function getPdPlayers(rec: InstanceRecord, ctx: DriverContext): Pro
       totalCount: 0,
       players: [],
     };
+  }
+}
+
+/** 公會 + 據點(PalDefender /guilds)。前端拿據點的 world_pos 走 savToMap 畫到地圖。 */
+export async function getPdGuilds(rec: InstanceRecord, ctx: DriverContext): Promise<PdGuildList> {
+  const status = getPdRestStatus(rec, ctx);
+  if (!status.enabled) {
+    return { available: false, reason: status.reason, guilds: [] };
+  }
+  const dir = pdDir(rec, ctx)!;
+  try {
+    const res = await pdFetch<{ Guilds?: Record<string, Record<string, unknown>> }>(rec, dir, "/guilds");
+    const guilds: PdGuild[] = Object.entries(res.Guilds ?? {}).map(([id, raw]) => {
+      const g = (raw ?? {}) as Record<string, unknown>;
+      const admin = (g.admin ?? {}) as Record<string, unknown>;
+      const camps = Array.isArray(g.camps) ? (g.camps as Record<string, unknown>[]) : [];
+      return {
+        id,
+        name: String(g.name ?? ""),
+        level: Number(g.Level ?? 0),
+        adminName: String(admin.name ?? ""),
+        memberCount: Number(g.member_count ?? (Array.isArray(g.members) ? g.members.length : 0)),
+        members: Array.isArray(g.members) ? g.members.map(String) : [],
+        bases: camps
+          .map((c) => {
+            const world = ((c ?? {}).world_pos ?? {}) as Record<string, unknown>;
+            return { id: String((c ?? {}).id ?? ""), worldX: Number(world.x), worldY: Number(world.y) };
+          })
+          .filter((b) => Number.isFinite(b.worldX) && Number.isFinite(b.worldY)),
+      };
+    });
+    return { available: true, guilds };
+  } catch (err) {
+    return { available: false, reason: err instanceof Error ? err.message : String(err), guilds: [] };
   }
 }
 

@@ -45,7 +45,7 @@ import * as saves from "./saves.js";
 import { getEngineSettings, writeEngineSettings } from "./engine-ini.js";
 import { getConfigHealth, regenerateConfig } from "./config-health.js";
 import { getPalDefenderConfig, writePalDefenderConfig } from "./paldefender-config.js";
-import { getPlayerDetail, getPdPlayers, getPdRestStatus, setPdRestEnabled, provisionPdToken } from "./paldefender-rest.js";
+import { getPlayerDetail, getPdPlayers, getPdGuilds, getPdRestStatus, setPdRestEnabled, provisionPdToken } from "./paldefender-rest.js";
 import { setTelemetryEnabled, telemetryStatus, track } from "./telemetry.js";
 import { licenseStatus, setLicenseKey, clearLicenseKey, featureEnabled } from "./license.js";
 import { giveCustomPal } from "./pals.js";
@@ -589,6 +589,11 @@ export function registerRoutes(
   app.get("/api/instances/:id/paldefender-players", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
     return getPdPlayers(rec, ctxOf(rec));
+  });
+
+  app.get("/api/instances/:id/guilds", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return getPdGuilds(rec, ctxOf(rec));
   });
 
   app.put("/api/instances/:id/paldefender-rest/enabled", async (req) => {

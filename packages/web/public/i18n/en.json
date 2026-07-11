@@ -853,5 +853,8 @@
  "玩家位置即時顯示在官方世界地圖上,座標來自伺服器 REST API。滑鼠滾輪縮放、拖曳平移,點玩家看詳情。": "Player positions are shown live on the official world map, using coordinates from the server's REST API. Scroll to zoom, drag to pan, click a player for details.",
  "校正:點地圖上你知道座標的地標,回報下面的 u / v": "Calibration: click a landmark whose coordinates you know, then report the u / v below",
  "(還沒點)": "(no clicks yet)",
- "校正:先點玩家的圓點,再點他真實所在的地形,把下面的 u / v 給我": "Calibration: click the player's dot first, then click where they really are on the terrain, and send me the u / v below"
+ "校正:先點玩家的圓點,再點他真實所在的地形,把下面的 u / v 給我": "Calibration: click the player's dot first, then click where they really are on the terrain, and send me the u / v below",
+ "{n} 個公會據點": "{n} guild bases",
+ "公會據點": "Guild base",
+ "{n} 名成員": "{n} members"
 }
