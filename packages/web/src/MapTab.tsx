@@ -98,30 +98,34 @@ function PlayerMap({ players }: { players: RestPlayer[] }) {
       crs: L.CRS.Simple,
       attributionControl: false,
       zoomSnap: 0.25,
-      maxZoom: 6,
+      maxZoom: 3,
     });
+    map.setView(IMAGE_BOUNDS.getCenter(), -2); // provisional view; applySize refits properly
     el.style.background = "transparent"; // let the card bg show past the image instead of Leaflet's grey
     L.imageOverlay(MAP_IMAGE, IMAGE_BOUNDS).addTo(map);
     map.setMaxBounds(IMAGE_BOUNDS.pad(0.3));
     markersRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
-    // The square container gets its height from layout, which may not be final
-    // when the effect first runs — refit once the size settles.
-    const fit = () => {
+    // The square container's height comes from layout and may be 0 on the first
+    // run, which makes fitBounds/min-zoom wrong. Compute both against the real
+    // size (via ResizeObserver), and set min-zoom a level below the full-map fit
+    // so you can always zoom all the way out. Refit the view only once.
+    let fitted = false;
+    const applySize = () => {
       map.invalidateSize();
-      map.fitBounds(IMAGE_BOUNDS);
+      if (map.getSize().y === 0) return;
+      map.setMinZoom(map.getBoundsZoom(IMAGE_BOUNDS) - 1);
+      if (!fitted) {
+        map.fitBounds(IMAGE_BOUNDS);
+        fitted = true;
+      }
     };
-    fit();
-    const raf = requestAnimationFrame(() => {
-      fit();
-      map.setMinZoom(map.getZoom() - 0.5);
-    });
-    const ro = new ResizeObserver(() => map.invalidateSize());
+    const ro = new ResizeObserver(applySize);
     ro.observe(el);
+    applySize();
 
     return () => {
-      cancelAnimationFrame(raf);
       ro.disconnect();
       map.remove();
       mapRef.current = null;
