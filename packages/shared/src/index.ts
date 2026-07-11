@@ -477,7 +477,7 @@ export interface SavesStatus {
 
 /* ── automatic restarts ── */
 
-export type RestartReason = "scheduled" | "memory" | "crash" | "manual";
+export type RestartReason = "scheduled" | "memory" | "crash" | "manual" | "startup-failure";
 
 export interface RestartPolicy {
   /** Restart on a timer: every N minutes, or at fixed times of day. */

@@ -9,6 +9,8 @@ import {
 import type { DriverContext, ServerDriver } from "./driver.js";
 import type { InstanceStore, InstanceRecord } from "./store.js";
 import { rest } from "./restapi.js";
+import { getPalDefenderConfig } from "./paldefender-config.js";
+import { newestPalDefenderLogLines } from "./native.js";
 
 /**
  * Automatic restarts, three triggers:
@@ -26,10 +28,15 @@ import { rest } from "./restapi.js";
 const TICK_MS = Number(process.env.PALSERVER_SUPERVISOR_TICK_MS ?? 30_000);
 const MAX_EVENTS = 50;
 const MAX_ANNOUNCE_SECONDS = 300;
+/** A native server that exits within this window of starting never really came
+ * up — a boot failure, not a mid-game crash. Palworld's own boot takes ~30-60s. */
+const BOOT_GRACE_MS = 120_000;
 
 interface SupervisorState {
   /** we last observed it running, so an "exited" now means it crashed */
   wasRunning: boolean;
+  /** when we last (re)started the process — anchors boot-failure detection */
+  lastStartAt?: string;
   /** consecutive checks over the memory threshold */
   memoryStreak: number;
   /** ISO timestamps of recent restarts, for rate limiting */
@@ -170,7 +177,14 @@ export class RestartSupervisor {
       const crashCandidate = state.wasRunning && status === "exited" && policy.crash.enabled
         && rec.backend === "native";
       if (crashCandidate) {
-        await this.handleCrash(rec, ctx, driver, policy, state);
+        // PalDefender's `exitServerOnStartupFailure` makes the server exit on
+        // boot when the plugin can't load. That reads as a crash, but restarting
+        // just loops until the hourly cap — so detect it and stop with a reason.
+        if (this.isStartupFailure(rec, ctx, state, now)) {
+          this.handleStartupFailure(rec, ctx, state);
+        } else {
+          await this.handleCrash(rec, ctx, driver, policy, state);
+        }
         return;
       }
       if (state.wasRunning && status !== "exited") {
@@ -216,6 +230,39 @@ export class RestartSupervisor {
     }
   }
 
+  /** A crash is really a PalDefender startup abort when: the server died during
+   * boot (within the grace window of our last start) AND the user asked
+   * PalDefender to exit the server on startup failure. Restarting can't help. */
+  private isStartupFailure(
+    rec: InstanceRecord,
+    ctx: DriverContext,
+    state: SupervisorState,
+    now: Date,
+  ): boolean {
+    if (!state.lastStartAt) return false;
+    if (now.getTime() - Date.parse(state.lastStartAt) >= BOOT_GRACE_MS) return false;
+    try {
+      return getPalDefenderConfig(rec, ctx).values.exitServerOnStartupFailure === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Stop the auto-restart loop and surface why, instead of restarting into the
+   * same failure. Sets wasRunning=false so later ticks don't re-flag it. */
+  private handleStartupFailure(rec: InstanceRecord, ctx: DriverContext, state: SupervisorState): void {
+    state.wasRunning = false;
+    const hint = newestPalDefenderLogLines(rec, ctx, 1)[0];
+    this.record(rec.id, state, {
+      at: new Date().toISOString(),
+      reason: "startup-failure",
+      ok: false,
+      detail:
+        "伺服器在啟動階段即結束,且 PalDefender 已開啟「啟動失敗時關閉伺服器」— 研判為 PalDefender 啟動失敗自我關閉,已停止自動重啟以免無限重啟迴圈。請查看 PalDefender 日誌修正原因,或關閉該選項與崩潰自動重啟其一。"
+        + (hint ? ` 最後日誌:${hint}` : ""),
+    });
+  }
+
   private async handleCrash(
     rec: InstanceRecord,
     ctx: DriverContext,
@@ -239,10 +286,12 @@ export class RestartSupervisor {
     this.busy.add(rec.id);
     try {
       await driver.start(rec, ctx);
-      state.recentRestarts = [...recent, new Date().toISOString()];
+      const at = new Date().toISOString();
+      state.recentRestarts = [...recent, at];
       state.wasRunning = true;
+      state.lastStartAt = at;
       this.record(rec.id, state, {
-        at: new Date().toISOString(),
+        at,
         reason: "crash",
         ok: true,
         detail: `伺服器異常結束,已自動重啟(本小時第 ${recent.length + 1} 次)`,
@@ -288,6 +337,7 @@ export class RestartSupervisor {
       state.recentRestarts = [...this.recentWithinHour(state.recentRestarts), now];
       state.lastScheduledAt = now;
       state.wasRunning = true;
+      state.lastStartAt = now;
       this.record(rec.id, state, { at: now, reason, ok: true, detail });
     } catch (err) {
       this.record(rec.id, state, {
@@ -307,7 +357,11 @@ export class RestartSupervisor {
     const state = this.readState(id);
     state.wasRunning = running;
     state.memoryStreak = 0;
-    if (running) state.lastScheduledAt = new Date().toISOString();
+    if (running) {
+      const now = new Date().toISOString();
+      state.lastScheduledAt = now;
+      state.lastStartAt = now;
+    }
     this.writeState(id, state);
   }
 }

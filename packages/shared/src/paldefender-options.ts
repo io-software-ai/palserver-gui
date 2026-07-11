@@ -84,7 +84,7 @@ export const PALDEFENDER_OPTIONS = {
     type: "bool", default: false, category: "misc",
     label: "PalDefender 啟動失敗時關閉伺服器",
     hint: "保護存檔不在無反外掛的情況下運行。",
-    warn: "這會以錯誤碼結束行程。若同時開啟本 GUI 的「崩潰後自動重啟」,可能造成無限重啟迴圈 — 建議二擇一。",
+    warn: "這會以錯誤碼結束行程。GUI 已能辨識這種「啟動即失敗」的關閉並自動停止重啟(不會與崩潰自動重啟打成無限迴圈),但仍請留意重啟紀錄中的「啟動失敗」提示並修正 PalDefender 問題。",
   },
   disableButchering: { type: "bool", default: false, category: "misc", label: "停用屠宰" },
   disableRenaming: { type: "bool", default: false, category: "misc", label: "停用角色改名" },

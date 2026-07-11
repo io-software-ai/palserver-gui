@@ -12,6 +12,7 @@ const REASON_LABELS: Record<string, string> = {
   memory: "記憶體",
   crash: "崩潰",
   manual: "手動",
+  "startup-failure": "啟動失敗",
 };
 
 /** Automatic-restart policy: scheduled, memory threshold, crash recovery. */
