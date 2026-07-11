@@ -37,6 +37,8 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
   useI18n();
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 校正用:記錄在圖片上點過的位置(0–1 的比例),用來反算正確的圖片邊界。
+  const [picks, setPicks] = useState<{ u: number; v: number }[]>([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -75,7 +77,26 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
       </div>
 
       <div className={`${card} overflow-hidden p-2`}>
-        <PlayerMap players={live.players} />
+        <PlayerMap players={live.players} onPick={(u, v) => setPicks((p) => [...p, { u, v }].slice(-4))} />
+      </div>
+
+      {/* 暫時的校正讀數:點地圖上你知道座標的位置,把 u/v 念給我校正邊界。 */}
+      <div className={`${card} flex flex-col gap-1 text-[13px]`}>
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-ink-muted">{t("校正:點地圖上你知道座標的地標,回報下面的 u / v")}</span>
+          <button className={btnGhost} onClick={() => setPicks([])}>
+            {t("清除")}
+          </button>
+        </div>
+        {picks.length === 0 ? (
+          <span className="text-ink-muted">{t("(還沒點)")}</span>
+        ) : (
+          picks.map((p, i) => (
+            <span key={i} className="font-mono">
+              #{i + 1} u={p.u.toFixed(4)} v={p.v.toFixed(4)}
+            </span>
+          ))
+        )}
       </div>
 
       <p className="text-[13px] text-ink-muted">
@@ -86,10 +107,19 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
 }
 
 /** Leaflet CRS.Simple map + one circle marker per online player. */
-function PlayerMap({ players }: { players: RestPlayer[] }) {
+function PlayerMap({
+  players,
+  onPick,
+}: {
+  players: RestPlayer[];
+  /** Calibration: report the clicked point as a 0–1 fraction of the image. */
+  onPick?: (u: number, v: number) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -106,6 +136,14 @@ function PlayerMap({ players }: { players: RestPlayer[] }) {
     map.setMaxBounds(IMAGE_BOUNDS.pad(0.3));
     markersRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+
+    // Calibration: on click, report where the click fell as a 0–1 fraction of
+    // the image (invariant to the bounds value), so we can solve real bounds.
+    map.on("click", (e) => {
+      const u = (e.latlng.lng - IMAGE_BOUNDS.getWest()) / (IMAGE_BOUNDS.getEast() - IMAGE_BOUNDS.getWest());
+      const v = (IMAGE_BOUNDS.getNorth() - e.latlng.lat) / (IMAGE_BOUNDS.getNorth() - IMAGE_BOUNDS.getSouth());
+      onPickRef.current?.(u, v);
+    });
 
     // The square container's height comes from layout and may be 0 on the first
     // run, which makes fitBounds/min-zoom wrong. Compute both against the real
