@@ -19,10 +19,12 @@ export interface Env {
   ADMIN_TOKEN?: string;
   /** Buy Me a Coffee webhook 簽章密鑰(wrangler secret put BMC_WEBHOOK_SECRET)。 */
   BMC_WEBHOOK_SECRET?: string;
-  /** Resend 寄信 API key(wrangler secret put RESEND_API_KEY);沒設就不寄碼(仍會建碼)。 */
-  RESEND_API_KEY?: string;
-  /** 寄件者,例:palserver GUI <noreply@iosoftware.ai>(需在 Resend 驗證網域)。 */
-  RESEND_FROM?: string;
+  /** Brevo(app.brevo.com)交易信 API key(wrangler secret put BREVO_API_KEY);沒設就不寄碼(仍會建碼)。 */
+  BREVO_API_KEY?: string;
+  /** 寄件信箱(需先在 Brevo 驗證寄件者/網域),預設 palserver-gui@iosoftware.ai。 */
+  BREVO_FROM_EMAIL?: string;
+  /** 寄件者顯示名稱,預設 palserver GUI。 */
+  BREVO_FROM_NAME?: string;
 }
 
 const EVENT_TYPES = ["hello", "instance_created", "server_started", "players_seen"] as const;
@@ -324,21 +326,29 @@ function pickEmail(data: Record<string, unknown>): string | null {
 }
 
 async function sendCodeEmail(env: Env, to: string, code: string): Promise<void> {
-  if (!env.RESEND_API_KEY || !env.RESEND_FROM) return; // 沒設定就只建碼、不寄信
+  if (!env.BREVO_API_KEY) return; // 沒設 API key 就只建碼、不寄信
   const html = `
     <p>感謝你的贊助!以下是你的 palserver GUI 先行版識別碼:</p>
     <p style="font-size:20px;font-weight:800;font-family:monospace">${code}</p>
     <p>在 GUI 的「設定 → 贊助者識別碼」貼上即可解鎖先行版功能。<br>
     一組識別碼只能綁定一台伺服器;月費有效期間持續解鎖,取消後於當期到期時停用。</p>`;
   try {
-    await fetch("https://api.resend.com/emails", {
+    // Brevo 交易信 API(https://developers.brevo.com/reference/sendtransacemail)。
+    await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
-      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      headers: {
+        "api-key": env.BREVO_API_KEY,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
       body: JSON.stringify({
-        from: env.RESEND_FROM,
-        to,
+        sender: {
+          name: env.BREVO_FROM_NAME ?? "palserver GUI",
+          email: env.BREVO_FROM_EMAIL ?? "palserver-gui@iosoftware.ai",
+        },
+        to: [{ email: to }],
         subject: "你的 palserver GUI 先行版識別碼",
-        html,
+        htmlContent: html,
       }),
     });
   } catch {

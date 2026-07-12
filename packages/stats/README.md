@@ -60,13 +60,14 @@ curl -X POST https://palserver-stats.iosoftware.workers.dev/api/license/issue \
 
 1. BMC 開一個月費 **Membership** 方案。
 2. BMC 後台 → Webhooks 新增,URL 填 `https://<worker>/api/license/bmc-webhook`,複製**簽章密鑰**。
-3. 設密鑰;Resend 用來把碼 email 給贊助者(需先在 Resend 驗證寄件網域):
+3. 設密鑰;Brevo(app.brevo.com)用來把碼 email 給贊助者(需先在 Brevo 驗證寄件者/網域):
 
    ```bash
    npx wrangler secret put BMC_WEBHOOK_SECRET   # BMC 給的 webhook secret
-   npx wrangler secret put RESEND_API_KEY       # Resend API key
-   # 寄件者放 vars 或 secret 皆可,例:
-   #   [vars] RESEND_FROM = "palserver GUI <noreply@你的網域>"
+   npx wrangler secret put BREVO_API_KEY        # Brevo API key(SMTP & API → API Keys）
+   # 寄件者可用環境變數覆寫(預設 palserver GUI <palserver-gui@iosoftware.ai>),例:
+   #   [vars] BREVO_FROM_EMAIL = "palserver-gui@iosoftware.ai"
+   #   [vars] BREVO_FROM_NAME  = "palserver GUI"
    ```
 
 流程:會員 `membership.started` → 建碼並 email 給贊助者;`membership.updated`(續訂)→ 延長效期;
