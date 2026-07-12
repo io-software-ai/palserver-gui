@@ -26,7 +26,7 @@ export const TABS: { id: Tab; label: string }[] = [
   { id: "engine", label: "引擎微調" },
   { id: "mods", label: "模組" },
   { id: "paldefender", label: "PalDefender" },
-  { id: "palstats", label: "物種數值" },
+  { id: "palstats", label: "帕魯數值" },
   { id: "saves", label: "存檔備份" },
   { id: "restart", label: "伺服器重啟" },
   { id: "logs", label: "日誌" },
