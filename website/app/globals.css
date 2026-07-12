@@ -157,6 +157,12 @@ figcaption{color:var(--muted);font-size:13.5px;margin-top:12px}
 .aud ul{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:13px}
 .aud li{display:flex;gap:11px;font-size:14.5px}
 .aud li svg{flex:0 0 20px;margin-top:2px;color:var(--pal-deep)}
+
+/* highlights (v2.0.1: map / themes / sponsor early access) */
+.split3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:34px}
+@media(max-width:960px){.split3{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.split3{grid-template-columns:1fr}}
+.aud .hl-body{margin:14px 0 0;font-size:14.5px;color:var(--muted);line-height:1.65}
 .aud li span{color:var(--muted)}
 
 /* steps */
@@ -234,6 +240,8 @@ footer .credit{text-wrap:balance}
 
 /* 卡片網格依序層疊 */
 .split .aud.reveal:nth-child(2){transition-delay:.1s}
+.split3 .aud.reveal:nth-child(2){transition-delay:.1s}
+.split3 .aud.reveal:nth-child(3){transition-delay:.2s}
 .steps .step.reveal:nth-child(2){transition-delay:.12s}
 .steps .step.reveal:nth-child(3){transition-delay:.24s}
 .wishg .wish.reveal:nth-child(2){transition-delay:.08s}

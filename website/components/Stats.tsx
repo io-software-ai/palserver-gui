@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import type { Dictionary } from '@/i18n/dictionaries';
 
-const VALUES: (number | 'free')[] = [0, 12, 3, 'free'];
+const VALUES: (number | 'free')[] = [0, 13, 3, 'free'];
 
 /** 數字帶:進入視野時 count-up + 依序彈入。預渲染 HTML 直接是最終數值, SEO 不受影響。 */
 export default function Stats({ d }: { d: Dictionary['stats'] }) {

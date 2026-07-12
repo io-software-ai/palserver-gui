@@ -77,3 +77,55 @@ export function WrenchIcon() {
     </svg>
   );
 }
+
+/** v2.0.1:世界地圖亮點用。 */
+export function MapIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 18 3.5 20.5A1 1 0 0 1 2 19.6V5.4a1 1 0 0 1 .6-.92L9 2m0 16 6 2m-6-2V2m6 18 5.4-2.5a1 1 0 0 0 .6-.92V2.4a1 1 0 0 0-1.4-.92L15 4m0 16V2m0 2 6-2" />
+      <circle cx="12" cy="10" r="2" />
+    </svg>
+  );
+}
+
+/** v2.0.1:主題系統亮點用。 */
+export function PaletteIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 22a1 1 0 0 1 0-10 5 5 0 0 0 0-10 10 10 0 1 0 10 10 1 1 0 0 0-1-1h-3a1 1 0 0 1-1-1 1 1 0 0 1 .3-.7 2.5 2.5 0 1 0-3.6 0 1 1 0 0 1 .3.7 1 1 0 0 1-1 1" />
+    </svg>
+  );
+}
+
+/** v2.0.1:贊助者先行版亮點用。 */
+export function SponsorIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m12 2 2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.8z" />
+    </svg>
+  );
+}

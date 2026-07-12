@@ -4,6 +4,7 @@ import Stats from '@/components/Stats';
 import Why from '@/components/Why';
 import HowItWorks from '@/components/HowItWorks';
 import Features from '@/components/Features';
+import Highlights from '@/components/Highlights';
 import Audience from '@/components/Audience';
 import Wishes from '@/components/Wishes';
 import GetStarted from '@/components/GetStarted';
@@ -48,6 +49,7 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
         <Why d={d.why} />
         <HowItWorks d={d.how} />
         <Features d={d.features} lang={lang} />
+        <Highlights d={d.highlights} />
         <Audience d={d.audience} />
         <Wishes d={d.wishes} />
         <GetStarted d={d.getStarted} lang={lang} />
