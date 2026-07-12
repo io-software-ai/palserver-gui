@@ -51,12 +51,12 @@ const THEMES: ThemeDef[] = [
   },
   {
     family: "emerald",
-    name: "翡翠棲地",
-    blurb: "薄荷奶油 / 森林墨綠",
+    name: "極光翡翠",
+    blurb: "鮮翡翠 / 青檸光暈",
     free: false,
     preview: {
-      light: { bg: "#f0f9f4", card: "#ffffff", accent: "#12996a", ink: "#14241c", accentText: "#ffffff" },
-      dark: { bg: "#163026", card: "#1f3b2e", accent: "#2bd196", ink: "#eefaf3", accentText: "#06140d" },
+      light: { bg: "#ecfdf4", card: "#ffffff", accent: "#10b981", ink: "#0f2b20", accentText: "#ffffff" },
+      dark: { bg: "#123a2b", card: "#1b4a38", accent: "#24e39a", ink: "#ecfdf3", accentText: "#06241a" },
     },
   },
 ];

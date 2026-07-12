@@ -200,13 +200,6 @@ export const COMMANDS: CommandSpec[] = [
     ],
   },
   {
-    name: "giveitems",
-    source: "paldefender",
-    category: "items",
-    label: "給予多個道具",
-    args: [userId(), { name: "items", label: "道具清單", required: true, placeholder: "Wood:10 Stone:5" }],
-  },
-  {
     name: "delitem",
     source: "paldefender",
     category: "items",

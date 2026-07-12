@@ -14,6 +14,7 @@ import { maskSteamIdsInText } from "./SteamId";
 import { EntityPicker } from "./EntityPicker";
 import { PlayerPicker } from "./PlayerPicker";
 import { CustomPalModal } from "./CustomPalModal";
+import { GiveItemsModal } from "./GiveItemsModal";
 import { SHOW_SPONSOR_FEATURES } from "./flags";
 import { useGameData, itemIconUrl, palIconUrl, type GameData } from "./gameData";
 import { t, useI18n } from "./i18n";
@@ -128,6 +129,7 @@ export function ConsoleTab({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customPalMode, setCustomPalMode] = useState<null | "pal" | "egg">(null);
+  const [showGiveItems, setShowGiveItems] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const [roster, setRoster] = useState<KnownPlayer[]>([]);
@@ -294,6 +296,16 @@ export function ConsoleTab({
                 </span>
                 <span className="block text-xs text-ink-muted">{t("自訂帕魯蛋(詞條 / 體質 / 星星)")}</span>
               </button>
+              <button
+                type="button"
+                className="shrink-0 rounded-lg px-2 py-1.5 text-left text-[13px] transition hover:bg-card-soft"
+                onClick={() => setShowGiveItems(true)}
+              >
+                <span className="inline-flex items-center gap-1 font-mono text-pal">
+                  giveitems <FiStar className="size-3" />
+                </span>
+                <span className="block text-xs text-ink-muted">{t("批量給予道具(選單 + 數量)")}</span>
+              </button>
             </>
           )}
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -411,6 +423,9 @@ export function ConsoleTab({
           mode={customPalMode}
           onClose={() => setCustomPalMode(null)}
         />
+      )}
+      {showGiveItems && (
+        <GiveItemsModal client={client} instanceId={instanceId} onClose={() => setShowGiveItems(false)} />
       )}
     </div>
   );

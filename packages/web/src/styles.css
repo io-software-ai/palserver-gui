@@ -137,61 +137,71 @@
   background-image: linear-gradient(180deg, rgb(20 24 28 / 0.03), rgb(20 24 28 / 0) 120px);
 }
 
-/* ── 翡翠棲地 · 淺色:薄荷奶油 + 翡翠綠 ── */
+/* ── 極光翡翠 · 淺色:亮薄荷底 + 鮮翡翠,青→翠→檸多色光暈,清新有活力 ── */
 :root[data-theme="emerald-light"] {
   color-scheme: light;
-  --color-sky-soft: #f0f9f4;
+  --color-sky-soft: #ecfdf4;
   --color-card: #ffffff;
-  --color-card-soft: #e6f4ec;
-  --color-ink: #14241c;
-  --color-ink-muted: #5c7266;
-  --color-pal: #12996a;
-  --color-pal-strong: #0e7d56;
-  --color-line: #d2eade;
-  --shadow-cute: 0 6px 18px rgb(18 153 106 / 0.14);
-  --shadow-cute-hover: 0 10px 24px rgb(18 153 106 / 0.22);
+  --color-card-soft: #d7fbe7;
+  --color-ink: #0f2b20;
+  --color-ink-muted: #4f7a67;
+  --color-pal: #10b981; /* 鮮翡翠 */
+  --color-pal-strong: #0b9668;
+  --color-line: #bff0d4;
+  --shadow-cute: 0 6px 18px rgb(16 185 129 / 0.18);
+  --shadow-cute-hover: 0 12px 28px rgb(16 185 129 / 0.28);
 }
 :root[data-theme="emerald-light"] body {
-  background-color: #f0f9f4;
+  background-color: #ecfdf4;
   background-image:
-    radial-gradient(1200px 560px at 12% -10%, rgb(18 153 106 / 0.12), transparent 60%),
-    radial-gradient(1000px 520px at 100% 4%, rgb(31 179 124 / 0.10), transparent 58%);
+    radial-gradient(1200px 560px at 8% -10%, rgb(16 185 129 / 0.20), transparent 60%),
+    radial-gradient(1000px 520px at 100% 2%, rgb(20 184 166 / 0.15), transparent 58%),
+    radial-gradient(1100px 620px at 52% 122%, rgb(132 204 22 / 0.13), transparent 60%);
   background-attachment: fixed;
 }
+/* 主按鈕:檸→翠→青 活力漸層 */
 :root[data-theme="emerald-light"] .bg-pal {
-  background-image: linear-gradient(135deg, #1fb37c 0%, #0e7d56 100%);
+  background-image: linear-gradient(120deg, #4ade80 0%, #10b981 48%, #0d9488 100%);
+}
+:root[data-theme="emerald-light"] .bg-pal:hover {
+  background-image: linear-gradient(120deg, #5cec8e 0%, #16c98d 48%, #0fa89c 100%);
 }
 :root[data-theme="emerald-light"] .bg-card {
-  background-image: linear-gradient(180deg, rgb(18 153 106 / 0.05), rgb(18 153 106 / 0) 120px);
+  background-image: linear-gradient(120deg, rgb(16 185 129 / 0.07), rgb(20 184 166 / 0.04) 45%, transparent 82%);
 }
 
-/* ── 翡翠棲地 · 深色:森林綠(調亮一階)+ 亮翡翠 + 微綠光暈 ── */
+/* ── 極光翡翠 · 深色:潤澤翡翠底 + 寶石翠主色,翠→青→檸三色光暈,鮮豔有質感 ── */
 :root[data-theme="emerald-dark"] {
   color-scheme: dark;
-  --color-sky-soft: #163026;
-  --color-card: #1f3b2e;
-  --color-card-soft: #284a3a;
-  --color-ink: #eefaf3;
-  --color-ink-muted: #9cb8a9;
-  --color-pal: #2bd196;
-  --color-pal-strong: #46e0a8;
-  --color-line: #35573f;
-  --shadow-cute: 0 8px 22px rgb(0 0 0 / 0.42);
-  --shadow-cute-hover: 0 12px 30px rgb(0 0 0 / 0.55);
+  --color-sky-soft: #123a2b;
+  --color-card: #1b4a38;
+  --color-card-soft: #235c46;
+  --color-ink: #ecfdf3;
+  --color-ink-muted: #99cbb2;
+  --color-pal: #24e39a; /* 鮮豔寶石翠 */
+  --color-pal-strong: #4bf0b3;
+  --color-line: #31614a;
+  --shadow-cute: 0 8px 24px rgb(0 0 0 / 0.45);
+  --shadow-cute-hover: 0 12px 32px rgb(0 0 0 / 0.58);
 }
 :root[data-theme="emerald-dark"] body {
-  background-color: #163026;
+  background-color: #123a2b;
   background-image:
-    radial-gradient(1200px 620px at 12% -12%, rgb(43 209 150 / 0.18), transparent 60%),
-    radial-gradient(1000px 560px at 100% 0%, rgb(43 209 150 / 0.12), transparent 56%);
+    radial-gradient(1200px 620px at 8% -12%, rgb(36 227 154 / 0.24), transparent 58%),
+    radial-gradient(1000px 560px at 100% -4%, rgb(34 211 238 / 0.17), transparent 56%),
+    radial-gradient(1100px 620px at 55% 122%, rgb(163 230 53 / 0.12), transparent 60%);
   background-attachment: fixed;
 }
+/* 主按鈕:檸→翠→青 金屬活力漸層 + 深色字 */
 :root[data-theme="emerald-dark"] .bg-pal {
-  background-image: linear-gradient(135deg, #2fd699 0%, #128a5f 100%);
-  color: #06140d;
+  background-image: linear-gradient(120deg, #b6f24d 0%, #24e39a 46%, #14c6d4 100%);
+  color: #06241a;
+}
+:root[data-theme="emerald-dark"] .bg-pal:hover {
+  background-image: linear-gradient(120deg, #c9f96a 0%, #3ff0ac 46%, #2ad6e2 100%);
 }
 :root[data-theme="emerald-dark"] .bg-card {
-  background-image: linear-gradient(180deg, rgb(36 199 141 / 0.08), rgb(36 199 141 / 0) 120px);
+  background-image: linear-gradient(120deg, rgb(36 227 154 / 0.12), rgb(34 211 238 / 0.06) 45%, transparent 82%);
 }
 
 body {

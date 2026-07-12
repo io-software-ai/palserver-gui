@@ -42,6 +42,11 @@ export function SiteFooter({ conn }: { conn: Connection | null }) {
 
   const version = update?.currentVersion ?? __APP_VERSION__;
 
+  // 署名句用 {who} 佔位,把三位創作者(各自帶連結)插進翻譯模板裡,語序才能隨語言正確。
+  const [byBefore, byAfter = ""] = t("由 {who} 用愛製作").split("{who}");
+  const authorLink =
+    "pointer-events-auto font-bold underline-offset-2 transition hover:text-pal hover:underline";
+
   return (
     <>
       <div
@@ -52,14 +57,22 @@ export function SiteFooter({ conn }: { conn: Connection | null }) {
           clear ? "opacity-100" : "invisible opacity-0"
         }`}
       >
-        <a
-          className="pointer-events-auto font-bold underline-offset-2 transition hover:text-pal hover:underline"
-          href="https://github.com/Dalufishe"
-          target="_blank"
-          rel="noreferrer"
-        >
-          {t("由 Dalufish 用愛製作")}
-        </a>
+        <div>
+          {byBefore}
+          <a className={authorLink} href="https://instagram.com/easonlu0303" target="_blank" rel="noreferrer">
+            Dalufish
+          </a>
+          ,{" "}
+          <a className={authorLink} href="https://iosoftware.ai" target="_blank" rel="noreferrer">
+            io Software
+          </a>
+          &{" "}
+          <a className={authorLink} href="https://toc.icu" target="_blank" rel="noreferrer">
+            TOC
+          </a>
+          <span className="opacity-70"> (toc.icu)</span>
+          {byAfter}
+        </div>
         <div className="mt-0.5 flex items-center gap-2">
           <span className="font-mono opacity-80">{version}</span>
           {update?.updateAvailable && (

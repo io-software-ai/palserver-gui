@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiArrowLeft, FiPlay, FiSquare, FiRefreshCw, FiTerminal, FiX, FiAlertTriangle } from "react-icons/fi";
+import { FiArrowLeft, FiPlay, FiSquare, FiRefreshCw, FiSave, FiTerminal, FiX, FiAlertTriangle } from "react-icons/fi";
 import type {
   InstanceDetail as Detail,
   LogSource,
@@ -75,7 +75,9 @@ export function InstanceDetailPage({
   const [tab, setTab] = useState<Tab>("overview");
   const [showConsole, setShowConsole] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savingWorld, setSavingWorld] = useState(false);
   const [palDefender, setPalDefender] = useState(false);
   // 非 null 時代表正在倒數(數字為剩餘秒數),用來鎖按鈕與顯示提示。
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -139,6 +141,20 @@ export function InstanceDetailPage({
     }
   };
 
+  const saveWorld = async () => {
+    setSavingWorld(true);
+    setError(null);
+    try {
+      await client.saveWorld(instanceId);
+      setNotice(t("世界已存檔"));
+      setTimeout(() => setNotice(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingWorld(false);
+    }
+  };
+
   const saveSettings = async (patch: Partial<WorldSettings>) => {
     setSaving(true);
     try {
@@ -195,6 +211,15 @@ export function InstanceDetailPage({
           >
             <FiRefreshCw className="size-4" /> {t("重啟")}
           </button>
+          {detail.status === "running" && (
+            <button
+              className={`${btnGhost} inline-flex items-center gap-1.5`}
+              onClick={saveWorld}
+              disabled={savingWorld || countdown !== null}
+            >
+              <FiSave className="size-4" /> {savingWorld ? t("儲存中…") : t("立即存檔")}
+            </button>
+          )}
           <button
             className={`${btnGhost} inline-flex items-center gap-1.5`}
             onClick={() => setShowConsole(true)}
@@ -231,6 +256,9 @@ export function InstanceDetailPage({
         </Overlay>
       )}
 
+      {notice && (
+        <p className="rounded-xl bg-grass/10 px-3 py-2 text-[13px] font-bold text-grass">{notice}</p>
+      )}
       {error && <p className={errorCls}>{error}</p>}
 
       {detail.installError && (

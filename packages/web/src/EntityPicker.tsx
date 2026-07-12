@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FiX } from "react-icons/fi";
 import { displayName, type GameEntity } from "./gameData";
 import { t, useI18n } from "./i18n";
@@ -27,6 +28,9 @@ export function EntityPicker({
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
+  // 下拉用 portal 掛到 body(fixed 定位),避免被外層 modal 的 overflow 裁掉。
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(null);
 
   const selected = catalog.find((e) => e.id === value);
 
@@ -45,11 +49,26 @@ export function EntityPicker({
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (boxRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
+
+  // 開啟時量錨點位置,並在捲動/縮放時跟著更新(scroll 用 capture 抓到任何祖先的捲動)。
+  useEffect(() => {
+    if (!open) return;
+    const update = () => boxRef.current && setRect(boxRef.current.getBoundingClientRect());
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, matches.length]);
 
   const pick = (entity: GameEntity) => {
     onChange(entity.id);
@@ -120,9 +139,21 @@ export function EntityPicker({
           {t("用此 ID")}
         </button>
       )}
-      {open && matches.length > 0 && (
-        <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border-2 border-line bg-card shadow-(--shadow-cute)">
-          {matches.map((entity, i) => (
+      {open && matches.length > 0 && rect &&
+        createPortal(
+          (() => {
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const openUp = spaceBelow < 300 && rect.top > spaceBelow;
+            const style: React.CSSProperties = openUp
+              ? { left: rect.left, bottom: window.innerHeight - rect.top + 4, width: rect.width, maxHeight: Math.min(288, rect.top - 12) }
+              : { left: rect.left, top: rect.bottom + 4, width: rect.width, maxHeight: Math.min(288, spaceBelow - 12) };
+            return (
+              <div
+                ref={menuRef}
+                style={style}
+                className="fixed z-60 overflow-y-auto rounded-xl border-2 border-line bg-card shadow-(--shadow-cute)"
+              >
+                {matches.map((entity, i) => (
             <button
               key={entity.id}
               type="button"
@@ -141,9 +172,12 @@ export function EntityPicker({
               </span>
               <span className="max-w-[45%] shrink-0 truncate font-mono text-xs text-ink-muted">{entity.id}</span>
             </button>
-          ))}
-        </div>
-      )}
+                ))}
+              </div>
+            );
+          })(),
+          document.body,
+        )}
     </div>
   );
 }

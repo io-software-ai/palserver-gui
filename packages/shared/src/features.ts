@@ -17,6 +17,7 @@ export const EARLY_ACCESS_FEATURES: EarlyAccessFeature[] = [
   { id: "custom-pal", label: "自訂帕魯(詞條 / 體質 / 星星)", until: "2026-12-31" },
   { id: "guild-map", label: "地圖公會詳情(名稱 / 成員 / 據點)", until: "2027-12-31" },
   { id: "pal-stats", label: "帕魯物種數值編輯器(PalSchema:HP / 攻防 / 首領)", until: "2027-12-31" },
+  { id: "bulk-items", label: "批量給予道具(物品選單 + 數量)", until: "2027-12-31" },
 ];
 
 /** 這個功能現在是否已對所有人免費(不在目錄裡的一律視為免費)。 */

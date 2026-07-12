@@ -296,6 +296,18 @@ export class AgentClient {
     });
   }
 
+  /** 批量給予道具(贊助者先行版)。非贊助者回 403。 */
+  giveItems(
+    id: string,
+    userId: string,
+    items: { itemId: string; amount: number }[],
+  ): Promise<{ output: string }> {
+    return this.request(`/api/instances/${id}/items/give`, {
+      method: "POST",
+      body: JSON.stringify({ userId, items }),
+    });
+  }
+
   live(id: string): Promise<LiveStatus> {
     return this.request(`/api/instances/${id}/live`);
   }

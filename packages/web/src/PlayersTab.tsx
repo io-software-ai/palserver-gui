@@ -2,11 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import {
   FiUsers,
   FiSend,
-  FiSave,
   FiSlash,
   FiLogOut,
   FiLogIn,
-  FiRefreshCw,
   FiUserCheck,
   FiUserX,
 } from "react-icons/fi";
@@ -187,7 +185,7 @@ export function PlayersTab({
     );
   }
 
-  const { info, metrics, players } = live;
+  const { metrics, players } = live;
 
   return (
     <div className="flex flex-col gap-4">
@@ -204,30 +202,6 @@ export function PlayersTab({
           <Stat label={t("遊戲天數")} value={t("第 {n} 天", { n: metrics.days })} />
         </div>
       )}
-
-      <div className={card}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-extrabold">{info?.servername ?? t("伺服器")}</h3>
-            <p className="text-[13px] text-ink-muted">
-              {t("版本")} {info?.version ?? "—"} · {t("據點 {n} 個", { n: metrics?.basecampnum ?? 0 })} · {t("幀時間")}{" "}
-              {metrics ? `${metrics.serverframetime.toFixed(1)} ms` : "—"}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button className={btnGhost} onClick={refresh} disabled={busy} aria-label={t("重新整理")}>
-              <FiRefreshCw className="size-4" />
-            </button>
-            <button
-              className={`${btnGhost} inline-flex items-center gap-1.5`}
-              onClick={() => act(() => client.saveWorld(instanceId), t("世界已存檔"))}
-              disabled={busy}
-            >
-              <FiSave className="size-4" /> {t("立即存檔")}
-            </button>
-          </div>
-        </div>
-      </div>
 
       <form className={`${card} flex flex-wrap items-center gap-2`} onSubmit={announce}>
         <input
