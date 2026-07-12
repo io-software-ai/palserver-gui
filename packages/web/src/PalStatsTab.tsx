@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiAlertTriangle, FiDownload, FiLock, FiSave, FiStar, FiTrash2 } from "react-icons/fi";
+import { FiAlertTriangle, FiDownload, FiLock, FiStar, FiTrash2 } from "react-icons/fi";
 import { GiSheep } from "react-icons/gi";
 import {
   hasFeature,
@@ -73,19 +73,33 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
   const locked = entitled === false;
   const row = palId.trim() ? palRowName(palId.trim(), variant) : "";
 
-  // 選擇的帕魯 / 變體改變,或資料重新整理後,把該 row 現有值載入表單當預設。
+  // 該資料列目前已存的值(儲存基準),用來算「哪些欄位改過」與載入表單預設。
+  const savedValues = useMemo<PalStatValues>(
+    () => (row && status ? (status.rows.find((r) => r.row === row)?.values ?? {}) : {}),
+    [row, status],
+  );
+  const savedStr = useCallback(
+    (k: PalStatKey) => (savedValues[k] != null ? String(savedValues[k]) : ""),
+    [savedValues],
+  );
+  const loadDraft = useCallback(
+    () =>
+      setDraft(
+        Object.fromEntries(PAL_STAT_KEYS.map((k) => [k, savedStr(k)])) as Record<PalStatKey, string>,
+      ),
+    [savedStr],
+  );
+
+  // 選擇的帕魯 / 變體改變,或資料重新整理後,把該 row 現有值載回表單當預設。
   useEffect(() => {
-    if (!row || !status) {
-      setDraft(emptyDraft());
-      return;
-    }
-    const existing = status.rows.find((r) => r.row === row)?.values ?? {};
-    setDraft(
-      Object.fromEntries(
-        PAL_STAT_KEYS.map((k) => [k, existing[k] != null ? String(existing[k]) : ""]),
-      ) as Record<PalStatKey, string>,
-    );
-  }, [row, status]);
+    loadDraft();
+  }, [loadDraft]);
+
+  // 世界設定同款 dirty 追蹤:只有和已存值不同的欄位才算「未儲存的變更」。
+  const dirtyKeys = useMemo(
+    () => PAL_STAT_KEYS.filter((k) => draft[k] !== savedStr(k)),
+    [draft, savedStr],
+  );
 
   const grouped = useMemo(() => {
     const m = new Map<PalStatCategory, PalStatKey[]>();
@@ -144,7 +158,7 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
     setError(null);
     try {
       const values = Object.fromEntries(
-        PAL_STAT_KEYS.map((k) => [k, numOrUndef(draft[k])]).filter(([, v]) => v !== undefined),
+        dirtyKeys.map((k) => [k, numOrUndef(draft[k])]).filter(([, v]) => v !== undefined),
       ) as PalStatValues;
       const next = await client.updatePalStats(instanceId, row, values);
       setStatus(next);
@@ -308,14 +322,21 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
                 </div>
               ))}
 
-              <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-cute border-2 border-sun/50 bg-card p-3 shadow-(--shadow-cute)">
-                <span className="text-[13px] font-bold text-ink-muted">
-                  {t("儲存後要重啟伺服器,才會套用到新遭遇的帕魯。")}
-                </span>
-                <button className={`${btn} inline-flex items-center gap-1.5`} onClick={save} disabled={saving}>
-                  <FiSave className="size-4" /> {saving ? t("儲存中…") : t("儲存")}
-                </button>
-              </div>
+              {dirtyKeys.length > 0 && (
+                <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-cute border-2 border-sun/50 bg-card p-3 shadow-(--shadow-cute)">
+                  <span className="text-[13px] font-bold text-ink-muted">
+                    {t("小心~您有 {n} 項變更尚未儲存!(重啟伺服器後生效)", { n: dirtyKeys.length })}
+                  </span>
+                  <div className="flex gap-2">
+                    <button className={btnGhost} onClick={loadDraft} disabled={saving}>
+                      {t("重置")}
+                    </button>
+                    <button className={btn} onClick={save} disabled={saving}>
+                      {saving ? t("儲存中…") : t("確定修改")}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <p className="text-ink-muted">{t("先選一隻帕魯再編輯數值。")}</p>
