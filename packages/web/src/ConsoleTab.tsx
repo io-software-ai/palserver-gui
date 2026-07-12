@@ -45,7 +45,7 @@ function ArgField({
   onChange: (value: string) => void;
 }) {
   useI18n();
-  const isPlayerArg = arg.name === "userid";
+  const isPlayerArg = !!arg.player || arg.name === "userid";
 
   // Item/Egg/Pal id args get an icon search picker backed by the catalogs.
   // eggid 只列帕魯蛋(不是全部道具),itemid 才是全物品目錄。
