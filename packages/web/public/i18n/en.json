@@ -866,5 +866,6 @@
  "成員": "Members",
  "據點": "Bases",
  "讀取失敗": "Failed to load",
- "靠近他人據點:{name}": "Near another guild's base: {name}"
+ "靠近他人據點:{name}": "Near another guild's base: {name}",
+ "公會據點是贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。": "Guild bases are a sponsor-only feature — unlock it by entering a sponsor code on the settings page."
 }

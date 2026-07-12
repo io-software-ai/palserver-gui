@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiRefreshCw, FiMap, FiX, FiHome, FiUsers } from "react-icons/fi";
+import { FiRefreshCw, FiMap, FiX, FiHome, FiUsers, FiStar } from "react-icons/fi";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -73,12 +73,14 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
   const gameData = useGameData();
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [guilds, setGuilds] = useState<PdGuild[]>([]);
+  const [guildsUnlocked, setGuildsUnlocked] = useState(false);
   const [guildDetailId, setGuildDetailId] = useState<string | null>(null);
   const [playerDetail, setPlayerDetail] = useState<{ id: string; label: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [showPlayers, setShowPlayers] = useState(true);
   const [showBases, setShowBases] = useState(true);
+  const [guildHint, setGuildHint] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -87,10 +89,14 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-    // 公會據點整個功能是贊助者限定:非贊助者這裡回空陣列,地圖就不顯示任何據點。
+    // 公會據點是贊助者限定:非贊助者這裡回空陣列(detailed=false)。開關照樣顯示,
+    // 只是標上星星表示要贊助才有。
     client
       .guilds(instanceId)
-      .then((g) => setGuilds(g.available ? g.guilds : []))
+      .then((g) => {
+        setGuilds(g.available ? g.guilds : []);
+        setGuildsUnlocked(g.detailed);
+      })
       .catch(() => setGuilds([]));
   }, [client, instanceId]);
 
@@ -101,7 +107,6 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
   }, [refresh]);
 
   const baseCount = guilds.reduce((s, g) => s + g.bases.length, 0);
-  const hasBases = baseCount > 0;
   const summary = live?.available
     ? t("在線玩家 {n} 人", { n: live.players.length }) + (baseCount > 0 ? ` · ${t("{n} 個公會據點", { n: baseCount })}` : "")
     : (live?.reason ?? t("伺服器未在運作,地圖無法顯示玩家。"));
@@ -141,12 +146,21 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
                 >
                   <FiUsers className="size-4" /> {t("玩家")}
                 </button>
-                {hasBases && (
+                {guildsUnlocked ? (
                   <button
                     className={`${btnGhost} inline-flex items-center gap-1.5 ${showBases ? "border-pal text-pal" : "opacity-60"}`}
                     onClick={() => setShowBases((v) => !v)}
                   >
                     <FiHome className="size-4" /> {t("公會據點")}
+                  </button>
+                ) : (
+                  <button
+                    className={`${btnGhost} inline-flex items-center gap-1.5 opacity-70`}
+                    title={t("公會據點是贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。")}
+                    onClick={() => setGuildHint((v) => !v)}
+                  >
+                    <FiHome className="size-4" /> {t("公會據點")}
+                    <FiStar className="size-3.5 text-sun" />
                   </button>
                 )}
               </div>
@@ -159,6 +173,11 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
                 </button>
               </div>
             </div>
+            {guildHint && !guildsUnlocked && (
+              <p className="rounded-xl bg-sun/15 px-3 py-2 text-[13px] font-bold text-sun">
+                {t("公會據點是贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。")}
+              </p>
+            )}
             <div className="min-h-0 flex-1 overflow-hidden rounded-xl">
               <PlayerMap
                 players={live.players}
