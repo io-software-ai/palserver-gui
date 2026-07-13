@@ -26,7 +26,7 @@ import { PerformanceTab } from "./PerformanceTab";
 import { EngineTab } from "./EngineTab";
 import { maskSteamIdsInText } from "./SteamId";
 import { hasFeature } from "@palserver/shared";
-import { classifyLine, categoryColor, formatLine, useLogPrefs } from "./logHighlight";
+import { classifyLine, categoryColor, formatLine, genericLine, translateTarget, useLogPrefs } from "./logHighlight";
 import { STATUS_LABELS } from "./labels";
 import { TABS, LOCKED_TABS, useHiddenTabs, useHiddenCards, type Tab } from "./tabPrefs";
 import { t, t as translate, useI18n } from "./i18n";
@@ -472,6 +472,8 @@ function LogsTab({ client, instanceId }: { client: AgentClient; instanceId: stri
   const [lines, setLines] = useState<string[]>([]);
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const prefs = useLogPrefs();
+  const transRef = useRef<Map<string, string>>(new Map());
+  const [, bumpTrans] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -504,6 +506,37 @@ function LogsTab({ client, instanceId }: { client: AgentClient; instanceId: stri
     return () => socket.close();
   }, [client, instanceId, source]);
 
+  // 套不了版的一般行(info/warning 等):把英文訊息送 agent 代理 Google 翻譯,快取,同句不重複。
+  // 介面語言是英文就不用翻。事件行(formatLine 有值)已是套版好的,不送翻。
+  useEffect(() => {
+    if (entitled !== true || !prefs.format) return;
+    const tl = translateTarget();
+    if (tl === "en") return;
+    let cancelled = false;
+    (async () => {
+      for (const line of lines.slice(-200)) {
+        if (cancelled) return;
+        if (formatLine(line)) continue; // 事件行不翻
+        const g = genericLine(line);
+        if (!g || !g.message.trim()) continue;
+        const key = `${tl}\n${g.message}`;
+        if (transRef.current.has(key)) continue;
+        transRef.current.set(key, ""); // 佔位避免重複請求
+        try {
+          const r = await client.translate(g.message, tl);
+          if (cancelled) return;
+          transRef.current.set(key, r.text || "");
+          bumpTrans((v) => v + 1);
+        } catch {
+          /* 單行失敗略過 */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [entitled, prefs.format, lines, client]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [lines]);
@@ -511,6 +544,7 @@ function LogsTab({ client, instanceId }: { client: AgentClient; instanceId: stri
   const on = entitled === true;
   const highlight = on && prefs.highlight;
   const format = on && prefs.format;
+  const tl = translateTarget();
 
   return (
     <div className="flex flex-col gap-3">
@@ -558,7 +592,20 @@ function LogsTab({ client, instanceId }: { client: AgentClient; instanceId: stri
         {lines.length ? (
           lines.map((line, i) => {
             const color = highlight ? categoryColor(classifyLine(line)) : "#cfd6df";
-            const text = format ? formatLine(line) ?? line : line;
+            let text = line;
+            if (format) {
+              const ev = formatLine(line);
+              if (ev) {
+                text = ev; // 事件行:套版好的
+              } else {
+                const g = genericLine(line);
+                if (g) {
+                  // 一般英文行:有翻譯就用譯文,沒翻到/英文介面就用去前綴的原文。
+                  const tr = tl !== "en" ? transRef.current.get(`${tl}\n${g.message}`) : "";
+                  text = `${g.time}  ${tr || g.message}`;
+                }
+              }
+            }
             return (
               <div key={i} className="whitespace-pre-wrap break-all" style={{ color }}>
                 {maskSteamIdsInText(text)}

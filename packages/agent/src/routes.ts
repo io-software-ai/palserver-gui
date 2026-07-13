@@ -201,6 +201,35 @@ export function registerRoutes(
     return getUpdateStatus(force);
   });
 
+  // 日誌翻譯(贊助者功能 log-tools)。套不了版的英文行(info/warning)走這裡翻成使用者語言。
+  // 放 agent 端打(server-side)避開瀏覽器 CORS、免自備 API key;結果記憶體快取,同行不重複。
+  const translateCache = new Map<string, string>();
+  app.get("/api/translate", async (req) => {
+    const { q, tl } = req.query as { q?: string; tl?: string };
+    const text = (q ?? "").slice(0, 2000);
+    const target = (tl ?? "en").replace(/[^a-zA-Z-]/g, "").slice(0, 8) || "en";
+    if (!text.trim()) return { text: "" };
+    const key = `${target}\n${text}`;
+    const hit = translateCache.get(key);
+    if (hit !== undefined) return { text: hit };
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(text)}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return { text: "", error: `HTTP ${res.status}` };
+      const data: unknown = await res.json();
+      // 回應結構:[ [ [譯文, 原文, …], … ], … ];把第一維各段的譯文接起來。
+      const rows = Array.isArray(data) && Array.isArray(data[0]) ? (data[0] as unknown[]) : [];
+      const out = rows
+        .map((seg) => (Array.isArray(seg) && typeof seg[0] === "string" ? seg[0] : ""))
+        .join("");
+      if (translateCache.size > 2000) translateCache.clear();
+      translateCache.set(key, out);
+      return { text: out };
+    } catch (e) {
+      return { text: "", error: e instanceof Error ? e.message : String(e) };
+    }
+  });
+
   app.put("/api/update/prefs", async (req) => {
     const patch = z
       .object({

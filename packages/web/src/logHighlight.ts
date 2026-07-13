@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { t } from "./i18n";
+import { t, getLang, type Lang } from "./i18n";
 
 /**
  * 日誌重點標記 + 格式化(贊助者功能 log-tools)。
@@ -70,6 +70,21 @@ export function formatLine(raw: string): string | null {
   if ((m = line.match(/'([^']+)'[^)]*\) has build a (.+?)\.?$/)))
     return pre + t("{name} 建造了 {what}", { name: m[1], what: m[2] });
   return null;
+}
+
+/**
+ * 套不了版的一般行:拆出 `[時間][等級] 訊息` 的「時間 + 英文訊息」,訊息交給 Google 翻譯。
+ * 認不得前綴的(如無前綴的崩潰行)回 null,由呼叫端顯示原文。
+ */
+export function genericLine(raw: string): { time: string; message: string } | null {
+  const line = raw.replace(/[\s﻿]+$/, "");
+  const m = line.match(/^\[(\d\d:\d\d):\d\d\]\[[a-z]+\]\s?(.*)$/);
+  return m ? { time: m[1], message: m[2] } : null;
+}
+
+/** 目前介面語言 → Google Translate 的目標語碼。 */
+export function translateTarget(lang: Lang = getLang()): string {
+  return lang === "zh" ? "zh-TW" : lang === "ja" ? "ja" : "en";
 }
 
 const HL_KEY = "palserver.logHighlight";
