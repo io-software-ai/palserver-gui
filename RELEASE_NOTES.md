@@ -1,37 +1,46 @@
-# palserver GUI — v2.0.2
+# palserver GUI — v2.0.3
 
-介面英 / 日翻譯全面補齊 · 公告支援中英日 · 遊戲資料補漏
-Full English / Japanese UI translation · trilingual in-app announcements · game-data fixes
-UI の英日翻訳を全面対応 · お知らせを多言語化 · ゲームデータを補完
+手機 / 平板可用(響應式)· 安全與網路設定搬進面板 · 大量遊戲資料補漏
+Works on phone / tablet (responsive) · security & network settings in the panel · big game-data update
+スマホ / タブレット対応(レスポンシブ)· セキュリティ / ネットワーク設定をパネルに · ゲームデータ大幅補完
 
-> 這些更新(翻譯 / 公告 / 遊戲資料)開啟 GUI 時會自動同步,現有使用者不必重新下載也能拿到。
-> These sync automatically when you open the GUI — existing users get them without re-downloading.
-> これらの更新は GUI 起動時に自動同期され、再ダウンロード不要で反映されます。
+> 這版有介面與 agent 的程式更新,需要新的執行檔:有開自動更新會自己抓,或依下方手動下載。
+> This release changes both the UI and the agent, so it needs the new build — the in-app updater will fetch it, or download below.
+> 今回は UI と agent 両方の更新のため新しいビルドが必要です。自動更新が有効なら自動取得、または下記から手動でどうぞ。
 
 <details>
 <summary><b>🇹🇼 中文更新說明</b></summary>
 
-- **介面多語補齊** — 英文 / 日文介面翻譯全面補上(先前約 130 個字串仍顯示中文,現已全數翻譯)。
-- **在地化公告** — 登入時的內建公告改為依你的介面語言顯示(繁體中文 / 英文 / 日文)。
-- **遊戲資料補漏** — 補上先前遺漏的物品(木板、優質木板、生化電池、極低溫冷卻介質、腐蝕溶劑、牧場學Ⅰ),並為 50 隻較新的怕魯補上中文 / 日文名稱。
+- **手機 / 平板可用(響應式)** — 整個管理介面重新設計成 RWD,窄螢幕不再爆版:導覽列自動收合、彈窗可捲動、資料列自動換行。
+- **安全 / 網路設定搬進面板** — 以前只能靠環境變數(`PALSERVER_TLS` 等),現在直接在設定頁改:強制 token、HTTPS/TLS、監聽埠與位址、跨源公開站來源;改完可一鍵重啟套用(被環境變數鎖定的欄位會顯示為唯讀)。
+- **開機自動開瀏覽器** — 新增開關,可自行決定 agent 啟動時要不要自動打開管理介面。
+- **設定更順手** — 常駐的黃色提醒與總覽卡片都能按 X 收起,並在設定的「卡片隱藏」統一恢復;主題 / 更新 / 贊助者識別碼移到上方;「伺服器檔案」瀏覽器移到設定頁最上方。
+- **遊戲資料大補漏** — 補齊 268 個先前遺漏的物品(藥師島裝備、世界樹 / 覺醒素材、新彈藥、遠古護甲、飾品、藍圖等)。
+- **離線玩家詳情修正** — 修正點開離線玩家會整個讀不出來的問題;現在至少顯示名稱 / 公會 / 等級 / 科技,帕魯與背包處會註明 PalDefender 目前僅支援線上玩家的資料。
 
 </details>
 
 <details>
 <summary><b>🇬🇧 English</b></summary>
 
-- **Full UI localization** — every remaining Chinese-only string (~130) now has English / Japanese translations.
-- **Localized announcements** — the built-in announcement popup now shows in your interface language (Traditional Chinese / English / Japanese).
-- **Game-data fixes** — added missing items (Wooden Board, High Quality Wooden Board, Bio Battery, Cryogenic Coolant, Corrosive Solvent, Applied Ranching Handbook I) and filled in Chinese / Japanese names for 50 newer Pals.
+- **Works on phone / tablet (responsive)** — the whole panel was redesigned for small screens: the nav wraps, dialogs scroll, and data rows reflow instead of overflowing.
+- **Security & network settings in the panel** — what used to require env vars (`PALSERVER_TLS`, etc.) is now editable in Settings: force-token, HTTPS/TLS, listen port & host, cross-origin web origins — with one-click restart to apply (fields locked by an env var show as read-only).
+- **Open browser on startup** — a new toggle to control whether the agent opens the panel automatically when it starts.
+- **Smoother settings** — dismiss the yellow notices and Overview cards with an ×, and restore them under "Hidden cards" in Settings; theme / update / sponsor code moved up; the "Server files" browser moved to the top of Settings.
+- **Big game-data update** — added 268 previously-missing items (Yakushima gear, World Tree / awakening materials, new ammo, ancient armor, accessories, blueprints, and more).
+- **Offline-player detail fix** — opening an offline player no longer fails outright; you now get their name / guild / level / tech, with a clear note that PalDefender only serves Pals & inventory for online players.
 
 </details>
 
 <details>
 <summary><b>🇯🇵 日本語</b></summary>
 
-- **UI の多言語対応を完了** — 中国語のみだった約 130 の文字列に英語 / 日本語の翻訳を追加。
-- **お知らせの多言語化** — 起動時の内蔵お知らせが UI 言語(繁体字中国語 / 英語 / 日本語)で表示されるように。
-- **ゲームデータの補完** — 抜けていたアイテム(木の板、上質な木の板、バイオバッテリー、極低温冷却媒体、腐食性溶剤、応用牧場学Ⅰ)を追加し、新しいパル 50 体に中国語 / 日本語名を補完。
+- **スマホ / タブレット対応(レスポンシブ)** — パネル全体を小画面向けに再設計:ナビは折り返し、ダイアログはスクロール、データ行は溢れずに回り込みます。
+- **セキュリティ / ネットワーク設定をパネルに** — これまで環境変数(`PALSERVER_TLS` など)が必要だった項目を設定画面で編集可能に:トークン強制、HTTPS/TLS、待受ポート / アドレス、クロスオリジンの公開元 — ワンクリック再起動で反映(環境変数でロックされた項目は読み取り専用表示)。
+- **起動時にブラウザを開く** — agent 起動時にパネルを自動で開くかを選べるトグルを追加。
+- **設定まわりを改善** — 黄色のお知らせと概要カードは × で閉じられ、設定の「カード・お知らせの非表示」からまとめて再表示;テーマ / 更新 / スポンサーコードを上部へ移動;「サーバーファイル」ブラウザを設定の最上部へ。
+- **ゲームデータ大幅補完** — 抜けていた 268 個のアイテム(薬師島装備、ワールドツリー / 覚醒素材、新弾薬、古代の防具、アクセサリー、設計図など)を追加。
+- **オフラインプレイヤー詳細の修正** — オフラインプレイヤーを開いても全体が読めなくなる不具合を修正;名前 / ギルド / レベル / テックは表示され、パルとインベントリは「PalDefender はオンラインプレイヤーのみ対応」と明示します。
 
 </details>
 
