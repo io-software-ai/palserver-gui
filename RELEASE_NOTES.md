@@ -1,43 +1,46 @@
-# palserver GUI — v2.0.3
+# palserver GUI — v2.0.4
 
-手機 / 平板可用(響應式)· 安全與網路設定搬進面板 · 大量遊戲資料補漏
-Works on phone / tablet (responsive) · security & network settings in the panel · big game-data update
-スマホ / タブレット対応(レスポンシブ)· セキュリティ / ネットワーク設定をパネルに · ゲームデータ大幅補完
+日誌全新體驗 · 三款新主題 · 世界設定更自由 · Docker/K8s 補完
+Reworked logs · three new themes · freer world settings · Docker/K8s completed
+ログを刷新 · 新テーマ3種 · ワールド設定の自由度UP · Docker/K8s 対応強化
 
-> 這版有介面與 agent 的程式更新,需要新的執行檔:有開自動更新會自己抓,或依下方手動下載。
-> This release changes both the UI and the agent, so it needs the new build — the in-app updater will fetch it, or download below.
-> 今回は UI と agent 両方の更新のため新しいビルドが必要です。自動更新が有効なら自動取得、または下記から手動でどうぞ。
+> 這版有介面與 agent 的更新,需要新的執行檔:有開自動更新會自己抓,或依下方手動下載。
+> This release changes both the UI and the agent, so it needs the new build — the in-app updater fetches it, or download below.
+> 今回は UI と agent 両方の更新のため新しいビルドが必要です。自動更新が有効なら自動取得、または下記から。
 
 <details>
 <summary><b>🇹🇼 中文更新說明</b></summary>
 
-- **手機 / 平板可用(響應式)** — 整個管理介面重新設計成 RWD,窄螢幕不再爆版:導覽列自動收合、彈窗可捲動、資料列自動換行。
-- **安全 / 網路設定搬進面板** — 以前只能靠環境變數(`PALSERVER_TLS` 等),現在直接在設定頁改:強制 token、HTTPS/TLS、監聽埠與位址、跨源公開站來源;改完可一鍵重啟套用(被環境變數鎖定的欄位會顯示為唯讀)。
-- **開機自動開瀏覽器** — 新增開關,可自行決定 agent 啟動時要不要自動打開管理介面。
-- **設定更順手** — 常駐的黃色提醒與總覽卡片都能按 X 收起,並在設定的「卡片隱藏」統一恢復;主題 / 更新 / 贊助者識別碼移到上方;「伺服器檔案」瀏覽器移到設定頁最上方。
-- **遊戲資料大補漏** — 補齊 268 個先前遺漏的物品(藥師島裝備、世界樹 / 覺醒素材、新彈藥、遠古護甲、飾品、藍圖等)。
+- **日誌全新體驗** — 日誌改成彈窗(不再佔一個分頁);原生模式現在能擷取到**真正的伺服器日誌**,而且啟動時**不再彈出黑色 cmd 視窗**;裝了 PalDefender 就只顯示它的日誌(最有料)。贊助者另有:事件**自動上色**(加入 / 離開 / 聊天 / 死亡 / 捕捉…)、把生硬的英文日誌**套版成好讀格式**、一鍵 **Google 翻譯**成介面語言。
+- **三款新主題** — **午夜紫**、**櫻花粉**、**橘色貓貓**(呼應橘貓吉祥物)。(贊助者專屬)
+- **世界設定更自由** — 倍率上限放寬,而且**允許填更極端的值**(超出建議範圍會提醒,想亂玩就玩);**手動編輯 `PalWorldSettings.ini` 不會再被啟動時覆寫**;採用既有伺服器安裝時也會沿用它原本的設定,不再被預設值蓋掉。
+- **Docker / Kubernetes 補完** — docker 帶入查詢埠 / 啟動參數 / Engine.ini、鏡像更新、存檔備份;k8s 環境變數套用與備份。(感謝社群貢獻 PR #13 · @teps3105)
+- **建立伺服器更清楚** — 後端下拉標示各平台限制(Windows 不支援 Docker、macOS 非 x86 未驗證、k8s 為遠端管理)。
+- **小改進** — 更新卡片的「更新說明」直接連到 GitHub release 頁;引擎微調的代管推廣卡可收起(設定→卡片隱藏恢復)。
 
 </details>
 
 <details>
 <summary><b>🇬🇧 English</b></summary>
 
-- **Works on phone / tablet (responsive)** — the whole panel was redesigned for small screens: the nav wraps, dialogs scroll, and data rows reflow instead of overflowing.
-- **Security & network settings in the panel** — what used to require env vars (`PALSERVER_TLS`, etc.) is now editable in Settings: force-token, HTTPS/TLS, listen port & host, cross-origin web origins — with one-click restart to apply (fields locked by an env var show as read-only).
-- **Open browser on startup** — a new toggle to control whether the agent opens the panel automatically when it starts.
-- **Smoother settings** — dismiss the yellow notices and Overview cards with an ×, and restore them under "Hidden cards" in Settings; theme / update / sponsor code moved up; the "Server files" browser moved to the top of Settings.
-- **Big game-data update** — added 268 previously-missing items (Yakushima gear, World Tree / awakening materials, new ammo, ancient armor, accessories, blueprints, and more).
+- **Reworked logs** — logs now open in a dialog (no longer a tab); native mode finally captures the **real server log**, and starting a server **no longer pops the black cmd window**; with PalDefender installed, only its (richest) log is shown. Sponsors also get: automatic **event coloring** (join / leave / chat / death / capture…), reformatting raw English logs into a **readable form**, and one-click **Google translation** into your UI language.
+- **Three new themes** — **Midnight Lilac**, **Cherry Blossom**, and **Orange Cat** (matching the mascot). (sponsor-only)
+- **Freer world settings** — wider rate caps, and you can now enter **extreme values** (a notice appears outside the suggested range — mess around all you want); **manual edits to `PalWorldSettings.ini` are no longer overwritten on start**; adopting an existing server install keeps its own settings instead of clobbering them with defaults.
+- **Docker / Kubernetes completed** — docker now passes query port / launch args / Engine.ini, image update, and save backups; k8s env patching and backups. (community PR #13 · thanks @teps3105)
+- **Clearer server creation** — the backend dropdown explains per-platform limits (Docker unsupported on Windows, unverified on non-x86 macOS, k8s is remote-management).
+- **Small touches** — the update card's "Release notes" links straight to the GitHub release page; the maintenance promo card on the Engine tab can be dismissed (restore under Settings → Hidden cards).
 
 </details>
 
 <details>
 <summary><b>🇯🇵 日本語</b></summary>
 
-- **スマホ / タブレット対応(レスポンシブ)** — パネル全体を小画面向けに再設計:ナビは折り返し、ダイアログはスクロール、データ行は溢れずに回り込みます。
-- **セキュリティ / ネットワーク設定をパネルに** — これまで環境変数(`PALSERVER_TLS` など)が必要だった項目を設定画面で編集可能に:トークン強制、HTTPS/TLS、待受ポート / アドレス、クロスオリジンの公開元 — ワンクリック再起動で反映(環境変数でロックされた項目は読み取り専用表示)。
-- **起動時にブラウザを開く** — agent 起動時にパネルを自動で開くかを選べるトグルを追加。
-- **設定まわりを改善** — 黄色のお知らせと概要カードは × で閉じられ、設定の「カード・お知らせの非表示」からまとめて再表示;テーマ / 更新 / スポンサーコードを上部へ移動;「サーバーファイル」ブラウザを設定の最上部へ。
-- **ゲームデータ大幅補完** — 抜けていた 268 個のアイテム(薬師島装備、ワールドツリー / 覚醒素材、新弾薬、古代の防具、アクセサリー、設計図など)を追加。
+- **ログを刷新** — ログはダイアログ表示に(タブを占有しません);ネイティブモードで**本当のサーバーログ**を取得できるようになり、起動時に**黒い cmd ウィンドウが出なくなりました**;PalDefender 導入時はそのログ(最も充実)のみ表示。スポンサー特典:イベントの**自動色分け**(参加 / 退出 / チャット / 死亡 / 捕獲…)、生の英語ログを**読みやすく整形**、ワンクリック **Google 翻訳**。
+- **新テーマ3種** — **ミッドナイト・ライラック**、**桜ピンク**、**オレンジキャット**(マスコット連動)。(スポンサー限定)
+- **ワールド設定の自由度UP** — 倍率の上限を拡大、さらに**極端な値も入力可能**(推奨範囲外は注意表示 — 好きに遊べます);**`PalWorldSettings.ini` の手動編集が起動時に上書きされなくなりました**;既存サーバーを取り込む際も既定値で潰さず、元の設定を引き継ぎます。
+- **Docker / Kubernetes 対応強化** — docker にクエリポート / 起動引数 / Engine.ini、イメージ更新、セーブバックアップを追加;k8s の環境変数適用とバックアップ。(コミュニティ PR #13 · @teps3105 に感謝)
+- **サーバー作成がより明確に** — バックエンド選択に各プラットフォームの制限を表示(Windows は Docker 非対応、非 x86 macOS は未検証、k8s はリモート管理)。
+- **細かな改善** — 更新カードの「更新内容」が GitHub リリースページへ直接リンク;エンジン調整の保守プロモカードを閉じられるように(設定→カードの非表示で復元)。
 
 </details>
 
