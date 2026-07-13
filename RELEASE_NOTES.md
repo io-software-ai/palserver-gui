@@ -1,46 +1,37 @@
-# palserver GUI — v2.0.4
+# palserver GUI — v2.0.5(緊急修正 · hotfix)
 
-日誌全新體驗 · 三款新主題 · 世界設定更自由 · Docker/K8s 補完
-Reworked logs · three new themes · freer world settings · Docker/K8s completed
-ログを刷新 · 新テーマ3種 · ワールド設定の自由度UP · Docker/K8s 対応強化
+修正:某些設定值會讓伺服器管理程式「打不開 / 網頁進不去」
+Hotfix: certain setting values could prevent the agent from starting ("won't open / page won't load")
+緊急修正:一部の設定値で agent が起動できない不具合
 
-> 這版有介面與 agent 的更新,需要新的執行檔:有開自動更新會自己抓,或依下方手動下載。
-> This release changes both the UI and the agent, so it needs the new build — the in-app updater fetches it, or download below.
-> 今回は UI と agent 両方の更新のため新しいビルドが必要です。自動更新が有効なら自動取得、または下記から。
+> 只是一個修正的緊急版本 —— 有開自動更新會自己抓,或依下方手動下載。
+> A small emergency fix — the in-app updater fetches it, or download below.
+> 小さな緊急修正版です。自動更新で取得、または下記から。
 
 <details>
-<summary><b>🇹🇼 中文更新說明</b></summary>
+<summary><b>🇹🇼 中文</b></summary>
 
-- **日誌全新體驗** — 日誌改成彈窗(不再佔一個分頁);原生模式現在能擷取到**真正的伺服器日誌**,而且啟動時**不再彈出黑色 cmd 視窗**;裝了 PalDefender 就只顯示它的日誌(最有料)。贊助者另有:事件**自動上色**(加入 / 離開 / 聊天 / 死亡 / 捕捉…)、把生硬的英文日誌**套版成好讀格式**、一鍵 **Google 翻譯**成介面語言。
-- **三款新主題** — **午夜紫**、**櫻花粉**、**橘色貓貓**(呼應橘貓吉祥物)。(贊助者專屬)
-- **世界設定更自由** — 倍率上限放寬,而且**允許填更極端的值**(超出建議範圍會提醒,想亂玩就玩);**手動編輯 `PalWorldSettings.ini` 不會再被啟動時覆寫**;採用既有伺服器安裝時也會沿用它原本的設定,不再被預設值蓋掉。
-- **Docker / Kubernetes 補完** — docker 帶入查詢埠 / 啟動參數 / Engine.ini、鏡像更新、存檔備份;k8s 環境變數套用與備份。(感謝社群貢獻 PR #13 · @teps3105)
-- **建立伺服器更清楚** — 後端下拉標示各平台限制(Windows 不支援 Docker、macOS 非 x86 未驗證、k8s 為遠端管理)。
-- **小改進** — 更新卡片的「更新說明」直接連到 GitHub release 頁;引擎微調的代管推廣卡可收起(設定→卡片隱藏恢復)。
+- **修正「執行檔閃退 / 網頁進不去」** — 只要 store 裡有**任何一個設定值超出範圍**(例如負重 `ItemWeightRate` 被設成 0,或匯入了舊版存的髒值),舊版在開機驗證時會**整個崩潰**,導致執行檔一閃就關、管理網頁也連不上。現在改成:單一壞值會**自動退回該項預設**、整筆壞掉則退回全預設,**絕不再讓程式開不起來**;合理範圍內的極端值(如超高經驗倍率)仍保留。
+
+如果你正好卡在這個狀況,更新到這版後就能正常開啟了。
 
 </details>
 
 <details>
 <summary><b>🇬🇧 English</b></summary>
 
-- **Reworked logs** — logs now open in a dialog (no longer a tab); native mode finally captures the **real server log**, and starting a server **no longer pops the black cmd window**; with PalDefender installed, only its (richest) log is shown. Sponsors also get: automatic **event coloring** (join / leave / chat / death / capture…), reformatting raw English logs into a **readable form**, and one-click **Google translation** into your UI language.
-- **Three new themes** — **Midnight Lilac**, **Cherry Blossom**, and **Orange Cat** (matching the mascot). (sponsor-only)
-- **Freer world settings** — wider rate caps, and you can now enter **extreme values** (a notice appears outside the suggested range — mess around all you want); **manual edits to `PalWorldSettings.ini` are no longer overwritten on start**; adopting an existing server install keeps its own settings instead of clobbering them with defaults.
-- **Docker / Kubernetes completed** — docker now passes query port / launch args / Engine.ini, image update, and save backups; k8s env patching and backups. (community PR #13 · thanks @teps3105)
-- **Clearer server creation** — the backend dropdown explains per-platform limits (Docker unsupported on Windows, unverified on non-x86 macOS, k8s is remote-management).
-- **Small touches** — the update card's "Release notes" links straight to the GitHub release page; the maintenance promo card on the Engine tab can be dismissed (restore under Settings → Hidden cards).
+- **Fixed "the app flashes and closes / the web UI won't load"** — if **any single setting in the store was out of range** (e.g. `ItemWeightRate` set to 0, or dirty values from an older save), the previous build would **crash on the startup validation**, so the executable closed instantly and the panel was unreachable. Now a single bad value **falls back to that option's default** (and a fully-broken settings blob falls back to all defaults) — the agent **never fails to start** over settings again; extreme-but-in-range values (e.g. a very high XP rate) are still kept.
+
+If you were stuck on this, updating to this build gets you back in.
 
 </details>
 
 <details>
 <summary><b>🇯🇵 日本語</b></summary>
 
-- **ログを刷新** — ログはダイアログ表示に(タブを占有しません);ネイティブモードで**本当のサーバーログ**を取得できるようになり、起動時に**黒い cmd ウィンドウが出なくなりました**;PalDefender 導入時はそのログ(最も充実)のみ表示。スポンサー特典:イベントの**自動色分け**(参加 / 退出 / チャット / 死亡 / 捕獲…)、生の英語ログを**読みやすく整形**、ワンクリック **Google 翻訳**。
-- **新テーマ3種** — **ミッドナイト・ライラック**、**桜ピンク**、**オレンジキャット**(マスコット連動)。(スポンサー限定)
-- **ワールド設定の自由度UP** — 倍率の上限を拡大、さらに**極端な値も入力可能**(推奨範囲外は注意表示 — 好きに遊べます);**`PalWorldSettings.ini` の手動編集が起動時に上書きされなくなりました**;既存サーバーを取り込む際も既定値で潰さず、元の設定を引き継ぎます。
-- **Docker / Kubernetes 対応強化** — docker にクエリポート / 起動引数 / Engine.ini、イメージ更新、セーブバックアップを追加;k8s の環境変数適用とバックアップ。(コミュニティ PR #13 · @teps3105 に感謝)
-- **サーバー作成がより明確に** — バックエンド選択に各プラットフォームの制限を表示(Windows は Docker 非対応、非 x86 macOS は未検証、k8s はリモート管理)。
-- **細かな改善** — 更新カードの「更新内容」が GitHub リリースページへ直接リンク;エンジン調整の保守プロモカードを閉じられるように(設定→カードの非表示で復元)。
+- **「実行ファイルが一瞬で閉じる / Web UI が開けない」を修正** — store 内の**いずれかの設定値が範囲外**(例:`ItemWeightRate` が 0、または旧バージョンの不正値)だと、以前は起動時の検証で**全体がクラッシュ**し、実行ファイルが即閉じてパネルにも接続できませんでした。今は不正な値は**その項目の既定値に戻し**(設定全体が壊れていれば全既定値に)、設定が原因で**起動できなくなることは二度とありません**。範囲内の極端な値(超高倍率など)はそのまま保持します。
+
+この症状で止まっていた方は、このビルドに更新すれば復帰できます。
 
 </details>
 
