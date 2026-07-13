@@ -378,7 +378,7 @@ function CreateDialog({
   return (
     <Overlay onClose={onClose}>
       <form
-        className={`${card} flex w-[430px] max-w-full flex-col gap-3`}
+        className={`${card} flex max-h-[90vh] w-[430px] max-w-full flex-col gap-3 overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
         onSubmit={submit}
       >

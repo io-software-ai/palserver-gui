@@ -36,7 +36,7 @@ export function AnnouncementPopup() {
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgb(35_32_48/0.55)] p-6 backdrop-blur-[3px]">
-      <div className={`${card} w-[460px] max-w-full`}>
+      <div className={`${card} max-h-[90vh] w-[460px] max-w-full overflow-y-auto`}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="inline-flex items-center gap-2 text-lg font-extrabold">
             <FiBell className="size-5 text-pal" /> {t(current.title)}

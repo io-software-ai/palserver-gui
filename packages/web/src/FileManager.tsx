@@ -228,7 +228,7 @@ export function FileBrowserDialog({
       onClick={onClose}
     >
       <div
-        className={`${card} my-auto flex w-[860px] max-w-full flex-col gap-3`}
+        className={`${card} my-auto flex max-h-[90vh] w-[860px] max-w-full flex-col gap-3 overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

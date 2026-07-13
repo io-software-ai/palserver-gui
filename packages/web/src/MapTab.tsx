@@ -430,8 +430,8 @@ function GuildDetailModal({
               </h3>
               <div className="flex flex-col divide-y divide-line">
                 {detail.members.map((m) => (
-                  <div key={m.playerUid} className="flex items-center justify-between gap-2 py-1.5 text-sm">
-                    <span className="truncate font-bold">{m.name || "—"}</span>
+                  <div key={m.playerUid} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm">
+                    <span className="min-w-0 truncate font-bold">{m.name || "—"}</span>
                     <span
                       className={`shrink-0 text-xs font-bold ${
                         m.status.toLowerCase() === "online" ? "text-grass" : "text-ink-muted"
@@ -452,8 +452,8 @@ function GuildDetailModal({
                 {detail.camps.map((c) => {
                   const m = savToMap(c.worldX, c.worldY);
                   return (
-                    <div key={c.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
-                      <span className="font-bold">
+                    <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm">
+                      <span className="min-w-0 font-bold">
                         Lv.{c.level}
                         {c.state ? <span className="ml-2 text-xs font-normal text-ink-muted">{c.state}</span> : null}
                       </span>

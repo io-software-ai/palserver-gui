@@ -95,7 +95,7 @@ function Screen({ subtitle, children }: { subtitle: string; children: React.Reac
         <LangSelect />
         <ThemeToggle />
       </div>
-      <div className={`${card} flex w-[400px] max-w-full flex-col gap-4 text-center`}>
+      <div className={`${card} flex max-h-[90vh] w-[400px] max-w-full flex-col gap-4 overflow-y-auto text-center`}>
         <img src="/logo.png" alt="palserver GUI" className="mx-auto size-18 rounded-[22px]" />
         <div>
           <h1 className="text-[22px] font-extrabold tracking-wide">palserver GUI</h1>

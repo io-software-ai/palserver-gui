@@ -57,7 +57,10 @@ function MigrationModal({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-40 flex items-center justify-center bg-[rgb(35_32_48/0.55)] p-6 backdrop-blur-[3px]"
       onClick={onClose}
     >
-      <div className={`${card} w-[560px] max-w-full`} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`${card} max-h-[90vh] w-[560px] max-w-full overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between gap-3">
           <h2 className="inline-flex items-center gap-2 text-lg font-extrabold">
             <FiUploadCloud className="size-5 text-pal" /> {t("存檔遷移教學")}

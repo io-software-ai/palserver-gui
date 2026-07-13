@@ -280,13 +280,13 @@ function WorldCard({
       {showPlayers && (
         <div className="mt-3 flex flex-col divide-y divide-line border-t-2 border-line">
           {world.playerSaves.map((p) => (
-            <div key={p.file} className="flex items-center justify-between gap-3 py-2">
-              <div>
+            <div key={p.file} className="flex flex-wrap items-center justify-between gap-3 py-2">
+              <div className="min-w-0">
                 <p className="font-mono text-xs font-bold break-all">{p.playerUid}</p>
                 <p className="text-xs text-ink-muted">{(p.sizeBytes / 1024).toFixed(0)} KB</p>
               </div>
               <button
-                className={`${btnGhost} inline-flex items-center gap-1.5 text-berry hover:border-berry`}
+                className={`${btnGhost} inline-flex shrink-0 items-center gap-1.5 text-berry hover:border-berry`}
                 onClick={() => onDeletePlayer(p.file)}
                 disabled={busy || running}
                 title={running ? t("請先停止伺服器") : t("刪除後該玩家會以全新角色加入")}
@@ -458,12 +458,12 @@ function MirrorCard({
 
   if (!open) {
     return (
-      <div className={`${card} flex items-center justify-between`}>
-        <div>
+      <div className={`${card} flex flex-wrap items-center justify-between gap-2`}>
+        <div className="min-w-0">
           <p className="text-sm font-bold">{t("鏡像遷移")}</p>
           <p className="text-xs text-ink-muted">{t("把此實例的存檔與世界設定複製到其他實例")}</p>
         </div>
-        <button className={btnGhost} onClick={() => setOpen(true)} disabled={busy || instances.length === 0}>
+        <button className={`${btnGhost} shrink-0`} onClick={() => setOpen(true)} disabled={busy || instances.length === 0}>
           {t("鏡像到…")}
         </button>
       </div>

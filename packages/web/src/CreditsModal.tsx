@@ -12,7 +12,10 @@ export function CreditsModal({ onClose }: { onClose: () => void }) {
   const promo = usePromoConfig();
   return (
     <Overlay onClose={onClose}>
-      <div className={`${card} flex w-[430px] max-w-full flex-col gap-4`} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`${card} flex max-h-[90vh] w-[430px] max-w-full flex-col gap-4 overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <h2 className="inline-flex items-center gap-2 text-lg font-extrabold">
             <FiHeart className="size-5 text-pal" /> {t("感謝名單")}

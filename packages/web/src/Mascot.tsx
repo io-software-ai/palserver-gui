@@ -61,7 +61,10 @@ function SponsorModal({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-30 flex items-center justify-center bg-[rgb(35_32_48/0.55)] p-6 backdrop-blur-[3px]"
       onClick={onClose}
     >
-      <div className={`${card} w-[420px] max-w-full`} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`${card} max-h-[90vh] w-[420px] max-w-full overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between">
           <h2 className="inline-flex items-center gap-2 text-lg font-extrabold">
             <FiHeart className="size-5 text-pal" /> {t("喜歡這隻貓貓嗎?")}

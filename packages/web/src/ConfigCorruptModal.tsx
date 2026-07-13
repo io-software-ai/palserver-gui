@@ -51,7 +51,10 @@ export function ConfigCorruptModal({
 
   return (
     <Overlay onClose={() => {}}>
-      <div className={`${card} flex w-[460px] max-w-full flex-col gap-3`} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`${card} flex max-h-[90vh] w-[460px] max-w-full flex-col gap-3 overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="inline-flex items-center gap-2 text-lg font-extrabold text-berry">
           <FiAlertTriangle className="size-5" /> {t("設定檔已損壞")}
         </h2>

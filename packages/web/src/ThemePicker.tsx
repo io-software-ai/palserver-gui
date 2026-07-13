@@ -110,7 +110,7 @@ export function ThemePicker({ entitled, onClose }: { entitled: boolean; onClose:
   return (
     <Overlay onClose={onClose}>
       <div
-        className={`${card} flex w-140 max-w-full flex-col gap-4`}
+        className={`${card} flex max-h-[90vh] w-140 max-w-full flex-col gap-4 overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
