@@ -80,13 +80,13 @@ const THEMES: ThemeDef[] = [
     },
   },
   {
-    family: "weasel",
-    name: "疾旋鼬 × 桃旋鼬",
-    blurb: "靛紫 × 蜜桃雙色",
+    family: "cat",
+    name: "橘色貓貓",
+    blurb: "暖薑橘晝 / 焦糖夜",
     free: false,
     preview: {
-      light: { bg: "#fdf2ec", card: "#ffffff", accent: "#6366f1", ink: "#2a2442", accentText: "#ffffff" },
-      dark: { bg: "#191630", card: "#241f40", accent: "#a5a4ff", ink: "#f2eefa", accentText: "#12102a" },
+      light: { bg: "#fff6ec", card: "#ffffff", accent: "#f5943a", ink: "#3d2a1a", accentText: "#ffffff" },
+      dark: { bg: "#241a11", card: "#322416", accent: "#ff9d4d", ink: "#fbeedd", accentText: "#2a1808" },
     },
   },
 ];

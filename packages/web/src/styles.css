@@ -204,7 +204,7 @@
   background-image: linear-gradient(120deg, rgb(36 227 154 / 0.12), rgb(34 211 238 / 0.06) 45%, transparent 82%);
 }
 
-/* ══ 更多主題系列(贊助者限定):午夜紫、櫻花粉、疾旋鼬×桃旋鼬雙色。 ══ */
+/* ══ 更多主題系列(贊助者限定):午夜紫、櫻花粉、橘色貓貓。 ══ */
 
 /* ── 午夜紫 · 淺色:柔薰衣草底 + 紫羅蘭主色 ── */
 :root[data-theme="lilac-light"] {
@@ -336,73 +336,69 @@
   background-image: linear-gradient(135deg, rgb(255 138 184 / 0.12), rgb(236 72 153 / 0.05) 45%, transparent 82%);
 }
 
-/* ── 疾旋鼬×桃旋鼬 · 淺色:蜜桃奶油底 + 靛紫→蜜桃雙色主色 ── */
-:root[data-theme="weasel-light"] {
+/* ── 橘色貓貓 · 淺色:暖奶油底 + 薑橘主色(致敬橘貓吉祥物) ── */
+:root[data-theme="cat-light"] {
   color-scheme: light;
-  --color-sky-soft: #fdf2ec;
+  --color-sky-soft: #fff6ec;
   --color-card: #ffffff;
-  --color-card-soft: #fbe6da;
-  --color-ink: #2a2442;
-  --color-ink-muted: #7a6f92;
-  --color-pal: #6366f1;
-  --color-pal-strong: #4f46e5;
-  --color-line: #f1ddcf;
-  --shadow-cute: 0 6px 18px rgb(99 102 241 / 0.16);
-  --shadow-cute-hover: 0 12px 28px rgb(251 146 110 / 0.26);
+  --color-card-soft: #ffedd8;
+  --color-ink: #3d2a1a;
+  --color-ink-muted: #977c62;
+  --color-pal: #f5943a;
+  --color-pal-strong: #ea7c1f;
+  --color-line: #f6ddc2;
+  --shadow-cute: 0 6px 18px rgb(245 148 58 / 0.18);
+  --shadow-cute-hover: 0 12px 28px rgb(245 148 58 / 0.28);
 }
-:root[data-theme="weasel-light"] body {
-  background-color: #fdf2ec;
+:root[data-theme="cat-light"] body {
+  background-color: #fff6ec;
   background-image:
-    radial-gradient(1000px 520px at 4% -8%, rgb(99 102 241 / 0.30), transparent 56%),
-    radial-gradient(1000px 520px at 100% 8%, rgb(251 146 110 / 0.34), transparent 56%),
-    radial-gradient(760px 460px at 60% -8%, rgb(214 132 246 / 0.22), transparent 60%),
-    radial-gradient(1100px 640px at 52% 124%, rgb(129 140 248 / 0.16), transparent 60%);
+    radial-gradient(1200px 560px at 12% -10%, rgb(251 146 60 / 0.24), transparent 60%),
+    radial-gradient(1000px 520px at 100% 4%, rgb(245 148 58 / 0.16), transparent 58%),
+    radial-gradient(1100px 620px at 52% 122%, rgb(255 213 168 / 0.22), transparent 60%);
   background-attachment: fixed;
 }
-/* 雙色主按鈕(浮誇繽紛):疾旋鼬靛紫 → 紫 → 粉 → 桃旋鼬蜜桃 */
-:root[data-theme="weasel-light"] .bg-pal {
-  background-image: linear-gradient(120deg, #5b5ef5 0%, #9b6ef2 34%, #ff8fb6 66%, #ff9a68 100%);
+:root[data-theme="cat-light"] .bg-pal {
+  background-image: linear-gradient(135deg, #ffb057 0%, #f5943a 52%, #ec7c1c 100%);
 }
-:root[data-theme="weasel-light"] .bg-pal:hover {
-  background-image: linear-gradient(120deg, #6d70f7 0%, #ab80f5 34%, #ffa0c4 66%, #ffab7e 100%);
+:root[data-theme="cat-light"] .bg-pal:hover {
+  background-image: linear-gradient(135deg, #ffbf72 0%, #fca34e 52%, #f68a2e 100%);
 }
-:root[data-theme="weasel-light"] .bg-card {
-  background-image: linear-gradient(120deg, rgb(99 102 241 / 0.06), rgb(251 146 110 / 0.05) 55%, transparent 88%);
+:root[data-theme="cat-light"] .bg-card {
+  background-image: linear-gradient(135deg, rgb(245 148 58 / 0.06), rgb(255 213 168 / 0.04) 45%, transparent 82%);
 }
 
-/* ── 疾旋鼬×桃旋鼬 · 深色:深靛夜底 + 靛紫→蜜桃雙色主色 ── */
-:root[data-theme="weasel-dark"] {
+/* ── 橘色貓貓 · 深色:暖焦糖深棕底 + 亮薑橘主色 ── */
+:root[data-theme="cat-dark"] {
   color-scheme: dark;
-  --color-sky-soft: #191630;
-  --color-card: #241f40;
-  --color-card-soft: #2f2950;
-  --color-ink: #f2eefa;
-  --color-ink-muted: #aaa1cc;
-  --color-pal: #a5a4ff;
-  --color-pal-strong: #c0b3ff;
-  --color-line: #383256;
-  --shadow-cute: 0 8px 24px rgb(0 0 0 / 0.5);
-  --shadow-cute-hover: 0 12px 32px rgb(0 0 0 / 0.62);
+  --color-sky-soft: #241a11;
+  --color-card: #322416;
+  --color-card-soft: #3f2e1c;
+  --color-ink: #fbeedd;
+  --color-ink-muted: #c9ab8b;
+  --color-pal: #ff9d4d;
+  --color-pal-strong: #ffb570;
+  --color-line: #4a3824;
+  --shadow-cute: 0 8px 24px rgb(0 0 0 / 0.48);
+  --shadow-cute-hover: 0 12px 32px rgb(0 0 0 / 0.6);
 }
-:root[data-theme="weasel-dark"] body {
-  background-color: #191630;
+:root[data-theme="cat-dark"] body {
+  background-color: #241a11;
   background-image:
-    radial-gradient(1000px 560px at 4% -10%, rgb(129 140 248 / 0.34), transparent 55%),
-    radial-gradient(1000px 560px at 100% 0%, rgb(251 146 110 / 0.30), transparent 55%),
-    radial-gradient(760px 480px at 60% -8%, rgb(214 132 246 / 0.24), transparent 60%),
-    radial-gradient(1100px 640px at 55% 124%, rgb(165 164 255 / 0.16), transparent 60%);
+    radial-gradient(1200px 620px at 10% -12%, rgb(255 157 77 / 0.26), transparent 58%),
+    radial-gradient(1000px 560px at 100% -4%, rgb(234 124 31 / 0.2), transparent 56%),
+    radial-gradient(1100px 620px at 55% 122%, rgb(255 183 112 / 0.12), transparent 60%);
   background-attachment: fixed;
 }
-/* 雙色主按鈕(浮誇繽紛):靛紫 → 紫 → 粉 → 蜜桃,深色字 */
-:root[data-theme="weasel-dark"] .bg-pal {
-  background-image: linear-gradient(120deg, #8b8cf5 0%, #b48cf2 34%, #ff9ec2 66%, #fb9c6e 100%);
-  color: #12102a;
+:root[data-theme="cat-dark"] .bg-pal {
+  background-image: linear-gradient(135deg, #ffb877 0%, #ff9d4d 52%, #f5822a 100%);
+  color: #2a1808;
 }
-:root[data-theme="weasel-dark"] .bg-pal:hover {
-  background-image: linear-gradient(120deg, #9d9ef7 0%, #c49ef4 34%, #ffb0d0 66%, #fcac82 100%);
+:root[data-theme="cat-dark"] .bg-pal:hover {
+  background-image: linear-gradient(135deg, #ffc78e 0%, #ffad65 52%, #ff9440 100%);
 }
-:root[data-theme="weasel-dark"] .bg-card {
-  background-image: linear-gradient(120deg, rgb(129 140 248 / 0.12), rgb(251 146 110 / 0.06) 55%, transparent 88%);
+:root[data-theme="cat-dark"] .bg-card {
+  background-image: linear-gradient(135deg, rgb(255 157 77 / 0.12), rgb(234 124 31 / 0.05) 45%, transparent 82%);
 }
 
 body {
