@@ -28,6 +28,7 @@ import { CreditsModal } from "./CreditsModal";
 import { InstanceDetailPage } from "./InstanceDetail";
 import { Mascot } from "./Mascot";
 import { AnnouncementPopup } from "./AnnouncementModal";
+import { ImportSaveModal } from "./ImportSaveModal";
 import { OPEN_SETTINGS_EVENT, SiteFooter } from "./SiteFooter";
 import { ThemeToggle } from "./theme";
 import { LangSelect, useI18n, t as translate } from "./i18n";
@@ -184,6 +185,7 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
   const [instances, setInstances] = useState<InstanceSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [order, setOrder] = useState<string[]>(loadInstanceOrder);
 
   const ordered = instances ? sortByOrder(instances, order) : [];
@@ -222,13 +224,22 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
       {error && <p className={errorCls}>{error}</p>}
       <div className="flex items-center justify-between">
         <h2 className="my-3.5 text-[17px] font-extrabold">{t("伺服器")}</h2>
-        <button
-          className={`${btn} inline-flex items-center gap-1.5`}
-          onClick={() => setShowCreate(true)}
-          data-testid="create-server"
-        >
-          <FiPlus className="size-4" /> {t("建立伺服器")}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className={`${btn} inline-flex items-center gap-1.5`}
+            onClick={() => setShowCreate(true)}
+            data-testid="create-server"
+          >
+            <FiPlus className="size-4" /> {t("建立伺服器")}
+          </button>
+          <button
+            className={`${btnGhost} inline-flex items-center gap-1.5`}
+            onClick={() => setShowImport(true)}
+            data-testid="import-save"
+          >
+            <FiDownload className="size-4" /> {t("匯入存檔")}
+          </button>
+        </div>
       </div>
       {instances === null ? (
         <div className="rounded-(--radius-cute) border-2 border-dashed border-line px-6 py-12 text-center text-ink-muted">
@@ -259,6 +270,14 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
             setShowCreate(false);
             void refresh();
           }}
+        />
+      )}
+      {showImport && (
+        <ImportSaveModal
+          client={client}
+          instances={instances ?? []}
+          onClose={() => setShowImport(false)}
+          onDone={() => void refresh()}
         />
       )}
     </>

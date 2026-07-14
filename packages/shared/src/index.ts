@@ -801,3 +801,25 @@ export interface AgentUpdateStatus {
 export interface ApiError {
   error: string;
 }
+
+/* ── 匯入外部存檔(其他專用伺服器 / 本機共玩存檔 / 舊版 v1 GUI)── */
+
+/** 掃描外部路徑找到的可匯入世界。 */
+export interface ExternalWorldCandidate {
+  /** 資料夾名,匯入後沿用為世界 GUID。 */
+  guid: string;
+  /** 絕對路徑,回填給匯入請求的 worldPath。 */
+  path: string;
+  sizeMB: number;
+  /** Players/*.sav 數量。 */
+  players: number;
+  lastModified: string;
+  /** 含本機共玩的主機玩家存檔(…0001.sav)→ 需跑 host-save-fix,前端要警告。 */
+  coopHost: boolean;
+}
+
+export interface ImportSaveResult {
+  worldGuid: string;
+  /** 匯入前是否有自動備份原本的啟用世界。 */
+  backedUp: boolean;
+}

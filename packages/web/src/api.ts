@@ -13,7 +13,9 @@ import type {
   DirEntry,
   EngineSettings,
   EngineSettingsStatus,
+  ExternalWorldCandidate,
   FileContent,
+  ImportSaveResult,
   InstanceDetail,
   InstanceStats,
   InstanceSummary,
@@ -605,6 +607,20 @@ export class AgentClient {
     return this.request(`/api/instances/${id}/saves/restore`, {
       method: "POST",
       body: JSON.stringify({ backup }),
+    });
+  }
+
+  inspectImportSave(sourcePath: string): Promise<{ worlds: ExternalWorldCandidate[] }> {
+    return this.request("/api/import-save/inspect", {
+      method: "POST",
+      body: JSON.stringify({ sourcePath }),
+    });
+  }
+
+  importSave(id: string, worldPath: string, overwrite: boolean): Promise<ImportSaveResult> {
+    return this.request(`/api/instances/${id}/import-save`, {
+      method: "POST",
+      body: JSON.stringify({ worldPath, overwrite }),
     });
   }
 

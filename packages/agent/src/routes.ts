@@ -1417,6 +1417,23 @@ export function registerRoutes(
     return saves.createBackup(rec, ctxOf(rec), worldGuid);
   });
 
+  // ── 匯入外部存檔(其他專用伺服器 / 本機共玩 / 舊版 v1 GUI)──
+  app.post("/api/import-save/inspect", async (req) => {
+    const { sourcePath } = z.object({ sourcePath: z.string().min(1).max(500) }).parse(req.body);
+    return saves.inspectExternalSave(sourcePath);
+  });
+
+  app.post("/api/instances/:id/import-save", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    const { worldPath, overwrite } = z
+      .object({ worldPath: z.string().min(1).max(500), overwrite: z.boolean().optional() })
+      .parse(req.body);
+    if (await isRunning(rec)) {
+      throw Object.assign(new Error("請先停止伺服器再匯入存檔"), { statusCode: 409 });
+    }
+    return saves.importExternalWorld(rec, ctxOf(rec), worldPath, overwrite ?? false);
+  });
+
   app.post("/api/instances/:id/saves/restore", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
     const { backup } = z.object({ backup: z.string().min(1).max(200) }).parse(req.body);
