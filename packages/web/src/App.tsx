@@ -346,7 +346,8 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
                   key={inst.id}
                   inst={inst}
                   onOpen={onOpen}
-                  extra={advanced && entitled && inst.status === "running" ? (extras[inst.id] ?? null) : undefined}
+                  // 進階顯示時每張卡都要有資訊區(未運作的當佔位符),排版才不會高低不齊。
+                  extra={advanced && entitled ? (extras[inst.id] ?? null) : undefined}
                 />
               ))}
             </div>
@@ -464,7 +465,11 @@ function SortableServerCard({
         {inst.gameVersion && ` · ${inst.gameVersion}`}
       </p>
       {extra !== undefined && (
-        <div className="mt-2 flex flex-col gap-1.5 rounded-xl bg-card-soft px-3 py-2">
+        <div
+          className={`mt-2 flex flex-col gap-1.5 rounded-xl bg-card-soft px-3 py-2 ${
+            inst.status === "running" ? "" : "opacity-50"
+          }`}
+        >
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-bold text-ink-muted">
             <span className="inline-flex items-center gap-1.5" title={translate("在線玩家")}>
               <FiUsers className="size-3.5 shrink-0 text-pal" />
