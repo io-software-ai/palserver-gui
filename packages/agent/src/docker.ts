@@ -84,8 +84,9 @@ export async function createContainer(
     bindings[`${rec.queryPort}/udp`] = [{ HostPort: String(rec.queryPort) }];
   }
   if (rec.settings.RESTAPIEnabled) {
-    ports["8212/tcp"] = {};
-    bindings["8212/tcp"] = [{ HostPort: "0" }];
+    const restPort = String(rec.settings.RESTAPIPort);
+    ports[`${restPort}/tcp`] = {};
+    bindings[`${restPort}/tcp`] = [{ HostPort: "0" }];
   }
 
   const launchArgs = [
@@ -257,7 +258,7 @@ export async function restHostPort(rec: InstanceRecord): Promise<number | null> 
   const container = await findContainer(rec);
   if (!container) return null;
   const info = await container.inspect();
-  const binding = info.NetworkSettings.Ports["8212/tcp"];
+  const binding = info.NetworkSettings.Ports[`${rec.settings.RESTAPIPort}/tcp`];
   return binding?.[0]?.HostPort ? Number(binding[0].HostPort) : null;
 }
 

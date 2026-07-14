@@ -518,8 +518,20 @@ export function registerRoutes(
     }
     // k8s: settings are applied as STS env on the next manual restart, not
     // immediately — same as native/docker. The k8s start flow patches env then.
-    // All backends: store only, applied on next restart.
+    // native: write ini immediately (same as docker) so the file is up-to-date
+    // even while the server is running — Palworld overwrites ini on shutdown,
+    // but the next start picks up the agent-rendered file first.
+    // All backends: store + persist to ini/env, applied on next restart.
     const updated = store.update(rec.id, { settings: nextSettings });
+    if (updated.backend === "native") {
+      const { renderPalWorldSettingsIni } = await import("./settings-ini.js");
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const { serverRoot } = await import("./native.js");
+      const configDir = path.join(serverRoot(updated, ctxOf(updated)), "Pal", "Saved", "Config", process.platform === "win32" ? "WindowsServer" : "LinuxServer");
+      fs.mkdirSync(configDir, { recursive: true });
+      fs.writeFileSync(path.join(configDir, "PalWorldSettings.ini"), renderPalWorldSettingsIni(updated.settings));
+    }
     return { applied: "on-next-restart", settings: updated.settings };
   });
 
