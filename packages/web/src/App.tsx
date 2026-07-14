@@ -32,7 +32,7 @@ import { ImportSaveModal } from "./ImportSaveModal";
 import { OPEN_SETTINGS_EVENT, SiteFooter } from "./SiteFooter";
 import { ThemeToggle } from "./theme";
 import { LangSelect, useI18n, t as translate } from "./i18n";
-import { Overlay, Select, StatusBadge, btn, btnGhost, card, errorCls, inputCls, labelCls } from "./ui";
+import { InstallProgress, Overlay, Select, StatusBadge, btn, btnGhost, card, errorCls, inputCls, labelCls } from "./ui";
 
 export default function App() {
   // 全螢幕地圖是前端的另一個入口(/map?instance=<id>),從主介面地圖的外連按鈕開新分頁。
@@ -330,6 +330,7 @@ function SortableServerCard({ inst, onOpen }: { inst: InstanceSummary; onOpen: (
           <FiAlertTriangle className="size-3.5" /> {translate("安裝失敗")}
         </p>
       )}
+      {inst.status === "installing" && <InstallProgress percent={inst.installProgress} />}
     </button>
   );
 }

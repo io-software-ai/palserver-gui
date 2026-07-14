@@ -233,6 +233,7 @@ async function ensureInstalled(
   rec: InstanceRecord,
   ctx: DriverContext,
   onLine: (line: string) => void,
+  onProgress?: (percent: number) => void,
 ): Promise<void> {
   const root = serverRoot(rec, ctx);
   if (rec.serverDir && !rec.serverDirManaged) {
@@ -250,7 +251,7 @@ async function ensureInstalled(
 
   onLine(`[palserver] installing Palworld dedicated server into ${root} ...`);
   const dd = await ensureDepotDownloader();
-  await runDepotDownloader(dd, root, onLine);
+  await runDepotDownloader(dd, root, onLine, onProgress);
 }
 
 /** DepotDownloader / OS 在磁碟寫滿時吐的字樣(跨平台、含 .NET IOException)。 */
@@ -262,11 +263,16 @@ function diskFullError(): Error & { code: "disk-full" } {
   return Object.assign(new Error("磁碟空間不足"), { code: "disk-full" as const });
 }
 
+/** DepotDownloader 每完成一個檔案吐一行「 12.34% 檔案路徑」(累計進度)。
+ *  抓行首百分比;某些 locale 小數點是逗號,一併接受。 */
+const DD_PROGRESS_RE = /^\s*(\d{1,3}(?:[.,]\d+)?)%\s/;
+
 /** Download/update the dedicated server into `root`. Also used by updateServer. */
 function runDepotDownloader(
   dd: string,
   root: string,
   onLine: (line: string) => void,
+  onProgress?: (percent: number) => void,
 ): Promise<void> {
   const osFlag = IS_WIN ? "windows" : "linux";
   return new Promise<void>((resolve, reject) => {
@@ -278,6 +284,11 @@ function runDepotDownloader(
         .filter(Boolean)
         .forEach((line) => {
           if (DISK_FULL_RE.test(line)) sawDiskFull = true;
+          const m = DD_PROGRESS_RE.exec(line);
+          if (m && onProgress) {
+            const pct = Number(m[1].replace(",", "."));
+            if (Number.isFinite(pct) && pct >= 0 && pct <= 100) onProgress(pct);
+          }
           onLine(line);
         });
     const child = spawn(
@@ -403,6 +414,11 @@ const installing = new Set<string>();
 
 export const isInstalling = (id: string) => installing.has(id);
 
+/** 安裝/更新進度(0–100,DepotDownloader 輸出解析)。不在安裝中則無條目。 */
+const installProgress = new Map<string, number>();
+
+export const installProgressOf = (id: string): number | null => installProgress.get(id) ?? null;
+
 /** 每個實例最後一次安裝/更新失敗的原因,讓 UI 不用翻日誌就看得到。開始新的
  * 安裝或成功時清掉。 */
 const installErrors = new Map<string, InstallError>();
@@ -426,6 +442,7 @@ function classifyInstallError(err: unknown): InstallError {
 export function updateServer(rec: InstanceRecord, ctx: DriverContext): void {
   if (installing.has(rec.id)) return;
   installing.add(rec.id);
+  installProgress.set(rec.id, 0);
   installErrors.delete(rec.id); // 新的一次嘗試,清掉上次的失敗
   const appendLog = (line: string) => fs.appendFileSync(logFile(ctx), line + "\n");
   void (async () => {
@@ -433,7 +450,9 @@ export function updateServer(rec: InstanceRecord, ctx: DriverContext): void {
       fs.mkdirSync(ctx.instanceDir, { recursive: true });
       appendLog("[palserver] 開始更新伺服器…");
       const dd = await ensureDepotDownloader();
-      await runDepotDownloader(dd, serverRoot(rec, ctx), appendLog);
+      await runDepotDownloader(dd, serverRoot(rec, ctx), appendLog, (pct) =>
+        installProgress.set(rec.id, pct),
+      );
       appendLog("[palserver] 更新完成");
     } catch (err) {
       const info = classifyInstallError(err);
@@ -445,6 +464,7 @@ export function updateServer(rec: InstanceRecord, ctx: DriverContext): void {
       );
     } finally {
       installing.delete(rec.id);
+      installProgress.delete(rec.id);
     }
   })();
 }
@@ -578,10 +598,11 @@ export const nativeDriver: ServerDriver = {
     // Slow path: multi-GB download. Run in the background — the instance
     // reports "installing" and the log stream carries the progress.
     installing.add(rec.id);
+    installProgress.set(rec.id, 0);
     installErrors.delete(rec.id); // 新的一次嘗試,清掉上次的失敗
     void (async () => {
       try {
-        await ensureInstalled(rec, ctx, appendLog);
+        await ensureInstalled(rec, ctx, appendLog, (pct) => installProgress.set(rec.id, pct));
         await spawnServer(rec, ctx);
       } catch (err) {
         const info = classifyInstallError(err);
@@ -593,6 +614,7 @@ export const nativeDriver: ServerDriver = {
         );
       } finally {
         installing.delete(rec.id);
+        installProgress.delete(rec.id);
       }
     })();
   },

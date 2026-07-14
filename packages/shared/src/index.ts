@@ -163,6 +163,8 @@ export interface InstanceSummary {
   enhancements: string[];
   /** 最後一次安裝/更新失敗的原因(成功或安裝中時為 null);僅 native。 */
   installError: InstallError | null;
+  /** 安裝/更新進度百分比(0–100,DepotDownloader 輸出解析);非安裝中為 null。僅 native。 */
+  installProgress: number | null;
 }
 
 export interface InstanceDetail extends InstanceSummary {

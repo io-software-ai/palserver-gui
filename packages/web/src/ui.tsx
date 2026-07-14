@@ -73,6 +73,29 @@ export function StatusBadge({ status }: { status: InstanceStatus }) {
   );
 }
 
+/** 伺服器安裝/更新的下載進度條(percent=null 表示還沒解析到進度,顯示未定式動畫)。 */
+export function InstallProgress({ percent }: { percent: number | null }) {
+  useI18n();
+  return (
+    <div className="mt-2">
+      <div className="flex items-center justify-between text-xs font-bold text-sun">
+        <span>{t("安裝中 — 正在下載伺服器檔案")}</span>
+        <span className="font-mono">{percent !== null ? `${percent.toFixed(percent < 10 ? 1 : 0)}%` : "…"}</span>
+      </div>
+      <div className="mt-1 h-2 overflow-hidden rounded-full bg-line">
+        {percent !== null ? (
+          <div
+            className="h-full rounded-full bg-sun transition-[width] duration-700 ease-out"
+            style={{ width: `${Math.max(percent, 2)}%` }}
+          />
+        ) : (
+          <div className="h-full w-1/4 animate-pulse rounded-full bg-sun/60" />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div

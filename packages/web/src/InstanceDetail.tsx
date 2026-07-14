@@ -30,7 +30,7 @@ import { classifyLine, categoryColor, formatLine, genericLine, translateTarget, 
 import { STATUS_LABELS } from "./labels";
 import { TABS, LOCKED_TABS, useHiddenTabs, useHiddenCards, type Tab } from "./tabPrefs";
 import { t, t as translate, useI18n } from "./i18n";
-import { Overlay, StatusBadge, btn, btnGhost, card, errorCls } from "./ui";
+import { InstallProgress, Overlay, StatusBadge, btn, btnGhost, card, errorCls } from "./ui";
 
 
 export function InstanceDetailPage({
@@ -221,6 +221,12 @@ export function InstanceDetailPage({
         <p className="rounded-xl bg-sun/15 px-3 py-2 text-[13px] font-bold text-sun">
           {t("已在遊戲聊天室公告,{n} 秒後執行…", { n: countdown })}
         </p>
+      )}
+
+      {detail.status === "installing" && (
+        <div className="rounded-xl border-2 border-sun/40 bg-sun/10 px-4 py-3">
+          <InstallProgress percent={detail.installProgress} />
+        </div>
       )}
 
       {showConsole && (

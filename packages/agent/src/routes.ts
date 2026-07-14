@@ -44,7 +44,7 @@ import type { DriverContext, ServerDriver } from "./driver.js";
 import * as dockerOps from "./docker.js";
 
 import { k8sDriver } from "./k8s.js";
-import { SERVER_LAUNCHER, classifyServerDir, detectManualIniEdits, isInstalling, lastInstallError, moveServerFiles, nativeDriver, serverRoot, updateServer } from "./native.js";
+import { SERVER_LAUNCHER, classifyServerDir, detectManualIniEdits, installProgressOf, isInstalling, lastInstallError, moveServerFiles, nativeDriver, serverRoot, updateServer } from "./native.js";
 import { cachedVersionSummary, getVersionStatus } from "./version.js";
 import { getConnectionInfo } from "./connectivity.js";
 import { getModsStatus, installComponent, installedEnhancements, removeComponent, setLuaModEnabled } from "./mods.js";
@@ -159,6 +159,7 @@ export function registerRoutes(
       updateAvailable,
       enhancements,
       installError: rec.backend === "native" ? lastInstallError(rec.id) : null,
+      installProgress: rec.backend === "native" ? installProgressOf(rec.id) : null,
     };
   };
 
