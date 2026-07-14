@@ -22,7 +22,7 @@
 
 ## 畫面預覽
 
-> 介面支援繁體中文 / 简体中文 / English / 日本語,三套主題(帕魯原色 / 白銀 / 極光翡翠)分別有深色 / 淺色可切換;截圖中的玩家與資料為展示用途。
+> 介面支援繁體中文 / 简体中文 / English / 日本語,六套主題(帕魯原色 / 白銀 / 極光翡翠 / 午夜紫 / 櫻花粉 / 橘色貓貓)分別有深色 / 淺色可切換;截圖中的玩家與資料為展示用途。
 
 ![玩家管理](docs/screenshots/players.png)
 
@@ -52,7 +52,7 @@
 
 **開服與管理**
 - 建立多個伺服器實例,各自獨立的世界、埠號與設定;一鍵啟動 / 停止 / 重啟 / 刪除(刪除保留存檔)
-- 自動下載安裝 Palworld 伺服器檔案(透過 DepotDownloader),或**直接接管你既有的安裝目錄**
+- 自動下載安裝 Palworld 伺服器檔案(透過 DepotDownloader),**即時安裝進度條**;或**直接接管你既有的安裝目錄**
 - 遊戲版本檢查:比對已安裝版本與 Steam 上的最新版,一鍵更新伺服器
 - 即時日誌串流(agent / 遊戲 / PalDefender 三種來源可切換)
 - 啟動參數面板:Steam 查詢埠(queryport)**可自行設定**(並檢查與其他伺服器不重複);`publiclobby` / `logformat` 等啟動旗標整合進設定
@@ -60,7 +60,7 @@
 
 **世界與效能設定**
 - 80+ 項世界設定的圖形化編輯器,依分類分頁,含型別、範圍與預設值;也可以直接編輯原始 `PalWorldSettings.ini`
-- `Engine.ini` 效能微調(tick rate、網路速率、逾時、GC 間隔、效能旗標 `useperfthreads` / `NoAsyncLoadingThread` / `UseMultithreadForDS`、工作執行緒數…)附一鍵效能預設
+- `Engine.ini` 效能微調(tick rate、網路速率、逾時、GC 間隔、效能旗標 `useperfthreads` / `NoAsyncLoadingThread` / `UseMultithreadForDS`、工作執行緒數…)附一鍵效能預設;玩家頻寬上限可調到 1 Gbps 並即時換算 Mbps
 - 設定檔損毀時自動偵測,並提供「重建乾淨設定檔」(壞檔會先備份,不會直接刪掉)
 
 **玩家管理**
@@ -81,11 +81,16 @@
 - 裝了 PalDefender 會自動把它的指令加進來
 - 帕魯 / 道具資料更新到 **Palworld 1.0(藥師島)**;主動技 / 詞條多語(繁中 / 日文)
 
+**存檔搬家(內建,免指令)**
+- **匯入存檔**:「建立伺服器」旁的按鈕,把舊世界帶著建新伺服器 —— 支援三種來源:**其他專用伺服器**、**本機共玩存檔**(四人邀請碼)、**舊版 1.0 GUI**。貼上資料夾路徑 → 掃描 → 選世界,匯入前自動備份、自動設為啟用世界
+- **修復主機角色**(內建 palworld-host-save-fix):共玩存檔搬上專用伺服器後主機會被要求重建角色 —— 存檔備份分頁偵測到共玩主機檔就給你一鍵過戶,免裝 Python;支援新版 **PlM(Oodle)存檔格式**,修復前強制自動備份
+- 匯入後新加入的角色檔自動標「**匯入後新增**」並預選,不用猜哪個是主機的新角色
+- 完整搬家教學:[docs/MIGRATION.md](docs/MIGRATION.md)
+
 **存檔與備份**
 - 排程自動備份:間隔、保留份數、沒人在線時跳過
 - 手動備份 / 還原 / 下載;還原前會自動先備份目前的世界
-- 多世界管理:列出所有世界、切換「啟用中的世界」、刪除個別玩家存檔
-- 存檔搬家教學(從別台伺服器、從 v1、從本機多人):[docs/MIGRATION.md](docs/MIGRATION.md)
+- 多世界管理:列出所有世界、切換「啟用中的世界」、刪除個別玩家存檔;玩家角色檔清單即時刷新
 
 **模組**
 - 一鍵安裝 / 更新 / 移除 **PalDefender**(反外掛,前身 Palguard)與 **UE4SS**(Lua/藍圖模組載入器),各有穩定版與測試版通道
@@ -104,7 +109,7 @@
 - 自訂帕魯 / 帕魯蛋、公會據點詳情、地標名稱
 
 **其他**
-- 四種語言:繁體中文 / 简体中文 / English / 日本語;**三套主題**(帕魯原色 / 白銀 / 極光翡翠)× 深色 / 淺色,白銀與極光翡翠為贊助者專屬
+- 四種語言:繁體中文 / 简体中文 / English / 日本語;**六套主題**(帕魯原色 / 白銀 / 極光翡翠 / 午夜紫 / 櫻花粉 / 橘色貓貓)× 深色 / 淺色,部分主題為贊助者專屬
 - 首頁伺服器卡片**拖曳排序**;分頁可**自訂顯示 / 隱藏**;總覽卡片可關閉
 - 連線診斷:偵測公網 IP、是否在 NAT/CGNAT 後面,並提供 VPN(Tailscale / Radmin)開服教學
 - GUI 自我更新(可選):從 GitHub Releases 檢查新版,驗證 SHA256 後換檔重啟
@@ -124,14 +129,16 @@
 
 ## 給玩家:五分鐘開服
 
-> 完整的圖文教學(含邀請朋友、VPN 設定):**[docs/INSTALL.zh-TW.md](docs/INSTALL.zh-TW.md)**
+> 完整的圖文教學(含邀請朋友、VPN 設定):**[官方網站](https://palserver-GUI.iosoftware.ai)** 與 **[FAQ](https://faq.toc.icu/)**
 
 1. 到 [Releases](https://github.com/io-software-ai/palserver-gui/releases) 下載你系統對應的壓縮檔
    (`palserver-agent-windows.zip` / `-linux.zip`),解壓縮。
 2. 執行裡面的 `palserver-agent`(Windows 是 `palserver-agent.exe`)。不用先裝 Node 或 Docker。
 3. 視窗會印出一段說明,照著打開 **`http://localhost:8250`** —— 本機管理**不需要密碼**。
-4. 按「建立伺服器」。第一次會下載 Palworld 伺服器檔案(**數十 GB,請耐心等**),進度看「日誌」分頁。
+4. 按「建立伺服器」。第一次會下載 Palworld 伺服器檔案(**數十 GB,請耐心等**),介面會顯示即時進度條。
 5. 裝好後按「啟動」就開服了。
+
+**已經有舊世界?** 按「建立伺服器」旁的「**匯入存檔**」,把別台伺服器、本機共玩(四人邀請碼)或 v1 GUI 的世界帶著建新伺服器,詳見[存檔搬家教學](docs/MIGRATION.md)。
 
 **邀請朋友一起管理:** 啟動視窗裡有一條 `?setup=XXXX-XXXX` 的連結,傳給對方在他的瀏覽器打開就能連進來
 (需要在同一個區網或 VPN 內)。也可以請他打開你的 agent 網址後輸入**配對碼**。
@@ -273,7 +280,7 @@ agent 預設監聽 `:8250`。當 `packages/web/dist` 存在時,agent 會自己 s
 ### i18n
 
 程式碼裡的字串一律寫**中文原文**,`t("中文")` 拿原文當 key 查字典。
-`packages/web/public/i18n/{en,ja}.json` 是「中文 → 譯文」對照表,查不到就顯示中文原文,所以**漏翻不會壞版面**。
+`packages/web/public/i18n/{en,ja,zh-CN}.json` 是「中文 → 譯文」對照表,查不到就顯示中文原文,所以**漏翻不會壞版面**。
 字典會在背景從 GitHub raw 抓最新版,翻譯修正不用重新發版。
 
 ### 在 Apple Silicon 上開發
@@ -300,11 +307,10 @@ PALSERVER_IMAGE_VANILLA=palserver/dev-stub:latest pnpm dev:agent
 
 ## 現況
 
-**v2 目前版本為 v2.0.1**,已可直接到 [Releases](https://github.com/io-software-ai/palserver-gui/releases) 下載使用,
-上面列的功能都已經上線。仍屬早期開發階段,API 可能持續調整。
+**v2 目前版本為 v2.1.0**,已可直接到 [Releases](https://github.com/io-software-ai/palserver-gui/releases) 下載使用,
+上面列的功能都已經上線。
 
 尚未完成:多主機聚合管理;Docker 後端仍標示 beta(`images/modded` 尚未提供);PalDefender 的帕魯匯入規則等進階功能。
-規劃見 [TODO.md](TODO.md)。
 
 ## 授權與連結
 
@@ -318,7 +324,6 @@ PALSERVER_IMAGE_VANILLA=palserver/dev-stub:latest pnpm dev:agent
 - **官方網站:** <https://palserver-GUI.iosoftware.ai>
 - **常見問題:** <https://faq.toc.icu/>
 - **Discord:** <https://discord.gg/sgMMdUZd3V>
-- **安裝與連線教學(玩家向):** [docs/INSTALL.zh-TW.md](docs/INSTALL.zh-TW.md)
 - **存檔搬家:** [docs/MIGRATION.md](docs/MIGRATION.md)
 - **隱私權政策:** [PRIVACY.md](PRIVACY.md)
 - **v1(已停止維護):** <https://github.com/Dalufishe/palserver-GUI>

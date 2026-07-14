@@ -22,7 +22,7 @@ Browser (React Web UI)
 
 ## Screenshots
 
-> The UI ships in 繁體中文 / 简体中文 / English / 日本語, with three switchable themes (Palworld Classic / Silver / Aurora Emerald), each with a light and dark variant; players and data in the screenshots are demo content.
+> The UI ships in 繁體中文 / 简体中文 / English / 日本語, with six switchable themes (Pal (default) / Silver / Aurora Jade / Midnight Lilac / Sakura Pink / Orange Cat), each with a light and dark variant; players and data in the screenshots are demo content.
 
 ![Player management](docs/screenshots/players.png)
 
@@ -52,7 +52,7 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 
 **Hosting & management**
 - Create multiple server instances, each with its own world, ports and settings; one-click start / stop / restart / delete (deleting keeps the saves)
-- Auto-download and install the Palworld server files (via DepotDownloader), or **adopt your existing installation directory in place**
+- Auto-download and install the Palworld server files (via DepotDownloader), with a **real-time install progress bar**; or **adopt your existing installation directory in place**
 - Game version check: compares the installed build against the latest on Steam, with one-click server updates
 - Live log streaming (switchable between agent / game / PalDefender sources)
 - Launch options panel: the Steam query port **can be customized** (with duplicate-port checks against other instances); `publiclobby` / `logformat` and other launch flags are now part of settings
@@ -60,7 +60,7 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 
 **World & performance settings**
 - Graphical editor for 80+ world settings, grouped by category, with types, ranges and defaults; or edit the raw `PalWorldSettings.ini` directly
-- `Engine.ini` performance tuning (tick rate, network rates, timeouts, GC interval, performance flags `useperfthreads` / `NoAsyncLoadingThread` / `UseMultithreadForDS`, worker thread count…) with one-click presets
+- `Engine.ini` performance tuning (tick rate, network rates, timeouts, GC interval, performance flags `useperfthreads` / `NoAsyncLoadingThread` / `UseMultithreadForDS`, worker thread count…) with one-click presets; player bandwidth cap adjustable up to 1 Gbps, with a live Mbps conversion
 - Corrupted config detection with "regenerate a clean config" (the broken file is backed up first, never just deleted)
 
 **Player management**
@@ -81,11 +81,16 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 - With PalDefender installed, its commands are added automatically
 - Pal and item data updated to **Palworld 1.0 (Feybreak)**; active skills / traits localized (Chinese / Japanese)
 
+**Save migration (built in, no CLI needed)**
+- **Import save**: next to "Create server", bring an existing world along when creating a new instance — supports three sources: **another dedicated server**, **local co-op saves** (4-player invite code), or **the v1.0 GUI**. Paste the folder path → scan → pick a world; the import auto-backs up first and sets the imported world active
+- **Fix host character** (built-in `palworld-host-save-fix`): after moving a co-op save to a dedicated server, the host is normally asked to rebuild their character — the Backups tab detects a co-op host save and offers a one-click transfer, no Python required; supports the newer **PlM (Oodle) save format**, and auto-backs up before fixing
+- Character files newly added after an import are auto-tagged **"Added after import"** and pre-selected, so you don't have to guess which one is the host's new character
+- Full migration walkthrough: [docs/MIGRATION.md](docs/MIGRATION.md)
+
 **Saves & backups**
 - Scheduled automatic backups: interval, retention count, skip when nobody is online
 - Manual backup / restore / download; restoring automatically backs up the current world first
-- Multi-world management: list all worlds, switch the active world, delete individual player saves
-- Save migration guide (from another server, from v1, from local co-op): [docs/MIGRATION.md](docs/MIGRATION.md)
+- Multi-world management: list all worlds, switch the active world, delete individual player saves; the player character list refreshes live
 
 **Mods**
 - One-click install / update / remove for **PalDefender** (anti-cheat, formerly Palguard) and **UE4SS** (Lua/Blueprint mod loader), each with stable and beta channels
@@ -104,7 +109,7 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 - Custom Pals / eggs, guild base details, landmark names
 
 **Other**
-- Four languages: 繁體中文 / 简体中文 / English / 日本語; **three themes** (Palworld Classic / Silver / Aurora Emerald) **×** light / dark — Silver and Aurora Emerald are sponsor-exclusive
+- Four languages: 繁體中文 / 简体中文 / English / 日本語; **six themes** (Pal (default) / Silver / Aurora Jade / Midnight Lilac / Sakura Pink / Orange Cat) **×** light / dark — some themes are sponsor-exclusive
 - **Drag-to-reorder** server cards on the home page; tabs can be **customized (show / hide)**; the overview card can be dismissed
 - Connectivity diagnostics: detects your public IP, whether you're behind NAT/CGNAT, plus VPN (Tailscale / Radmin) hosting guides
 - Optional GUI self-update: checks GitHub Releases, verifies SHA256, swaps binaries and restarts itself
@@ -124,14 +129,16 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 
 ## For players: a server in five minutes
 
-> Full illustrated guide (inviting friends, VPN setup): **[docs/INSTALL.zh-TW.md](docs/INSTALL.zh-TW.md)** (Chinese)
+> Full illustrated guide (inviting friends, VPN setup): the **[official site](https://palserver-GUI.iosoftware.ai)** and the **[FAQ](https://faq.toc.icu/)**
 
 1. Download the archive for your OS from [Releases](https://github.com/io-software-ai/palserver-gui/releases)
    (`palserver-agent-windows.zip` / `-linux.zip`) and extract it.
 2. Run `palserver-agent` inside (`palserver-agent.exe` on Windows). No Node or Docker install needed.
 3. The window prints instructions — open **`http://localhost:8250`**. Local management **needs no password**.
-4. Click "Create server". The first run downloads the Palworld server files (**tens of GB — be patient**); watch progress in the Logs tab.
+4. Click "Create server". The first run downloads the Palworld server files (**tens of GB — be patient**); the UI shows a live progress bar.
 5. Once installed, hit "Start" and you're live.
+
+**Already have an existing world?** Click "Import save" next to "Create server" to bring a world from another server, from local co-op (4-player invite code), or from the v1 GUI into a new instance — see the [save migration guide](docs/MIGRATION.md) for details.
 
 **Inviting friends to co-manage:** the startup window shows a `?setup=XXXX-XXXX` link — send it to them to open in their browser
 (they must be on the same LAN or VPN). Or have them open your agent URL and enter the **pairing code**.
@@ -288,7 +295,7 @@ the GUI doesn't manage are preserved verbatim.
 ### i18n
 
 Strings in code are written in **Chinese source text**; `t("中文")` looks the source string up in a dictionary.
-`packages/web/public/i18n/{en,ja}.json` map "Chinese → translation"; a missing key falls back to the Chinese original,
+`packages/web/public/i18n/{en,ja,zh-CN}.json` map "Chinese → translation"; a missing key falls back to the Chinese original,
 so **untranslated strings never break the layout**. Dictionaries refresh from GitHub raw in the background, so
 translation fixes don't need a release.
 
@@ -317,11 +324,11 @@ Push a `v*` tag and the [release workflow](.github/workflows/release.yml) builds
 
 ## Status
 
-**v2 is currently at v2.0.1**, downloadable right now from [Releases](https://github.com/io-software-ai/palserver-gui/releases) —
-everything listed above is live. Still early-stage; the API may continue to change.
+**v2 is currently at v2.1.0**, downloadable right now from [Releases](https://github.com/io-software-ai/palserver-gui/releases) —
+everything listed above is live.
 
 Not done yet: multi-host aggregation; the docker backend is still beta (`images/modded` not provided yet); advanced
-PalDefender features like Pal import rules. See [TODO.md](TODO.md) for the roadmap.
+PalDefender features like Pal import rules.
 
 ## License & links
 
@@ -332,7 +339,6 @@ paid service, etc.). For commercial licensing contact <contact@iosoftware.ai>.
 - **Official site:** <https://palserver-GUI.iosoftware.ai>
 - **FAQ:** <https://faq.toc.icu/>
 - **Discord:** <https://discord.gg/sgMMdUZd3V>
-- **Install & connection guide (for players, Chinese):** [docs/INSTALL.zh-TW.md](docs/INSTALL.zh-TW.md)
 - **Save migration:** [docs/MIGRATION.md](docs/MIGRATION.md)
 - **Privacy policy:** [PRIVACY.md](PRIVACY.md)
 - **v1 (no longer maintained):** <https://github.com/Dalufishe/palserver-GUI>
