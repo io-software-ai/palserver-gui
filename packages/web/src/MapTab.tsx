@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FiRefreshCw, FiMap, FiX, FiHome, FiUsers, FiStar, FiMoon, FiMapPin, FiExternalLink } from "react-icons/fi";
-import { GiCrownedSkull } from "react-icons/gi";
+import { GiCrownedSkull, GiMinerals } from "react-icons/gi";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -89,6 +89,14 @@ interface Boss {
   icon?: string;
 }
 
+/** Ore/mineral nodes (from paldb.cc's map data via scripts/fetch-map-ores.mjs).
+ * ~3.9k points — far too many for DOM markers, so the layer renders them as
+ * canvas circle markers coloured per ore type; names/colours ride in the file. */
+interface OreData {
+  types: Record<string, { name: { en: string; zh: string; ja: string; zhCN?: string }; icon: string; color: string; big?: boolean }>;
+  spots: { t: string; x: number; y: number }[];
+}
+
 /** Same deterministic "random Pal" avatar as the player list (PlayerAvatar):
  * hash the userId and pick a Pal that has artwork. Returns its icon URL. */
 function avatarIconUrl(seed: string, gameData: GameData | null): string | null {
@@ -127,6 +135,8 @@ export function MapTab({
   const [landmarks, setLandmarks] = useState<Landmark[]>([]);
   const [showBosses, setShowBosses] = useState(false);
   const [bosses, setBosses] = useState<Boss[]>([]);
+  const [showOres, setShowOres] = useState(false);
+  const [ores, setOres] = useState<OreData | null>(null);
   const [guildHint, setGuildHint] = useState(false);
 
   // Static landmark + boss sets (bundled), loaded once.
@@ -139,6 +149,10 @@ export function MapTab({
       .then((r) => (r.ok ? (r.json() as Promise<Boss[]>) : []))
       .then((d) => setBosses(Array.isArray(d) ? d : []))
       .catch(() => setBosses([]));
+    fetch("/game-data/ores.json")
+      .then((r) => (r.ok ? (r.json() as Promise<OreData>) : null))
+      .then((d) => setOres(d && Array.isArray(d.spots) ? d : null))
+      .catch(() => setOres(null));
   }, []);
 
   const refresh = useCallback(async () => {
@@ -242,6 +256,25 @@ export function MapTab({
                 <FiStar className="size-3.5 text-pal" />
               </button>
             ))}
+          {ores && ores.spots.length > 0 &&
+            (guildsUnlocked ? (
+              <button
+                className={`${btnGhost} inline-flex items-center gap-1.5 ${showOres ? "border-pal text-pal" : "opacity-60"}`}
+                onClick={() => setShowOres((v) => !v)}
+              >
+                <GiMinerals className="size-4" /> {t("礦物")}
+                <FiStar className="size-3.5 text-pal" />
+              </button>
+            ) : (
+              <button
+                className={`${btnGhost} inline-flex items-center gap-1.5 opacity-70`}
+                title={t("此功能為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。")}
+                onClick={() => setGuildHint((v) => !v)}
+              >
+                <GiMinerals className="size-4" /> {t("礦物")}
+                <FiStar className="size-3.5 text-pal" />
+              </button>
+            ))}
           {guildsUnlocked ? (
             <button
               className={`${btnGhost} inline-flex items-center gap-1.5 ${showBases ? "border-pal text-pal" : "opacity-60"}`}
@@ -296,12 +329,14 @@ export function MapTab({
           pdPlayers={pdPlayers}
           landmarks={landmarks}
           bosses={bosses}
+          ores={ores}
           lang={lang}
           showPlayers={showPlayers}
           showOffline={showOffline}
           showBases={showBases}
           showLandmarks={showLandmarks}
           showBosses={showBosses}
+          showOres={showOres}
           gameData={gameData}
           onGuildClick={setGuildDetailId}
           onPlayerClick={(id, label) => setPlayerDetail({ id, label })}
@@ -489,12 +524,14 @@ function PlayerMap({
   pdPlayers,
   landmarks,
   bosses,
+  ores,
   lang,
   showPlayers,
   showOffline,
   showBases,
   showLandmarks,
   showBosses,
+  showOres,
   gameData,
   onGuildClick,
   onPlayerClick,
@@ -506,12 +543,14 @@ function PlayerMap({
   pdPlayers: PdPlayerSummary[];
   landmarks: Landmark[];
   bosses: Boss[];
+  ores: OreData | null;
   lang: "zh" | "zh-CN" | "en" | "ja";
   showPlayers: boolean;
   showOffline: boolean;
   showBases: boolean;
   showLandmarks: boolean;
   showBosses: boolean;
+  showOres: boolean;
   gameData: GameData | null;
   onGuildClick?: (guildId: string) => void;
   /** Open the full player-detail view (same as the player list). */
@@ -520,6 +559,10 @@ function PlayerMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
+  // 礦物層獨立一組:~3.9k 個 canvas 圓點,只在資料/開關變化時重畫,
+  // 不跟著 5 秒一次的即時資料重繪循環走。
+  const oresGroupRef = useRef<L.LayerGroup | null>(null);
+  const oresRendererRef = useRef<L.Canvas | null>(null);
   const onGuildClickRef = useRef(onGuildClick);
   onGuildClickRef.current = onGuildClick;
   const onPlayerClickRef = useRef(onPlayerClick);
@@ -538,6 +581,9 @@ function PlayerMap({
     el.style.background = "transparent"; // let the card bg show past the image instead of Leaflet's grey
     L.imageOverlay(MAP_IMAGE, IMAGE_BOUNDS).addTo(map);
     map.setMaxBounds(IMAGE_BOUNDS.pad(0.3));
+    // canvas 圓點畫在 overlay pane,天然壓在 divIcon 類 marker(markerPane)之下。
+    oresRendererRef.current = L.canvas({ padding: 0.3 });
+    oresGroupRef.current = L.layerGroup().addTo(map);
     markersRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
@@ -564,8 +610,37 @@ function PlayerMap({
       map.remove();
       mapRef.current = null;
       markersRef.current = null;
+      oresGroupRef.current = null;
+      oresRendererRef.current = null;
     };
   }, []);
+
+  // 礦物層:每點一個 canvas 圓點,顏色分礦種,「大型」礦脈畫大顆;hover 顯示名稱。
+  useEffect(() => {
+    const group = oresGroupRef.current;
+    const renderer = oresRendererRef.current;
+    if (!group || !renderer) return;
+    group.clearLayers();
+    if (!showOres || !ores) return;
+    for (const s of ores.spots) {
+      const ty = ores.types[s.t];
+      if (!ty) continue;
+      const name = (lang === "zh-CN" ? ty.name.zhCN : ty.name[lang]) || ty.name.en;
+      L.circleMarker([s.y, s.x], {
+        renderer,
+        radius: ty.big ? 6 : 3.5,
+        color: "#ffffff",
+        weight: 1,
+        fillColor: ty.color,
+        fillOpacity: 0.95,
+      })
+        .bindTooltip(`<div style="font-weight:800">${escapeHtml(name)}</div>`, {
+          direction: "top",
+          className: "pmap-detail",
+        })
+        .addTo(group);
+    }
+  }, [ores, showOres, lang]);
 
   useEffect(() => {
     const group = markersRef.current;

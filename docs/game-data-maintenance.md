@@ -14,8 +14,9 @@
 | 新物品、新武器、新道具 | `items.json` + `items/` 圖示 |
 | 新詞條（被動技） | `passives.json` |
 | 新主動技 | `activeSkills.json` |
-| 新地區 / 地圖重繪 | 地圖底圖 + `landmarks.json` + `bosses.json`（見最後一節） |
+| 新地區 / 地圖重繪 | 地圖底圖 + `landmarks.json` + `bosses.json` + `ores.json`（見最後一節） |
 | 新野外頭目（Alpha Pal） | `bosses.json`（見最後一節） |
+| 新礦物 / 礦點變動 | `ores.json`：跑 `node scripts/fetch-map-ores.mjs`；新礦種要先在腳本的 `TYPES` 補「map_data type → items.json id」對照 |
 
 ## 資料檔清單與 schema
 
@@ -29,6 +30,7 @@
 | `passives.json` | `{id, name, zh?, zhCN?, ja?, rank}` | 無（前端畫箭頭） | paldb.cc + paldeck.cc |
 | `activeSkills.json` | `{id, name, zh?, zhCN?, ja?, element?}` | 無 | paldb.cc + paldeck.cc |
 | `landmarks.json` / `bosses.json` | `{name:{en, zh, zhCN?, ja}, x, y, ...}` | landmark-icons / pals | paldb.cc map data |
+| `ores.json` | `{types:{key:{name, icon, color, big?}}, spots:[{t, x, y}]}` | items/（沿用物品圖示） | paldb.cc map data（`scripts/fetch-map-ores.mjs` 可重跑；礦物名稱/翻譯對接 items.json） |
 
 `zh` 是繁中、`zhCN` 是簡中（介面選簡中時前端 `displayName` / MapTab 優先取 zhCN，缺則 fallback 繁中→英文）。
 

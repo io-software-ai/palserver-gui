@@ -1134,5 +1134,6 @@
  "開機時自動開啟瀏覽器": "Open the browser on startup",
  "agent 啟動時自動打開管理介面(下次啟動生效)。放伺服器的機器沒有螢幕時可關掉。": "Automatically opens the management panel when the agent starts (takes effect next startup). Turn it off on a headless server machine.",
  "超出建議範圍 {min}–{max},遊戲可能有非預期行為": "Outside the suggested range {min}–{max}; the game may behave unexpectedly.",
- "連不上驗證伺服器,請確認這台伺服器主機能連上網際網路": "Cannot reach the verification server. Make sure this server machine has internet access."
+ "連不上驗證伺服器,請確認這台伺服器主機能連上網際網路": "Cannot reach the verification server. Make sure this server machine has internet access.",
+ "礦物": "Ores"
 }
