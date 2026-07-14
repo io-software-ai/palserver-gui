@@ -168,15 +168,14 @@ export async function clearLicenseKey(): Promise<LicenseStatus> {
   return licenseStatus();
 }
 
-/** 給前端看的完整授權狀態(含免費/早鳥功能整併後的可用功能)。 */
+/** 給前端看的完整授權狀態(含免費/贊助者功能整併後的可用功能)。 */
 export function licenseStatus(): LicenseStatus {
   const c = effectiveCache();
-  const now = new Date();
   const lic = { valid: c?.valid ?? false, features: c?.features ?? [] };
-  // 對前端而言「可用的早鳥功能」= 已免費 或 這張碼有解鎖。
-  const availableEarlyAccess = EARLY_ACCESS_FEATURES.filter((f) =>
-    hasFeature(f.id, lic, now),
-  ).map((f) => f.id);
+  // 對前端而言「可用的贊助者功能」= 這張碼有解鎖(目錄內功能已無免費期限)。
+  const availableEarlyAccess = EARLY_ACCESS_FEATURES.filter((f) => hasFeature(f.id, lic)).map(
+    (f) => f.id,
+  );
   return {
     hasKey: readKey() !== null,
     valid: c?.valid ?? false,

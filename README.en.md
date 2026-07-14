@@ -102,7 +102,7 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 - Auto-restart: scheduled (fixed interval or daily times), memory threshold, crash recovery (with an hourly cap to avoid infinite restart loops)
 - Broadcasts a countdown and saves the world before planned restarts; manual stops don't count as crashes
 
-**Sponsor early-access features** (unlocked for active sponsors; opens to everyone once the early-access period ends)
+**Sponsor-exclusive features** (unlocked for active sponsors)
 - **Pal stat editor** (via PalSchema): tweak a species' base HP / attack / defense / capture rate etc., **with a separate override for the boss variant**; one-click PalSchema install, a change log, and one-click revert-all
 - **Teleport players**: teleport a player to another player, or to **coordinates picked on the map**
 - **Bulk-give items**: an item icon picker + quantity, grant several at once
