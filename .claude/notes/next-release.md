@@ -6,7 +6,13 @@ v2.2.6 已發布(2026-07-15:彙整 2.2.4–2.2.6 更新失敗修復包,notes 涵
 發版流程:bump 四個 package.json → 四語 RELEASE_NOTES → chore(release) commit → tag → push --tags。
 
 ## Features(自 v2.2.6 起)
-- (尚無)
+- PR #32(BlackWhiteTW):遺物指令 RelicType 參數、自訂帕魯濃縮計算、UE4SS 測試版下載、等級上限、地圖 Z 軸與多國語系修正。
+- PR #29(teps3105,closes #26):REST 埠 1:1 映射(docker 不再用 ephemeral port)、
+  建立/複製實例自動分配 REST 埠、世界設定 PUT 補 REST/RCON 撞埠檢查、
+  native 改設定即時寫回 ini。**升級注意:既有 docker 實例要 stop→remove→start 一次**。
+- PR #18(UCKETX,fixes #31):簡中全面校對(442 條 UI 字串+目錄譯名升級為人工欄位 "zh-CN")、
+  下拉搜尋支援簡中名稱、MIGRATION.zh-CN.md。合併時已整合 main 的日文搜尋/六目錄/永久贊助文案;
+  抓取腳本改為不覆寫人工 "zh-CN" 欄位。
 
 ## 待確認 / 需實機驗證(v2.1.1 遺留)
 - 礦物圖層與公會成員定位:實機視覺確認(圓點密度/顏色分辨度、flyTo 縮放層級)。
