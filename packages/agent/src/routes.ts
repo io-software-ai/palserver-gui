@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import {
   COMMANDS,
+  COOP_HOST_UID,
   ENGINE_OPTIONS,
   LAUNCH_OPTIONS,
   LAUNCH_OPTION_KEYS,
@@ -62,14 +63,8 @@ import {
   writeFileInPodBrowser,
 } from "./k8s-file-browser.js";
 import * as saves from "./saves.js";
-import {
-  getHealthStatus,
-  getPlayerProfile,
-  getPlayersSnapshotFull,
-  getPlayersSummary,
-  startHealthCheck,
-} from "./save-tools.js";
-import { applyHostFix } from "./host-save-fix.js";
+import { getHealthStatus, getPlayerProfile, getPlayersSummary, startHealthCheck } from "./save-tools.js";
+import { applyHostFix, transferPalOwners } from "./host-save-fix.js";
 import { getEngineSettings, writeEngineSettings } from "./engine-ini.js";
 import { getConfigHealth, regenerateConfig } from "./config-health.js";
 import {
@@ -1410,6 +1405,25 @@ export function registerRoutes(
     return saves.createBackup(rec, ctxOf(rec), worldGuid);
   });
 
+  // ── 帕魯歸屬過戶(主機角色已修復但帕魯仍掛在共玩殘留 uid 的世界用)──
+  app.post("/api/instances/:id/saves/pal-owner-fix", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    const { worldGuid, toSav } = z
+      .object({
+        worldGuid: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, "世界 GUID 格式不合法"),
+        toSav: z.string().regex(/^[0-9A-Fa-f]{32}\.sav$/, "玩家存檔檔名格式不合法"),
+      })
+      .parse(req.body);
+    if (await isRunning(rec)) {
+      throw Object.assign(new Error("請先停止伺服器再過戶帕魯歸屬"), { statusCode: 409 });
+    }
+    // 改寫 Level.sav 前強制備份,與主機角色修復同一安全姿態。
+    const backup = await saves.createBackup(rec, ctxOf(rec), worldGuid);
+    const fromUid = `${COOP_HOST_UID.slice(0, 8)}-${COOP_HOST_UID.slice(8, 12)}-${COOP_HOST_UID.slice(12, 16)}-${COOP_HOST_UID.slice(16, 20)}-${COOP_HOST_UID.slice(20)}`;
+    const result = await transferPalOwners(saves.worldDirOf(rec, ctxOf(rec), worldGuid), fromUid, toSav);
+    return { ...result, backup: backup.name };
+  });
+
   // ── 停用共玩遺留的 WorldOptions.sav(它會蓋掉 ini 的世界設定與 AdminPassword)──
   app.post("/api/instances/:id/saves/world-options-fix", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
@@ -1449,9 +1463,6 @@ export function registerRoutes(
       .object({
         worldGuid: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, "世界 GUID 格式不合法").optional(),
         uid: z.string().regex(/^[0-9A-Fa-f-]{32,36}$/, "玩家 UID 格式不合法").optional(),
-        // withPals=1:整份快照含全部帕魯明細 —— 玩家詳情用 instanceId 做跨來源
-        // 全域對聯(共玩轉檔的存檔,帕魯歸屬常掛在殘留 uid 上,不能只查單一玩家)。
-        withPals: z.enum(["1"]).optional(),
       })
       .parse(req.query);
     const worldGuid = q.worldGuid ?? (await saves.activeWorldGuidAsync(rec, ctxOf(rec)));
@@ -1461,7 +1472,6 @@ export function registerRoutes(
       if (!profile) throw Object.assign(new Error("快照裡沒有這個玩家(可能需要重新掃描)"), { statusCode: 404 });
       return { worldGuid, profile };
     }
-    if (q.withPals) return { worldGuid, ...getPlayersSnapshotFull(ctxOf(rec), worldGuid) };
     return getPlayersSummary(ctxOf(rec), worldGuid);
   });
 

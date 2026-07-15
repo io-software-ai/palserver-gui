@@ -234,3 +234,34 @@ export async function applyHostFix(
 
   return { oldUid, newUid, patchedLevelEntries: targets.length, patchedPalOwners: owners.length };
 }
+
+/**
+ * 獨立的帕魯歸屬過戶:把 Level.sav 裡「OwnerPlayerUId == fromUid」的帕魯全部
+ * 過戶給 toUid。給「主機角色已修復(或重建),但帕魯還掛在共玩殘留 uid」的世界用
+ * —— 這種情況舊角色檔已不存在,applyHostFix 跑不了。
+ * 呼叫端負責:確認伺服器已停止、先做備份。
+ */
+export async function transferPalOwners(
+  worldDir: string,
+  fromUid: string,
+  toSavName: string,
+): Promise<{ fromUid: string; toUid: string; patchedPalOwners: number }> {
+  if (!SAV_NAME_RE.test(toSavName)) throw fail("目標玩家存檔檔名格式不合法", 422);
+  const toUid = savNameToUuid(toSavName);
+  if (fromUid.toLowerCase() === toUid.toLowerCase()) throw fail("來源與目標相同,不需過戶", 422);
+  const toPath = path.join(worldDir, "Players", toSavName);
+  if (!fs.existsSync(toPath)) throw fail(`找不到目標玩家存檔 ${toSavName}`, 404);
+  const levelPath = path.join(worldDir, "Level.sav");
+  if (!fs.existsSync(levelPath)) throw fail("找不到 Level.sav", 404);
+
+  const level = await decompressSav(fs.readFileSync(levelPath));
+  const owners = findGuidProps(level.data, "OwnerPlayerUId").filter((p) => p.uuid === fromUid.toLowerCase());
+  if (owners.length === 0) {
+    throw fail(`Level.sav 裡沒有掛在 ${fromUid} 名下的帕魯,不需過戶`, 404);
+  }
+  const toRaw = uuidToRaw(toUid);
+  for (const p of owners) toRaw.copy(level.data, p.offset);
+  fs.writeFileSync(levelPath, compressSav(level.data, level.saveType));
+
+  return { fromUid, toUid, patchedPalOwners: owners.length };
+}

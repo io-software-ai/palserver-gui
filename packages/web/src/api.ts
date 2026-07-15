@@ -625,15 +625,16 @@ export class AgentClient {
     return this.request(`/api/instances/${id}/saves/players-snapshot${q}`);
   }
 
-  /** 整份快照含全部帕魯明細(玩家詳情的跨來源對聯用)。 */
-  playersSnapshotFull(id: string, worldGuid?: string): Promise<{
-    worldGuid: string;
-    generatedAt: string | null;
-    levelSavMtime: string | null;
-    players: SavePlayerProfile[];
-  }> {
-    const q = worldGuid ? `&worldGuid=${encodeURIComponent(worldGuid)}` : "";
-    return this.request(`/api/instances/${id}/saves/players-snapshot?withPals=1${q}`);
+  /** 帕魯歸屬過戶:把共玩殘留 uid 名下的帕魯過戶給指定玩家(需停服,會先強制備份)。 */
+  palOwnerFix(
+    id: string,
+    worldGuid: string,
+    toSav: string,
+  ): Promise<{ fromUid: string; toUid: string; patchedPalOwners: number; backup: string }> {
+    return this.request(`/api/instances/${id}/saves/pal-owner-fix`, {
+      method: "POST",
+      body: JSON.stringify({ worldGuid, toSav }),
+    });
   }
 
   playerSnapshotProfile(

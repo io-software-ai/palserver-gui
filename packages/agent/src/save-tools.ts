@@ -211,19 +211,6 @@ export function getPlayersSummary(ctx: DriverContext, worldGuid: string): SavePl
   };
 }
 
-/** 整份快照(全部玩家含帕魯明細)。玩家詳情的跨來源 instanceId 對聯用。 */
-export function getPlayersSnapshotFull(
-  ctx: DriverContext,
-  worldGuid: string,
-): { generatedAt: string | null; levelSavMtime: string | null; players: SavePlayerProfile[] } {
-  const snap = readSnapshots(ctx)[worldGuid];
-  return {
-    generatedAt: snap?.generatedAt ?? null,
-    levelSavMtime: snap?.levelSavMtime ?? null,
-    players: snap?.players ?? [],
-  };
-}
-
 /** 單一玩家完整檔案(含帕魯明細)。uid 比對忽略大小寫與連字號。 */
 export function getPlayerProfile(ctx: DriverContext, worldGuid: string, uid: string): SavePlayerProfile | null {
   const norm = (s: string) => s.replace(/-/g, "").toLowerCase();

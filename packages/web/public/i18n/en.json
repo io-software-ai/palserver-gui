@@ -1212,5 +1212,14 @@
  "防": "DEF",
  "幸運": "Lucky",
  "背包": "Inventory",
- "已一併把 {n} 隻帕魯的擁有者過戶到新 ID(修掉共玩殘留的歸屬)。": "Also transferred ownership of {n} pals to the new ID (fixing co-op leftover attribution)."
+ "已一併把 {n} 隻帕魯的擁有者過戶到新 ID(修掉共玩殘留的歸屬)。": "Also transferred ownership of {n} pals to the new ID (fixing co-op leftover attribution).",
+ "已把 {n} 隻帕魯的擁有者過戶到所選角色。": "Transferred ownership of {n} pals to the selected character.",
+ "這個世界沒有共玩主機角色檔(0000…0001.sav),角色不需要修復。": "This world has no co-op host character file (0000…0001.sav), so the character needs no repair.",
+ "但若這個世界是共玩搬來的,帕魯的「擁有者」可能仍掛在殘留 ID(0000…0001)名下——會影響擁有者顯示、按玩家統計,以及未來清理工具的歸屬判斷。可以在這裡把它們過戶給指定角色。": "But if this world was migrated from co-op, pals may still be owned by the leftover ID (0000…0001) — affecting owner display, per-player stats, and how future cleanup tools attribute them. You can transfer them to a character here.",
+ "這個世界沒有玩家角色檔,無法過戶。": "This world has no player character files, so there's nothing to transfer to.",
+ "過戶給哪個角色(通常是主機玩家自己)": "Transfer to which character (usually the host player)",
+ "過戶中…": "Transferring…",
+ "過戶帕魯歸屬": "Transfer Pal Ownership",
+ "共玩存檔的角色過戶與帕魯歸屬修復": "Co-op save repairs: character transfer & pal ownership",
+ "共玩修復": "Co-op Repair"
 }

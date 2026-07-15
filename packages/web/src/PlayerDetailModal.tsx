@@ -20,10 +20,9 @@ import { Overlay, card, btn, btnGhost, errorCls } from "./ui";
  *  - PalDefender REST(即時):線上狀態、隊伍/帕魯箱分組、背包、進度
  *  - 存檔快照(save-tools 掃描,手動刷新):離線也查得到,補上個體值/詞條/星級
  *
- * 帕魯對聯用「整份快照的 InstanceId 全域索引」,不走「玩家→帕魯」歸屬鏈——
- * 共玩轉檔的存檔,帕魯的 OwnerPlayerUId 常掛在殘留 uid(0000…0001)上,
- * 按玩家歸屬查會拿到 0 隻;InstanceId 是兩邊同源的主鍵,全域對聯必中。
- * 玩家檔案匹配同理加共玩備援:uid 對到但 0 隻帕魯時,改用同名且有帕魯的那份。
+ * 帕魯用 InstanceId(兩邊同源的主鍵)對聯。共玩轉檔造成的歸屬殘留
+ * (帕魯掛在 0000…0001 名下)請用存檔頁的「主機角色修復/帕魯歸屬過戶」
+ * 修正資料本身,這裡不做繞路補償。
  */
 export function PlayerDetailModal({
   client,
@@ -51,7 +50,6 @@ export function PlayerDetailModal({
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const [worldGuid, setWorldGuid] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-  const [allPlayers, setAllPlayers] = useState<SavePlayerProfile[] | null>(null);
   const [profile, setProfile] = useState<SavePlayerProfile | null>(null);
   const [snapNote, setSnapNote] = useState<string | null>(null);
   const [canScan, setCanScan] = useState(false);
@@ -80,36 +78,33 @@ export function PlayerDetailModal({
 
   const restUid = detail?.available ? detail.playerUid : null;
 
-  /** 讀整份快照,選出這位玩家的檔案(含共玩備援);失敗原因寫進 snapNote。 */
+  /** 讀快照清單,比對出這位玩家後抓完整檔案;失敗原因寫進 snapNote。 */
   const loadSnapshot = useCallback(async () => {
     try {
-      const snap = await client.playersSnapshotFull(instanceId);
-      setWorldGuid(snap.worldGuid);
-      setGeneratedAt(snap.generatedAt);
-      setAllPlayers(snap.players);
+      const summary = await client.playersSnapshot(instanceId);
+      setWorldGuid(summary.worldGuid);
+      setGeneratedAt(summary.generatedAt);
       try {
-        const health = await client.saveHealth(instanceId, snap.worldGuid);
+        const health = await client.saveHealth(instanceId, summary.worldGuid);
         setCanScan(health.supported);
         if (!health.supported) setSnapNote(health.reason ?? t("此主機不支援存檔掃描"));
       } catch {
         setCanScan(false);
       }
-      if (!snap.generatedAt) {
+      if (!summary.generatedAt) {
         setProfile(null);
         return;
       }
-      // uid 優先;共玩轉檔備援:uid 對到但名下 0 隻,改用同名且帕魯最多的那份
-      const byUid = restUid ? snap.players.find((p) => normId(p.uid) === normId(restUid)) : undefined;
-      const byName = snap.players
-        .filter((p) => p.name === displayLabel || (byUid && p.name === byUid.name))
-        .sort((a, b) => b.palCount - a.palCount)[0];
-      const match = byUid && byUid.palCount > 0 ? byUid : (byName?.palCount ?? 0) > 0 ? byName : (byUid ?? byName);
+      const match =
+        (restUid && summary.players.find((p) => normId(p.uid) === normId(restUid))) ||
+        summary.players.find((p) => p.name === displayLabel);
       if (!match) {
         setProfile(null);
         setSnapNote(t("快照裡找不到這位玩家(名稱或 UID 對不上)。掃描一次最新存檔試試。"));
         return;
       }
-      setProfile(match);
+      const { profile: full } = await client.playerSnapshotProfile(instanceId, summary.worldGuid, match.uid);
+      setProfile(full);
       setSnapNote(null);
     } catch (err) {
       // 舊版 agent 沒有快照端點、或世界解析失敗 → 把原因講清楚,不留死按鈕
@@ -154,12 +149,12 @@ export function PlayerDetailModal({
     }
   };
 
-  // 整份快照的 InstanceId 全域索引(跨玩家,共玩殘留歸屬也對得上)
+  // 這位玩家名下帕魯的 InstanceId 索引(REST 卡片就地補個體值/詞條用)
   const saveByInstance = useMemo(() => {
     const m = new Map<string, SavePalRow>();
-    for (const pl of allPlayers ?? []) for (const p of pl.pals) if (p.instanceId) m.set(normId(p.instanceId), p);
+    for (const p of profile?.pals ?? []) if (p.instanceId) m.set(normId(p.instanceId), p);
     return m;
-  }, [allPlayers]);
+  }, [profile]);
 
   const restAvailable = !!detail?.available;
   const needsRestSetup = !!rest?.installed && !(rest.enabled && rest.hasToken);

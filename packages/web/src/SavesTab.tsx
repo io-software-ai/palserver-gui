@@ -557,13 +557,19 @@ function WorldCard({
               <FiUser className="inline size-4" /> {t("玩家存檔")}
             </button>
           )}
-          {hasCoopHost && (
+          {world.playerSaves.length > 0 && (
             <button
-              className={`${btnGhost} inline-flex items-center gap-1.5 border-sun/60 text-sun hover:border-sun`}
+              className={`${btnGhost} inline-flex items-center gap-1.5 ${
+                hasCoopHost ? "border-sun/60 text-sun hover:border-sun" : ""
+              }`}
               onClick={onHostFix}
-              title={t("這個世界含共玩主機角色檔 — 一鍵過戶給專用伺服器的新角色")}
+              title={
+                hasCoopHost
+                  ? t("這個世界含共玩主機角色檔 — 一鍵過戶給專用伺服器的新角色")
+                  : t("共玩存檔的角色過戶與帕魯歸屬修復")
+              }
             >
-              <FiTool className="size-4" /> {t("修復主機角色")}
+              <FiTool className="size-4" /> {t("共玩修復")}
             </button>
           )}
         </div>
