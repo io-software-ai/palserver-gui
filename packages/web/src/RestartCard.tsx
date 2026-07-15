@@ -91,7 +91,16 @@ export function RestartCard({ client, instanceId }: { client: AgentClient; insta
     setSaving(true);
     setError(null);
     try {
-      await client.updateRestartPolicy(instanceId, draft);
+      // 自動重啟的遊戲內倒數公告由 agent 端發送,agent 不知道介面語言 ——
+      // 儲存時把「當下介面語言」的模板一併存進 policy,agent 只做佔位替換。
+      await client.updateRestartPolicy(instanceId, {
+        ...draft,
+        announceTemplates: {
+          restart: t("伺服器將在 {n} 秒後重新啟動({reason})"),
+          reasonScheduled: t("排定重啟"),
+          reasonMemory: t("記憶體超標"),
+        },
+      });
       setNotice(t("已儲存伺服器重啟設定"));
       setTimeout(() => setNotice(null), 3000);
       await refresh();
@@ -247,7 +256,7 @@ export function RestartCard({ client, instanceId }: { client: AgentClient; insta
         />
       </Field>
       <p className="-mt-2 text-xs text-ink-muted">
-        {t("計畫性重啟以及你手動按停止 / 重啟時,都會先在遊戲聊天室倒數公告這麼多秒(手動用介面語言),並在重啟前先存檔。崩潰重啟不預告(伺服器已經不在了)。")}
+        {t("計畫性重啟以及你手動按停止 / 重啟時,都會先在遊戲聊天室倒數公告這麼多秒,並在重啟前先存檔。公告使用介面語言;自動重啟的公告用你「儲存這份設定」當下的語言。崩潰重啟不預告(伺服器已經不在了)。")}
       </p>
 
       <div className="flex gap-2">

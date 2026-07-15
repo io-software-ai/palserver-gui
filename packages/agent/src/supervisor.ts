@@ -321,10 +321,21 @@ export class RestartSupervisor {
   ): Promise<void> {
     this.busy.add(rec.id);
     try {
+      // 遊戲內公告用 GUI 儲存設定時寫入的在地化模板;沒存過(舊設定)退回內建繁中。
+      // detail 留給重啟紀錄/log(內含動態數字,不進遊戲聊天室)。
+      const tpl = policy.announceTemplates;
+      const reasonLabel =
+        reason === "scheduled" ? tpl?.reasonScheduled ?? "已達排定的重啟時間"
+        : reason === "memory" ? tpl?.reasonMemory ?? "記憶體超標"
+        : detail;
+      const announceMsg = (n: number) =>
+        (tpl?.restart ?? "伺服器將在 {n} 秒後重新啟動({reason})")
+          .split("{n}").join(String(n))
+          .split("{reason}").join(reasonLabel);
       const wait = Math.min(Math.max(policy.announceSeconds, 0), MAX_ANNOUNCE_SECONDS);
       if (wait > 0) {
         await rest
-          .announce(rec, `伺服器將在 ${wait} 秒後重新啟動(${detail})`)
+          .announce(rec, announceMsg(wait))
           .catch(() => {}); // REST off — restart anyway, just without warning
         await new Promise((r) => setTimeout(r, wait * 1000));
       }
@@ -338,7 +349,7 @@ export class RestartSupervisor {
       // Try graceful shutdown first (server saves then exits cleanly).
       // Fall back to hard stop if REST is unavailable or shutdown fails.
       const shutdownOk = await rest
-        .shutdown(rec, 10, `自動重啟: ${detail}`)
+        .shutdown(rec, 10, announceMsg(10))
         .then(() => true)
         .catch(() => false);
 

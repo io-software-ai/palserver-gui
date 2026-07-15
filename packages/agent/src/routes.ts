@@ -1493,6 +1493,14 @@ export function registerRoutes(
           maxPerHour: z.number().int().min(1).max(20),
         }),
         announceSeconds: z.number().int().min(0).max(300),
+        // 遊戲內倒數公告的在地化模板(GUI 以儲存當下的介面語言寫入,見 shared RestartPolicy)。
+        announceTemplates: z
+          .object({
+            restart: z.string().max(200),
+            reasonScheduled: z.string().max(100),
+            reasonMemory: z.string().max(100),
+          })
+          .optional(),
       })
       .parse(req.body);
     return supervisor.writePolicy(rec.id, policy);

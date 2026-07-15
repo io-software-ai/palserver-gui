@@ -826,6 +826,16 @@ export interface RestartPolicy {
   };
   /** Warn players over the REST API before a planned restart. 0 = no warning. */
   announceSeconds: number;
+  /** 自動重啟倒數公告的在地化模板:GUI 儲存設定時以「當下介面語言」寫入,
+   *  agent 端沒有 UI 語言概念,只套模板({n}=秒數、{reason}=原因標籤)。
+   *  沒存過(舊設定)時 agent 退回內建繁中訊息。 */
+  announceTemplates?: {
+    /** 例:"伺服器將在 {n} 秒後重新啟動({reason})" */
+    restart: string;
+    /** {reason} 的標籤:排定重啟 / 記憶體超標 */
+    reasonScheduled: string;
+    reasonMemory: string;
+  };
 }
 
 export const DEFAULT_RESTART_POLICY: RestartPolicy = {
