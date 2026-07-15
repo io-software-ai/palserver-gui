@@ -20,9 +20,10 @@ function ticksDaysAgo(days: number): string {
   return String(now - BigInt(days) * TICKS_PER_DAY);
 }
 
+let instanceSeq = 0;
 function charEntry(uid: string, saveParameter: Record<string, unknown>) {
   return {
-    key: { PlayerUId: { value: uid }, InstanceId: { value: "i" } },
+    key: { PlayerUId: { value: uid }, InstanceId: { value: `inst-${++instanceSeq}` } },
     value: {
       RawData: { value: { object: { SaveParameter: { value: saveParameter } } } },
     },
@@ -200,6 +201,8 @@ test("analyzeLevelJsonStream:玩家快照(檔案+帕魯明細)", async () => {
   assert.equal(alice.pals[0].characterId, "BOSS_Penguin");
   assert.equal(alice.pals[0].isBoss, true);
   assert.equal(alice.pals[0].gender, "female");
+  // 每隻帕魯都帶存檔的 InstanceId(跨資料來源比對用)
+  assert.ok(alice.pals.every((p) => p.instanceId.startsWith("inst-")));
   const sheep = alice.pals[1];
   assert.equal(sheep.characterId, "SheepBall");
   assert.equal(sheep.isLucky, true);

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { FiX, FiCpu, FiLock, FiPackage, FiRefreshCw, FiSave, FiTrendingUp, FiZap, FiShield } from "react-icons/fi";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FiX, FiCpu, FiLock, FiPackage, FiRefreshCw, FiTrendingUp, FiZap, FiShield } from "react-icons/fi";
 import { GiShield } from "react-icons/gi";
 import {
   hasFeature,
@@ -14,9 +14,14 @@ import { maskSteamId } from "./SteamId";
 import { t, useI18n } from "./i18n";
 import { Overlay, card, btn, btnGhost, errorCls } from "./ui";
 
-/** Full detail for one player — pals and inventory — via PalDefender's REST
- * API. Shows a clear prompt when that API isn't available. Player actions live
- * in the list rows (PlayerActionsMenu), not here. */
+/**
+ * 玩家詳情 — 兩個資料來源「合併成同一個視圖」,不分區:
+ *  - PalDefender REST(即時):線上狀態、隊伍/帕魯箱分組、背包、進度
+ *  - 存檔快照(save-tools 掃描,手動刷新):離線也查得到,補上個體值/詞條/
+ *    星級/幸運/頭目與最後上線 —— 兩邊的帕魯用 InstanceId 對上,同一張卡呈現
+ * 任一來源不可用時,另一邊仍完整運作;各種失敗狀態(平台不支援、agent 過舊、
+ * 掃描失敗)都顯式呈現,不會出現「按了沒反應」的死按鈕。
+ */
 export function PlayerDetailModal({
   client,
   instanceId,
@@ -39,12 +44,21 @@ export function PlayerDetailModal({
   const [rest, setRest] = useState<PdRestStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // ── 存檔快照側 ──
+  const [entitled, setEntitled] = useState<boolean | null>(null);
+  const [worldGuid, setWorldGuid] = useState<string | null>(null);
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [profile, setProfile] = useState<SavePlayerProfile | null>(null);
+  const [snapNote, setSnapNote] = useState<string | null>(null); // 平台不支援/agent 過舊/找不到玩家
+  const [canScan, setCanScan] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+
   useEffect(() => {
     client
       .playerDetail(instanceId, identifier)
       .then((d) => {
         setDetail(d);
-        // 查不到就順手抓 REST 狀態,判斷原因是「沒啟用 / 沒 token」還是伺服器沒開。
         if (!d.available) client.palDefenderRest(instanceId).then(setRest).catch(() => {});
       })
       .catch((err) => {
@@ -53,7 +67,96 @@ export function PlayerDetailModal({
       });
   }, [client, instanceId, identifier]);
 
-  // PalDefender 有裝、但 REST 還沒「啟用 + 有 token」→ 引導使用者去 PalDefender 分頁設定。
+  useEffect(() => {
+    client
+      .license()
+      .then((l) => setEntitled(hasFeature("save-slim", l)))
+      .catch(() => setEntitled(false));
+  }, [client, instanceId]);
+
+  const norm = (s: string) => s.replace(/-/g, "").toLowerCase();
+  const restUid = detail?.available ? detail.playerUid : null;
+
+  /** 讀快照 + 比對出這位玩家;失敗原因寫進 snapNote(顯式,不做死按鈕)。 */
+  const loadSnapshot = useCallback(async () => {
+    try {
+      const summary = await client.playersSnapshot(instanceId);
+      setWorldGuid(summary.worldGuid);
+      setGeneratedAt(summary.generatedAt);
+      // 平台支不支援掃描,問一次健檢狀態(它回 supported + reason)
+      try {
+        const health = await client.saveHealth(instanceId, summary.worldGuid);
+        setCanScan(health.supported);
+        if (!health.supported) setSnapNote(health.reason ?? t("此主機不支援存檔掃描"));
+      } catch {
+        setCanScan(false);
+      }
+      if (!summary.generatedAt) {
+        setProfile(null);
+        return;
+      }
+      const match =
+        (restUid && summary.players.find((p) => norm(p.uid) === norm(restUid))) ||
+        summary.players.find((p) => p.name === displayLabel);
+      if (!match) {
+        setProfile(null);
+        setSnapNote(t("快照裡找不到這位玩家(名稱或 UID 對不上)。掃描一次最新存檔試試。"));
+        return;
+      }
+      const { profile: full } = await client.playerSnapshotProfile(instanceId, summary.worldGuid, match.uid);
+      setProfile(full);
+      setSnapNote(null);
+    } catch (err) {
+      // 舊版 agent 沒有快照端點、或世界解析失敗 → 把原因講清楚,不留死按鈕
+      setCanScan(false);
+      setSnapNote(
+        t("無法取得存檔快照:{reason}", {
+          reason: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+  }, [client, instanceId, restUid, displayLabel]);
+
+  useEffect(() => {
+    if (entitled) void loadSnapshot();
+  }, [entitled, loadSnapshot]);
+
+  const scan = async () => {
+    if (!worldGuid) return;
+    setScanError(null);
+    setScanning(true);
+    try {
+      await client.startSaveHealth(instanceId, worldGuid);
+      await new Promise<void>((resolve) => {
+        const timer = setInterval(async () => {
+          try {
+            const s = await client.saveHealth(instanceId, worldGuid);
+            if (s.phase === "idle") {
+              clearInterval(timer);
+              if (s.error) setScanError(s.error);
+              resolve();
+            }
+          } catch {
+            /* 暫時性網路錯誤:下一輪再試 */
+          }
+        }, 2000);
+      });
+      await loadSnapshot();
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // ── 合併:存檔帕魯依 InstanceId 建索引,REST 卡片就地補個體值/詞條 ──
+  const saveByInstance = useMemo(() => {
+    const m = new Map<string, SavePalRow>();
+    for (const p of profile?.pals ?? []) if (p.instanceId) m.set(norm(p.instanceId), p);
+    return m;
+  }, [profile]);
+
+  const restAvailable = !!detail?.available;
   const needsRestSetup = !!rest?.installed && !(rest.enabled && rest.hasToken);
 
   return (
@@ -64,15 +167,51 @@ export function PlayerDetailModal({
       >
         <div className="flex items-center justify-between gap-2">
           <h2 className="truncate text-lg font-extrabold">{displayLabel}</h2>
-          <button className={btnGhost} onClick={onClose}>
-            <FiX className="inline size-4" /> {t("關閉")}
-          </button>
+          <div className="flex items-center gap-2">
+            {entitled && canScan && (
+              <button
+                className={`${btnGhost} inline-flex items-center gap-1.5`}
+                onClick={() => void scan()}
+                disabled={scanning}
+              >
+                <FiRefreshCw className={`size-3.5 ${scanning ? "animate-spin" : ""}`} />
+                {scanning ? t("掃描存檔中…(依存檔大小可能需要幾分鐘)") : t("從存檔刷新")}
+              </button>
+            )}
+            <button className={btnGhost} onClick={onClose}>
+              <FiX className="inline size-4" /> {t("關閉")}
+            </button>
+          </div>
         </div>
 
+        {generatedAt && (
+          <p className="-mt-2 text-xs text-ink-muted">
+            {t("存檔資料掃描於 {when};即時資料(在線/背包)來自 PalDefender。", {
+              when: new Date(generatedAt).toLocaleString(),
+            })}
+          </p>
+        )}
+
         {error && <p className={errorCls}>{error}</p>}
+        {scanError && <p className={errorCls}>{t("存檔掃描失敗:{reason}", { reason: scanError })}</p>}
+        {entitled === false && (
+          <div className="inline-flex items-center gap-2 rounded-cute border-2 border-sun/40 bg-sun/10 px-3 py-2 text-xs font-bold text-sun">
+            <FiLock className="size-4 shrink-0" />
+            {t("個體值、詞條與離線玩家資料是贊助者功能。到「設定 → 贊助者識別碼」輸入識別碼即可使用。")}
+          </div>
+        )}
+        {entitled && snapNote && !scanning && (
+          <p className="text-[13px] text-ink-muted">{snapNote}</p>
+        )}
+        {entitled && canScan && !generatedAt && !scanning && !snapNote && (
+          <p className="text-[13px] text-ink-muted">
+            {t("尚未掃描過存檔。點「從存檔刷新」建立快照:不依賴 PalDefender,離線玩家也查得到,並包含個體值與詞條。")}
+          </p>
+        )}
+
         {!detail && !error && <p className="text-ink-muted">{t("載入中…")}</p>}
 
-        {detail && !detail.available && (
+        {detail && !restAvailable && !profile && (
           <div className="rounded-(--radius-cute) border-2 border-dashed border-line px-6 py-8 text-center text-ink-muted">
             <GiShield className="mx-auto mb-2 size-11" />
             <p className="font-bold">{t("無法讀取玩家細節")}</p>
@@ -83,9 +222,7 @@ export function PlayerDetailModal({
                 <p className="text-[13px]">
                   {t("玩家細節需要 PalDefender 的 REST API。請到 PalDefender 分頁啟用 REST API 並建立存取權杖。")}
                 </p>
-                <p className="text-xs text-sun">
-                  {t("啟用或變更後,需要重啟伺服器一次才會生效。")}
-                </p>
+                <p className="text-xs text-sun">{t("啟用或變更後,需要重啟伺服器一次才會生效。")}</p>
                 {onGoToPalDefender && (
                   <button
                     className={`${btn} inline-flex items-center gap-1.5`}
@@ -100,282 +237,79 @@ export function PlayerDetailModal({
               </div>
             ) : rest && !rest.installed ? (
               <p className="mt-2 text-xs">
-                {t("玩家細節需要安裝 PalDefender 並啟用其 REST API。PalDefender 1.8.0 以上連離線玩家也能查詢。")}
+                {t("即時玩家細節需要安裝 PalDefender 並啟用其 REST API;或用上方「從存檔刷新」改讀存檔資料。")}
               </p>
             ) : null}
           </div>
         )}
 
-        {detail?.available && <DetailBody detail={detail} gameData={gameData} />}
-
-        <SaveSnapshotSection
-          client={client}
-          instanceId={instanceId}
-          playerUid={detail?.available ? detail.playerUid : null}
-          playerName={displayLabel}
-          gameData={gameData}
-        />
+        {(restAvailable || profile) && (
+          <MergedBody
+            detail={restAvailable ? detail : null}
+            profile={profile}
+            saveByInstance={saveByInstance}
+            gameData={gameData}
+            fallbackName={displayLabel}
+          />
+        )}
       </div>
     </Overlay>
   );
 }
 
-/** 存檔快照區塊:不依賴 PalDefender,由 save-tools 掃描 Level.sav 產出。
- *  資料是「上次掃描時」的狀態,按「從存檔刷新」重掃(開服中也可以,分析
- *  的是最近一次落盤的內容)。贊助者功能(save-slim)。 */
-function SaveSnapshotSection({
-  client,
-  instanceId,
-  playerUid,
-  playerName,
+/** REST + 存檔的單一合併視圖。任一來源缺席時,另一邊獨立成立。 */
+function MergedBody({
+  detail,
+  profile,
+  saveByInstance,
   gameData,
+  fallbackName,
 }: {
-  client: AgentClient;
-  instanceId: string;
-  /** PalDefender REST 給的 uid(可能拿不到,fallback 用名稱比對) */
-  playerUid: string | null;
-  playerName: string;
+  detail: PlayerDetail | null;
+  profile: SavePlayerProfile | null;
+  saveByInstance: Map<string, SavePalRow>;
   gameData: GameData | null;
+  fallbackName: string;
 }) {
-  useI18n();
-  const [entitled, setEntitled] = useState<boolean | null>(null);
-  const [worldGuid, setWorldGuid] = useState<string | null>(null);
-  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-  const [profile, setProfile] = useState<SavePlayerProfile | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [scanPhase, setScanPhase] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    client
-      .license()
-      .then((l) => setEntitled(hasFeature("save-slim", l)))
-      .catch(() => setEntitled(false));
-  }, [client, instanceId]);
-
   const norm = (s: string) => s.replace(/-/g, "").toLowerCase();
+  const prog = detail?.available ? detail.progression : null;
+  const team = detail?.available ? detail.pals.filter((p) => p.location === "team") : [];
+  const palbox = detail?.available ? detail.pals.filter((p) => p.location === "palbox") : [];
+  const restHasPals = team.length + palbox.length > 0;
 
-  const load = useCallback(async () => {
-    try {
-      const summary = await client.playersSnapshot(instanceId);
-      setWorldGuid(summary.worldGuid);
-      setGeneratedAt(summary.generatedAt);
-      if (!summary.generatedAt) return; // 還沒掃描過
-      const match =
-        (playerUid && summary.players.find((p) => norm(p.uid) === norm(playerUid))) ||
-        summary.players.find((p) => p.name === playerName);
-      if (!match) {
-        setProfile(null);
-        setNotFound(true);
-        return;
-      }
-      setNotFound(false);
-      const { profile: full } = await client.playerSnapshotProfile(instanceId, summary.worldGuid, match.uid);
-      setProfile(full);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [client, instanceId, playerUid, playerName]);
+  // REST 沒帕魯資料(未裝/離線)時,退回存檔清單
+  const savePals = profile?.pals ?? [];
 
-  useEffect(() => {
-    if (entitled) void load();
-  }, [entitled, load]);
+  const lastOnline =
+    profile?.lastOnlineDaysAgo === null || profile?.lastOnlineDaysAgo === undefined
+      ? null
+      : profile.lastOnlineDaysAgo === 0
+        ? t("今天")
+        : t("{n} 天前", { n: profile.lastOnlineDaysAgo });
 
-  const refresh = async () => {
-    if (!worldGuid) return;
-    setError(null);
-    try {
-      await client.startSaveHealth(instanceId, worldGuid);
-      setScanPhase("convert");
-      // 輪詢到掃描結束,再重讀快照
-      await new Promise<void>((resolve) => {
-        const timer = setInterval(async () => {
-          try {
-            const s = await client.saveHealth(instanceId, worldGuid);
-            setScanPhase(s.phase === "idle" ? null : s.phase);
-            if (s.phase === "idle") {
-              clearInterval(timer);
-              if (s.error) setError(s.error);
-              resolve();
-            }
-          } catch {
-            /* 暫時性網路錯誤:下一輪再試 */
-          }
-        }, 2000);
-      });
-      await load();
-    } catch (err) {
-      setScanPhase(null);
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  if (entitled === null) return null;
-
-  return (
-    <div className="border-t-2 border-line pt-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="inline-flex items-center gap-1.5 text-sm font-extrabold text-ink-muted">
-          <FiSave className="size-4 text-pal" /> {t("存檔資料")}
-          {generatedAt && (
-            <span className="text-xs font-normal">
-              {t("(掃描於 {when})", { when: new Date(generatedAt).toLocaleString() })}
-            </span>
-          )}
-        </h3>
-        {entitled && (
-          <button
-            className={`${btnGhost} inline-flex items-center gap-1.5`}
-            onClick={() => void refresh()}
-            disabled={!!scanPhase || !worldGuid}
-          >
-            <FiRefreshCw className={`size-3.5 ${scanPhase ? "animate-spin" : ""}`} />
-            {scanPhase ? t("掃描存檔中…(依存檔大小可能需要幾分鐘)") : t("從存檔刷新")}
-          </button>
-        )}
-      </div>
-
-      {!entitled && (
-        <div className="mt-2 inline-flex items-center gap-2 rounded-cute border-2 border-sun/40 bg-sun/10 px-3 py-2 text-xs font-bold text-sun">
-          <FiLock className="size-4 shrink-0" />
-          {t("這是贊助者先行版功能。到「設定 → 贊助者識別碼」輸入識別碼即可使用。")}
-        </div>
-      )}
-
-      {entitled && (
-        <>
-          {error && <p className={`${errorCls} mt-2`}>{error}</p>}
-          {!generatedAt && !scanPhase && (
-            <p className="mt-2 text-[13px] text-ink-muted">
-              {t("尚未掃描過存檔。點「從存檔刷新」建立快照:不依賴 PalDefender,離線玩家也查得到,並包含個體值與詞條。")}
-            </p>
-          )}
-          {generatedAt && notFound && (
-            <p className="mt-2 text-[13px] text-ink-muted">
-              {t("快照裡找不到這位玩家(名稱或 UID 對不上)。掃描一次最新存檔試試。")}
-            </p>
-          )}
-          {profile && (
-            <div className="mt-3 flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                <Info label={t("等級")} value={profile.level !== null ? `Lv.${profile.level}` : "—"} />
-                <Info label={t("經驗值")} value={profile.exp?.toLocaleString() ?? "—"} />
-                <Info label={t("公會")} value={profile.guildName || t("無")} />
-                <Info
-                  label={t("最後上線")}
-                  value={
-                    profile.lastOnlineDaysAgo === null
-                      ? "—"
-                      : profile.lastOnlineDaysAgo === 0
-                        ? t("今天")
-                        : t("{n} 天前", { n: profile.lastOnlineDaysAgo })
-                  }
-                />
-              </div>
-              <SavePalGrid pals={profile.pals} total={profile.palCount} gameData={gameData} />
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-const SHOWN_PALS = 60;
-
-function SavePalGrid({ pals, total, gameData }: { pals: SavePalRow[]; total: number; gameData: GameData | null }) {
-  const [showAll, setShowAll] = useState(false);
-  const shown = showAll ? pals : pals.slice(0, SHOWN_PALS);
-  return (
-    <div>
-      <h3 className="mb-2 inline-flex items-center gap-1.5 text-sm font-extrabold text-ink-muted">
-        <FiZap className="size-4 text-pal" /> {t("名下帕魯")}({total})
-      </h3>
-      {total === 0 && <p className="text-[13px] text-ink-muted">{t("這位玩家名下沒有帕魯。")}</p>}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
-        {shown.map((p, i) => {
-          const speciesId = p.characterId.replace(/^BOSS_/i, "");
-          const entity = gameData?.palById.get(p.characterId) ?? gameData?.palById.get(speciesId);
-          return (
-            <div key={`${p.characterId}-${i}`} className="rounded-xl border-2 border-line p-2">
-              <div className="flex items-center gap-2">
-                {entity?.icon ? (
-                  <img src={palIconUrl(entity.icon)} alt="" className="size-9 shrink-0" />
-                ) : (
-                  <span className="size-9 shrink-0 rounded bg-card-soft" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-bold">
-                    {p.nickname || (entity ? displayName(entity) : p.characterId)}
-                    {p.isLucky && <span className="ml-1 text-amber-500">✦</span>}
-                    {p.isBoss && (
-                      <span className="ml-1 rounded bg-berry/15 px-1 text-[10px] font-extrabold text-berry">
-                        {t("頭目")}
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-ink-muted">
-                    {p.level !== null ? `Lv.${p.level}` : "—"}
-                    {p.gender === "female" ? " ♀" : p.gender === "male" ? " ♂" : ""}
-                    {p.rank > 1 && ` ★${p.rank - 1}`}
-                  </p>
-                </div>
-              </div>
-              {(p.talentHp !== null || p.passives.length > 0) && (
-                <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                  {p.talentHp !== null && (
-                    <span
-                      className="rounded bg-card-soft px-1 py-0.5 text-[10px] font-bold text-ink-muted"
-                      title={t("個體值:血量 / 攻擊 / 防禦(0-100)")}
-                    >
-                      IV {p.talentHp}/{p.talentShot ?? "?"}/{p.talentDefense ?? "?"}
-                    </span>
-                  )}
-                  {p.passives.map((id) => {
-                    const meta = gameData?.passiveById.get(id);
-                    const bad = (meta?.rank ?? 0) < 0;
-                    return (
-                      <span
-                        key={id}
-                        className={`rounded px-1 py-0.5 text-[10px] font-bold ${
-                          bad ? "bg-berry/10 text-berry" : "bg-grass/10 text-grass"
-                        }`}
-                      >
-                        {meta ? displayName(meta) : id}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {pals.length > SHOWN_PALS && !showAll && (
-        <button className={`${btnGhost} mt-2`} onClick={() => setShowAll(true)}>
-          {t("顯示全部 {n} 隻", { n: pals.length })}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function DetailBody({ detail, gameData }: { detail: PlayerDetail; gameData: GameData | null }) {
-  const team = detail.pals.filter((p) => p.location === "team");
-  const palbox = detail.pals.filter((p) => p.location === "palbox");
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-        <Info label={t("名稱")} value={detail.name || "—"} />
-        <Info label={t("公會")} value={detail.guildName || t("無")} />
-        <Info label="UserId" value={detail.userId ? maskSteamId(detail.userId) : "—"} />
-        {detail.progression && <Info label={t("等級")} value={`Lv.${detail.progression.level}`} />}
-        <Info label={t("隊伍帕魯")} value={String(detail.teamCount)} />
-        <Info label={t("帕魯箱")} value={String(detail.palboxCount)} />
+        <Info label={t("名稱")} value={(detail?.available && detail.name) || profile?.name || fallbackName} />
+        <Info label={t("公會")} value={(detail?.available && detail.guildName) || profile?.guildName || t("無")} />
+        {detail?.available && <Info label="UserId" value={detail.userId ? maskSteamId(detail.userId) : "—"} />}
+        <Info
+          label={t("等級")}
+          value={prog ? `Lv.${prog.level}` : profile?.level !== null && profile ? `Lv.${profile.level}` : "—"}
+        />
+        {lastOnline !== null && <Info label={t("最後上線")} value={lastOnline} />}
+        {detail?.available ? (
+          <>
+            <Info label={t("隊伍帕魯")} value={String(detail.teamCount)} />
+            <Info label={t("帕魯箱")} value={String(detail.palboxCount)} />
+          </>
+        ) : (
+          profile && <Info label={t("名下帕魯")} value={String(profile.palCount)} />
+        )}
       </div>
 
-      {detail.progression && <Progression prog={detail.progression} />}
-      {detail.techs && (
+      {prog && <Progression prog={prog} />}
+      {detail?.available && detail.techs && (
         <div>
           <h3 className="mb-1 inline-flex items-center gap-1.5 text-sm font-extrabold text-ink-muted">
             <FiCpu className="size-4 text-pal" /> {t("已解鎖科技")}
@@ -386,20 +320,73 @@ function DetailBody({ detail, gameData }: { detail: PlayerDetail; gameData: Game
         </div>
       )}
 
-      {team.length > 0 && <PalGroup title={t("隊伍")} pals={team} gameData={gameData} />}
-      {palbox.length > 0 && <PalGroup title={t("帕魯箱")} pals={palbox} gameData={gameData} />}
-      {detail.pals.length === 0 &&
-        (detail.palsUnavailable ? (
-          <p className="rounded-xl bg-sun/10 px-3 py-2 text-[13px] font-bold text-sun">
-            {t("PalDefender 目前只支援讀取「線上」玩家的帕魯與背包;這位玩家離線中,請在他上線時再查看。")}
-          </p>
-        ) : (
-          <p className="text-[13px] text-ink-muted">{t("沒有讀取到帕魯資料。")}</p>
-        ))}
+      {restHasPals ? (
+        <>
+          {team.length > 0 && (
+            <PalGroup
+              title={t("隊伍")}
+              pals={team.map((p) => mergePal(p, saveByInstance.get(norm(p.instanceId))))}
+              gameData={gameData}
+            />
+          )}
+          {palbox.length > 0 && (
+            <PalGroup
+              title={t("帕魯箱")}
+              pals={palbox.map((p) => mergePal(p, saveByInstance.get(norm(p.instanceId))))}
+              gameData={gameData}
+            />
+          )}
+        </>
+      ) : savePals.length > 0 ? (
+        <PalGroup
+          title={t("名下帕魯")}
+          pals={savePals.map((s) => mergePal(null, s))}
+          total={profile?.palCount}
+          gameData={gameData}
+        />
+      ) : detail?.available && detail.palsUnavailable ? (
+        <p className="rounded-xl bg-sun/10 px-3 py-2 text-[13px] font-bold text-sun">
+          {t("PalDefender 讀不到離線玩家的帕魯;可用「從存檔刷新」改讀存檔資料。")}
+        </p>
+      ) : null}
 
-      <ItemList items={detail.items} gameData={gameData} unavailable={!!detail.itemsUnavailable} />
+      {detail?.available && (
+        <ItemList items={detail.items} gameData={gameData} unavailable={!!detail.itemsUnavailable} />
+      )}
     </div>
   );
+}
+
+/** 合併後的帕魯卡資料:REST 給即時面(暱稱/等級/位置),存檔補深度面(IV/詞條/星級)。 */
+interface MergedPal {
+  key: string;
+  speciesId: string;
+  nickname?: string;
+  level: number | null;
+  shiny: boolean;
+  isBoss: boolean;
+  gender: "male" | "female" | null;
+  rank: number;
+  save: SavePalRow | null;
+}
+
+function mergePal(
+  restPal: { instanceId: string; palId: string; nickname: string; gender: string; level: number; shiny: boolean } | null,
+  save: SavePalRow | undefined | null,
+): MergedPal {
+  const s = save ?? null;
+  const speciesId = restPal?.palId ?? s?.characterId ?? "?";
+  return {
+    key: restPal?.instanceId ?? s?.instanceId ?? speciesId,
+    speciesId: speciesId.replace(/^BOSS_/i, ""),
+    nickname: restPal?.nickname || s?.nickname || undefined,
+    level: restPal?.level ?? s?.level ?? null,
+    shiny: restPal?.shiny || s?.isLucky || false,
+    isBoss: s?.isBoss || /^BOSS_/i.test(speciesId),
+    gender: s?.gender ?? (restPal?.gender === "Female" ? "female" : restPal?.gender === "Male" ? "male" : null),
+    rank: s?.rank ?? 0,
+    save: s,
+  };
 }
 
 /** 進度概要:等級/經驗、科技點、頭目、捕捉(PalDefender /progression)。 */
@@ -435,41 +422,90 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
+const SHOWN_PALS = 60;
+
 function PalGroup({
   title,
   pals,
+  total,
   gameData,
 }: {
   title: string;
-  pals: PlayerDetail["pals"];
+  pals: MergedPal[];
+  /** 存檔明細有上限,真實總數可能更大 */
+  total?: number;
   gameData: GameData | null;
 }) {
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? pals : pals.slice(0, SHOWN_PALS);
   return (
     <div>
       <h3 className="mb-2 inline-flex items-center gap-1.5 text-sm font-extrabold text-ink-muted">
-        <FiZap className="size-4 text-pal" /> {title}({pals.length})
+        <FiZap className="size-4 text-pal" /> {title}({total ?? pals.length})
       </h3>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
-        {pals.map((p) => {
-          const entity = gameData?.palById.get(p.palId);
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
+        {shown.map((p) => {
+          const entity = gameData?.palById.get(p.speciesId) ?? gameData?.palById.get(`BOSS_${p.speciesId}`);
           return (
-            <div key={p.instanceId} className="flex items-center gap-2 rounded-xl border-2 border-line p-2">
-              {entity?.icon ? (
-                <img src={palIconUrl(entity.icon)} alt="" className="size-9 shrink-0" />
-              ) : (
-                <span className="size-9 shrink-0 rounded bg-card-soft" />
-              )}
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-bold">
-                  {p.nickname || (entity ? displayName(entity) : p.palId)}
-                  {p.shiny && <span className="ml-1 text-amber-500">✦</span>}
-                </p>
-                <p className="text-xs text-ink-muted">Lv.{p.level}</p>
+            <div key={p.key} className="rounded-xl border-2 border-line p-2">
+              <div className="flex items-center gap-2">
+                {entity?.icon ? (
+                  <img src={palIconUrl(entity.icon)} alt="" className="size-9 shrink-0" />
+                ) : (
+                  <span className="size-9 shrink-0 rounded bg-card-soft" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-bold">
+                    {p.nickname || (entity ? displayName(entity) : p.speciesId)}
+                    {p.shiny && <span className="ml-1 text-amber-500">✦</span>}
+                    {p.isBoss && (
+                      <span className="ml-1 rounded bg-berry/15 px-1 text-[10px] font-extrabold text-berry">
+                        {t("頭目")}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-ink-muted">
+                    {p.level !== null ? `Lv.${p.level}` : "—"}
+                    {p.gender === "female" ? " ♀" : p.gender === "male" ? " ♂" : ""}
+                    {p.rank > 1 && ` ★${p.rank - 1}`}
+                  </p>
+                </div>
               </div>
+              {p.save && (p.save.talentHp !== null || p.save.passives.length > 0) && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  {p.save.talentHp !== null && (
+                    <span
+                      className="rounded bg-card-soft px-1 py-0.5 text-[10px] font-bold text-ink-muted"
+                      title={t("個體值:血量 / 攻擊 / 防禦(0-100)")}
+                    >
+                      IV {p.save.talentHp}/{p.save.talentShot ?? "?"}/{p.save.talentDefense ?? "?"}
+                    </span>
+                  )}
+                  {p.save.passives.map((id) => {
+                    const meta = gameData?.passiveById.get(id);
+                    const bad = (meta?.rank ?? 0) < 0;
+                    return (
+                      <span
+                        key={id}
+                        className={`rounded px-1 py-0.5 text-[10px] font-bold ${
+                          bad ? "bg-berry/10 text-berry" : "bg-grass/10 text-grass"
+                        }`}
+                      >
+                        {meta ? displayName(meta) : id}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
+      {pals.length > SHOWN_PALS && !showAll && (
+        <button className={`${btnGhost} mt-2`} onClick={() => setShowAll(true)}>
+          {t("顯示全部 {n} 隻", { n: pals.length })}
+        </button>
+      )}
     </div>
   );
 }
@@ -511,9 +547,7 @@ function ItemList({
                 <span className="size-8 shrink-0 rounded bg-card-soft" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-bold">
-                  {entity ? displayName(entity) : itemId}
-                </p>
+                <p className="truncate text-[13px] font-bold">{entity ? displayName(entity) : itemId}</p>
               </div>
               <span className="shrink-0 text-sm font-extrabold text-pal">×{count}</span>
             </div>

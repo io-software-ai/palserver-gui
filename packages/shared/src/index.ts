@@ -665,6 +665,9 @@ export interface SaveHealthReport {
 
 /** 存檔掃描順帶建立的「玩家快照」— 玩家詳情頁的檔案級資料來源。 */
 export interface SavePalRow {
+  /** 角色實例 id(CharacterSaveParameterMap key.InstanceId)— 與 PalDefender
+   *  REST 的 PdPal.instanceId 同源,可跨資料來源精準對上同一隻帕魯。 */
+  instanceId: string;
   /** 物種 id(CharacterID;BOSS_ 前綴 = 首領/alpha 個體) */
   characterId: string;
   nickname?: string;

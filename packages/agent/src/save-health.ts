@@ -81,6 +81,7 @@ interface ElementCtx {
   mapObjectId?: string;
   /* CharacterSaveParameterMap 元素的欄位收集(玩家快照用) */
   keyPlayerUid?: string;
+  keyInstanceId?: string;
   nickName?: string;
   levelNum?: number;
   expNum?: number;
@@ -223,6 +224,7 @@ class Analyzer {
           bucket.total += 1;
           if (bucket.rows.length < MAX_PALS_PER_PLAYER) {
             bucket.rows.push({
+              instanceId: e.keyInstanceId ?? "",
               characterId: e.characterId,
               nickname: e.nickName || undefined,
               level: e.levelNum ?? null,
@@ -313,6 +315,10 @@ class Analyzer {
         // 元素 key:{"key":{"PlayerUId":{"value":uuid},...}}
         if (rel[0] === "key" && prev === "PlayerUId" && last === "value" && t.name === "stringValue") {
           e.keyPlayerUid = t.value as string;
+          break;
+        }
+        if (rel[0] === "key" && prev === "InstanceId" && last === "value" && t.name === "stringValue") {
+          e.keyInstanceId = t.value as string;
           break;
         }
         // SaveParameter.value 下的角色欄位(玩家與帕魯共用同一批 key 名)
