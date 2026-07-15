@@ -46,6 +46,8 @@ export function InstanceDetailPage({
   useI18n();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
+  // 玩家詳情「據點跳地圖」:切到地圖分頁並聚焦座標(n 為 nonce,連點同一點也重觸發)
+  const [mapFocus, setMapFocus] = useState<{ x: number; y: number; n: number } | null>(null);
   const [hiddenTabs] = useHiddenTabs();
   // 若目前分頁被使用者在設定裡藏起來,退回總覽,避免停在看不見的分頁。
   useEffect(() => {
@@ -318,9 +320,13 @@ export function InstanceDetailPage({
           client={client}
           instanceId={detail.id}
           onGoToPalDefender={palDefender ? () => setTab("paldefender") : undefined}
+          onShowOnMap={(x, y) => {
+            setMapFocus({ x, y, n: Date.now() });
+            setTab("map");
+          }}
         />
       )}
-      {tab === "map" && <MapTab client={client} instanceId={detail.id} />}
+      {tab === "map" && <MapTab client={client} instanceId={detail.id} externalFocus={mapFocus} />}
       {tab === "settings" && (
         <SettingsEditor
           settings={detail.settings}

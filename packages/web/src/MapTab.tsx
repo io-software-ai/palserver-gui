@@ -112,11 +112,14 @@ export function MapTab({
   client,
   instanceId,
   fullscreen = false,
+  externalFocus = null,
 }: {
   client: AgentClient;
   instanceId: string;
   /** 全螢幕模式(/map 獨立頁):地圖直接鋪滿視窗,不套外殼、不需「開啟地圖」入口。 */
   fullscreen?: boolean;
+  /** 外部指定的聚焦點(地圖座標;n 遞增觸發)— 玩家詳情「據點跳地圖」用。 */
+  externalFocus?: { x: number; y: number; n: number } | null;
 }) {
   const { lang } = useI18n();
   const gameData = useGameData();
@@ -140,6 +143,13 @@ export function MapTab({
   const [guildHint, setGuildHint] = useState(false);
   // 公會詳情點成員 → 地圖跳到該位置。n 是 nonce:同一點連點兩次也要重新觸發。
   const [focus, setFocus] = useState<{ x: number; y: number; n: number } | null>(null);
+
+  // 外部(玩家詳情的據點按鈕)指定聚焦:同步進內部 focus,並確保地圖已展開
+  useEffect(() => {
+    if (!externalFocus) return;
+    setOpen(true);
+    setFocus(externalFocus);
+  }, [externalFocus]);
 
   // Static landmark + boss sets (bundled), loaded once.
   useEffect(() => {

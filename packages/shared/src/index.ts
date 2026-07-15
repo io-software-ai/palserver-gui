@@ -663,6 +663,9 @@ export interface SaveHealthReport {
   inactivePlayers: SaveHealthPlayerRow[];
   /** capped at 50 */
   emptyGuildNames: string[];
+  /** worldSaveData 頂層 section 名稱清單 —— 診斷用(判斷某類資料是否存在於
+   *  存檔,例:有沒有 boss spawner 之類的 section 可以接) */
+  worldSections?: string[];
 }
 
 /** 存檔掃描順帶建立的「玩家快照」— 玩家詳情頁的檔案級資料來源。 */
@@ -709,6 +712,23 @@ export interface SavePlayerInventory {
   food: SaveItemStack[];
 }
 
+export interface SaveGuildBase {
+  id: string;
+  name: string;
+  /** 世界座標(sav 座標系;web 端用 savToMap 轉地圖座標) */
+  x: number;
+  y: number;
+}
+
+export interface SavePlayerGuild {
+  name: string;
+  role: "admin" | "member";
+  memberCount: number;
+  /** 公會的據點等級(整個公會共用) */
+  baseCampLevel: number | null;
+  bases: SaveGuildBase[];
+}
+
 export interface SavePlayerProfile {
   uid: string;
   name: string;
@@ -721,6 +741,11 @@ export interface SavePlayerProfile {
   pals: SavePalRow[];
   /** 離線物品;玩家 .sav 解析不到容器 id 時為 null(舊快照/解析失敗) */
   inventory?: SavePlayerInventory | null;
+  /** 公會職位與據點;不在任何公會(或舊快照)為 null */
+  guild?: SavePlayerGuild | null;
+  /** 加點分配:存檔內部名稱(日文,如「最大HP」)→ 點數;UI 負責在地化 */
+  statusPoints?: { name: string; points: number }[];
+  unusedStatusPoints?: number | null;
 }
 
 export interface SavePlayersSnapshot {

@@ -61,11 +61,14 @@ export function PlayersTab({
   client,
   instanceId,
   onGoToPalDefender,
+  onShowOnMap,
 }: {
   client: AgentClient;
   instanceId: string;
   /** Jump to the PalDefender tab (for setting up the REST API from a modal). */
   onGoToPalDefender?: () => void;
+  /** 切到地圖分頁並聚焦(地圖座標)— 玩家詳情的據點按鈕用。 */
+  onShowOnMap?: (x: number, y: number) => void;
 }) {
   useI18n(); // 語言切換時重繪(含 fmtUptime 等模組層字串)
   const gameData = useGameData();
@@ -179,6 +182,7 @@ export function PlayersTab({
             displayLabel={detailFor.label}
             onClose={() => setDetailFor(null)}
             onGoToPalDefender={onGoToPalDefender}
+            onShowOnMap={onShowOnMap}
           />
         )}
       </div>
@@ -321,6 +325,7 @@ export function PlayersTab({
           displayLabel={detailFor.label}
           onClose={() => setDetailFor(null)}
           onGoToPalDefender={onGoToPalDefender}
+          onShowOnMap={onShowOnMap}
         />
       )}
     </div>

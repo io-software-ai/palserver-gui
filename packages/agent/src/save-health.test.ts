@@ -63,15 +63,23 @@ function palEntry(
   });
 }
 
-function guildEntry(name: string, players: { uid: string; name: string; daysAgo: number }[]) {
+function guildEntry(
+  name: string,
+  players: { uid: string; name: string; daysAgo: number }[],
+  opts: { groupId?: string; adminUid?: string; baseIds?: string[]; baseCampLevel?: number } = {},
+) {
   return {
-    key: { value: "gid" },
+    key: { value: opts.groupId ?? "gid" },
     value: {
       GroupType: { value: { value: "EPalGroupType::Guild" } },
       RawData: {
         value: {
           group_type: "EPalGroupType::Guild",
+          group_id: opts.groupId ?? "gid",
           guild_name: name,
+          ...(opts.adminUid ? { admin_player_uid: opts.adminUid } : {}),
+          ...(opts.baseIds ? { base_ids: opts.baseIds } : {}),
+          ...(opts.baseCampLevel ? { base_camp_level: `__RAW_${opts.baseCampLevel}__` } : {}),
           players: players.map((p) => ({
             player_uid: p.uid,
             player_info: {
@@ -80,6 +88,31 @@ function guildEntry(name: string, players: { uid: string; name: string; daysAgo:
               player_name: p.name,
             },
           })),
+        },
+      },
+    },
+  };
+}
+
+function baseCampEntry(id: string, groupId: string, x: number, y: number) {
+  return {
+    key: { value: id },
+    value: {
+      RawData: {
+        value: {
+          id,
+          name: "",
+          state: `__RAW_0__`,
+          transform: {
+            rotation: { x: 0, y: 0, z: 0, w: 1 },
+            translation: { x: `__RAW_${x}__`, y: `__RAW_${y}__`, z: `__RAW_100__` },
+          },
+          area_range: `__RAW_2000__`,
+          group_id_belong_to: groupId,
+          fast_travel_local_transform: {
+            rotation: { x: 0, y: 0, z: 0, w: 1 },
+            translation: { x: `__RAW_9__`, y: `__RAW_9__`, z: `__RAW_9__` },
+          },
         },
       },
     },
@@ -272,6 +305,81 @@ test("analyzeLevelJsonStream:帕魯位置依容器對照分類(party/palbox/base
   // 沒給對照表 → 全部 unknown
   const r2 = await analyzeLevelJsonStream(Readable.from([json]), MTIME_MS);
   assert.ok(r2.players[0].pals.every((p) => p.location === "unknown"));
+});
+
+test("analyzeLevelJsonStream:公會職位/據點座標/加點分配", async () => {
+  const doc = {
+    properties: {
+      worldSaveData: {
+        value: {
+          CharacterSaveParameterMap: {
+            value: [
+              charEntry("p1", {
+                IsPlayer: { value: true },
+                NickName: { value: "Alice" },
+                Level: { value: `__RAW_30__` },
+                UnusedStatusPoint: { value: `__RAW_4__` },
+                GotStatusPointList: {
+                  value: {
+                    values: [
+                      { StatusName: { value: "最大HP" }, StatusPoint: { value: `__RAW_10__` } },
+                      { StatusName: { value: "所持重量" }, StatusPoint: { value: `__RAW_25__` } },
+                    ],
+                  },
+                },
+                GotExStatusPointList: {
+                  value: { values: [{ StatusName: { value: "最大HP" }, StatusPoint: { value: `__RAW_2__` } }] },
+                },
+              }),
+            ],
+          },
+          GroupSaveDataMap: {
+            value: [
+              guildEntry("G", [{ uid: "p1", name: "Alice", daysAgo: 1 }, { uid: "p2", name: "Bob", daysAgo: 2 }], {
+                groupId: "9999-aa",
+                adminUid: "p1",
+                baseIds: ["BB-01", "bb02"],
+                baseCampLevel: 12,
+              }),
+            ],
+          },
+          BaseCampSaveData: {
+            value: [
+              baseCampEntry("bb01", "9999aa", 123456, -654321),
+              baseCampEntry("BB-02", "9999aa", 111, 222),
+              baseCampEntry("cc03", "other", 9, 9), // 別的公會
+            ],
+          },
+        },
+      },
+    },
+  };
+  const json = JSON.stringify(doc).replace(/"__RAW_(-?\d+)__"/g, "$1");
+  const r = await analyzeLevelJsonStream(Readable.from([json]), MTIME_MS);
+  const alice = r.players.find((p) => p.uid === "p1")!;
+
+  assert.equal(alice.guild!.name, "G");
+  assert.equal(alice.guild!.role, "admin");
+  assert.equal(alice.guild!.memberCount, 2);
+  assert.equal(alice.guild!.baseCampLevel, 12);
+  // base_ids 與據點 id 的表示法差異(大小寫/連字號)要對得起來
+  assert.deepEqual(
+    alice.guild!.bases.map((b) => [b.x, b.y]),
+    [[123456, -654321], [111, 222]], // fast_travel 的 (9,9) 不能混進來
+  );
+
+  const bob = r.players.find((p) => p.uid === "p2")!;
+  assert.equal(bob.guild!.role, "member");
+
+  assert.deepEqual(alice.statusPoints, [
+    { name: "最大HP", points: 12 }, // 10 + Ex 2
+    { name: "所持重量", points: 25 },
+  ]);
+  assert.equal(alice.unusedStatusPoints, 4);
+
+  // section 診斷清單
+  assert.ok(r.worldSections.includes("BaseCampSaveData"));
+  assert.ok(r.worldSections.includes("GroupSaveDataMap"));
 });
 
 test("analyzeLevelJsonStream:離線物品(背包/裝備/金錢)依容器歸屬收集", async () => {

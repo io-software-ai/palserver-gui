@@ -1235,5 +1235,16 @@
  "重要物品": "Key Items",
  "食物": "Food",
  "這個分類沒有物品。": "No items in this category.",
- "PalDefender 讀不到離線玩家的背包;可用「從存檔刷新」改讀存檔資料。": "PalDefender can't read an offline player's inventory — use \"Refresh from Save\" to read it from the save instead."
+ "PalDefender 讀不到離線玩家的背包;可用「從存檔刷新」改讀存檔資料。": "PalDefender can't read an offline player's inventory — use \"Refresh from Save\" to read it from the save instead.",
+ "據點等級 Lv.{n}": "Base level Lv.{n}",
+ "{n} 個據點": "{n} bases",
+ "據點 {n}": "Base {n}",
+ "在地圖上查看": "View on map",
+ "加點分配": "Stat Points",
+ "未分配 {n}": "{n} unspent",
+ "生命": "HP",
+ "耐力": "Stamina",
+ "負重": "Weight",
+ "捕獲率": "Capture Rate",
+ "工作速度": "Work Speed"
 }

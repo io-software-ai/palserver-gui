@@ -389,6 +389,7 @@ async function runJob(rec: InstanceRecord, ctx: DriverContext, worldGuid: string
       counts: analysis.counts,
       inactivePlayers: analysis.inactivePlayers,
       emptyGuildNames: analysis.emptyGuildNames,
+      worldSections: analysis.worldSections,
     };
     writeReport(ctx, report);
     // 同一次掃描順帶產出玩家快照(玩家詳情頁「從存檔刷新」的資料來源)

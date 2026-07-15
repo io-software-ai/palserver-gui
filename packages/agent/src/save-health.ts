@@ -28,6 +28,8 @@ export interface LevelJsonAnalysis {
   emptyGuildNames: string[];
   /** 玩家快照(玩家詳情頁用):等級/公會/最後上線 + 名下帕魯明細。 */
   players: SavePlayerProfile[];
+  /** worldSaveData 頂層 section 清單(診斷:判斷某類資料是否存在於存檔)。 */
+  worldSections: string[];
 }
 
 export type InventoryKind = keyof Omit<SavePlayerInventory, "money">;
@@ -69,7 +71,8 @@ type Section =
   | "ItemContainerSaveData"
   | "CharacterContainerSaveData"
   | "MapObjectSaveData"
-  | "DynamicItemSaveData";
+  | "DynamicItemSaveData"
+  | "BaseCampSaveData";
 
 const SECTIONS = new Set<string>([
   "CharacterSaveParameterMap",
@@ -78,6 +81,7 @@ const SECTIONS = new Set<string>([
   "CharacterContainerSaveData",
   "MapObjectSaveData",
   "DynamicItemSaveData",
+  "BaseCampSaveData",
 ]);
 
 interface RosterEntry {
@@ -95,6 +99,20 @@ interface ElementCtx {
   groupType?: string;
   guildName?: string;
   roster?: Map<number, RosterEntry>;
+  /* GroupSaveDataMap 公會擴充欄位 */
+  groupId?: string;
+  adminUid?: string;
+  baseCampLevel?: number;
+  baseIds?: string[];
+  /* BaseCampSaveData 元素 */
+  baseId?: string;
+  baseName?: string;
+  baseX?: number;
+  baseY?: number;
+  /* 玩家加點(GotStatusPointList / GotExStatusPointList) */
+  statusPoints?: Map<string, number>;
+  pendingStatusName?: string;
+  unusedStatusPoints?: number;
   slotNum?: number;
   hasItem?: boolean;
   mapObjectId?: string;
@@ -149,7 +167,28 @@ class Analyzer {
   readonly playersSeen = new Map<string, { name: string; guildName: string; ticks: number }>();
   private charEntries = 0;
   /** uid → 玩家角色資料(來自 CharacterSaveParameterMap 的玩家 entry)。 */
-  private readonly playerChars = new Map<string, { name: string; level: number | null; exp: number | null }>();
+  private readonly playerChars = new Map<
+    string,
+    {
+      name: string;
+      level: number | null;
+      exp: number | null;
+      statusPoints: { name: string; points: number }[];
+      unusedStatusPoints: number | null;
+    }
+  >();
+  /** 公會清單(含據點 id 與會長)與據點座標。 */
+  private readonly guilds: {
+    groupId: string;
+    name: string;
+    adminUid: string | null;
+    baseCampLevel: number | null;
+    baseIds: string[];
+    memberUids: string[];
+  }[] = [];
+  private readonly baseCamps: { id: string; name: string; groupId: string; x: number; y: number }[] = [];
+  /** worldSaveData 頂層 section 名稱(診斷用)。 */
+  readonly worldSections = new Set<string>();
   /** ownerUid → 名下帕魯明細。 */
   private readonly palsByOwner = new Map<string, { rows: SavePalRow[]; total: number }>();
   /** uid → 離線物品(玩家容器內容彙整)。 */
@@ -173,6 +212,11 @@ class Analyzer {
     if (top === "obj") {
       this.path.push(this.pendingKey ?? "");
       this.pendingKey = null;
+      // worldSaveData.value 的直接子鍵 = 存檔的頂層 section(診斷清單)
+      const p = this.path;
+      if (p.length === 4 && p[0] === "properties" && p[1] === "worldSaveData" && p[2] === "value") {
+        this.worldSections.add(p[3] as string);
+      }
     } else if (top === "arr") {
       this.path.push(this.arrIndex[this.arrIndex.length - 1]++);
     }
@@ -251,6 +295,8 @@ class Analyzer {
               name: e.nickName || "?",
               level: e.levelNum ?? null,
               exp: e.expNum ?? null,
+              statusPoints: [...(e.statusPoints ?? new Map()).entries()].map(([name, points]) => ({ name, points })),
+              unusedStatusPoints: e.unusedStatusPoints ?? null,
             });
           }
         } else if (e.ownerUid && e.ownerUid !== ZERO_UUID && e.characterId) {
@@ -286,6 +332,14 @@ class Analyzer {
         if (e.groupType !== GUILD_TYPE) break;
         c.guilds += 1;
         const roster = e.roster ? [...e.roster.values()] : [];
+        this.guilds.push({
+          groupId: e.groupId ?? "",
+          name: e.guildName || "(未命名公會)",
+          adminUid: e.adminUid ?? null,
+          baseCampLevel: e.baseCampLevel ?? null,
+          baseIds: e.baseIds ?? [],
+          memberUids: roster.map((m) => m.uid).filter((u): u is string => !!u),
+        });
         if (roster.length === 0) {
           c.guildsEmpty += 1;
           if (this.emptyGuildNames.length < MAX_EMPTY_GUILD_NAMES) {
@@ -328,6 +382,17 @@ class Analyzer {
         break;
       case "DynamicItemSaveData":
         c.dynamicItems += 1;
+        break;
+      case "BaseCampSaveData":
+        if (e.baseId) {
+          this.baseCamps.push({
+            id: e.baseId,
+            name: e.baseName ?? "",
+            groupId: e.groupId ?? "",
+            x: e.baseX ?? 0,
+            y: e.baseY ?? 0,
+          });
+        }
         break;
     }
   }
@@ -374,6 +439,20 @@ class Analyzer {
           e.containerId ??= t.value as string;
           break;
         }
+        // 加點:GotStatusPointList / GotExStatusPointList 的 {StatusName, StatusPoint} 序列
+        if (rel.includes("GotStatusPointList") || rel.includes("GotExStatusPointList")) {
+          if (prev === "StatusName" && last === "value" && t.name === "stringValue") {
+            e.pendingStatusName = t.value as string;
+          } else if (prev === "StatusPoint" && last === "value" && t.name === "numberValue" && e.pendingStatusName) {
+            const m = (e.statusPoints ??= new Map());
+            m.set(e.pendingStatusName, (m.get(e.pendingStatusName) ?? 0) + Number(t.value));
+          }
+          break;
+        }
+        if (prev === "UnusedStatusPoint" && last === "value" && t.name === "numberValue") {
+          e.unusedStatusPoints = Number(t.value);
+          break;
+        }
         // SaveParameter.value 下的角色欄位(玩家與帕魯共用同一批 key 名)
         if (last === "value" && typeof prev === "string") {
           if (t.name === "stringValue") {
@@ -408,6 +487,22 @@ class Analyzer {
         }
         if (last === "guild_name" && t.name === "stringValue") {
           e.guildName = t.value as string;
+          break;
+        }
+        if (last === "group_id" && t.name === "stringValue") {
+          e.groupId = t.value as string;
+          break;
+        }
+        if (last === "admin_player_uid" && t.name === "stringValue") {
+          e.adminUid = t.value as string;
+          break;
+        }
+        if (last === "base_camp_level" && t.name === "numberValue") {
+          e.baseCampLevel = Number(t.value);
+          break;
+        }
+        if (typeof last === "number" && rel[rel.length - 2] === "base_ids" && t.name === "stringValue") {
+          (e.baseIds ??= []).push(t.value as string);
           break;
         }
         const i = rel.lastIndexOf("players");
@@ -450,6 +545,26 @@ class Analyzer {
           e.mapObjectId ??= t.value as string;
         }
         break;
+      case "BaseCampSaveData": {
+        // RawData.value:{id,name,state,transform:{translation:{x,y,z}},group_id_belong_to,…}
+        // 注意排除 fast_travel_local_transform 底下的同名 translation
+        if (last === "id" && t.name === "stringValue") {
+          e.baseId ??= t.value as string;
+        } else if (last === "name" && t.name === "stringValue") {
+          e.baseName ??= t.value as string;
+        } else if (last === "group_id_belong_to" && t.name === "stringValue") {
+          e.groupId ??= t.value as string;
+        } else if (
+          prev === "translation" &&
+          (last === "x" || last === "y") &&
+          t.name === "numberValue" &&
+          !rel.includes("fast_travel_local_transform")
+        ) {
+          if (last === "x") e.baseX ??= Number(t.value);
+          else e.baseY ??= Number(t.value);
+        }
+        break;
+      }
       default:
         break;
     }
@@ -489,6 +604,25 @@ class Analyzer {
       }
       const bucket = this.palsByOwner.get(uid);
       const pals = (bucket?.rows ?? []).sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
+
+      // 公會職位與據點:名冊反查所屬公會,據點以 base_ids 對座標(缺則用 group_id 反查)
+      const g = this.guilds.find((gd) => gd.memberUids.some((m) => normGuid(m) === normGuid(uid)));
+      let guild: SavePlayerProfile["guild"] = null;
+      if (g) {
+        const byId = new Map(this.baseCamps.map((b) => [normGuid(b.id), b]));
+        let bases = g.baseIds.map((id) => byId.get(normGuid(id))).filter((b): b is (typeof this.baseCamps)[number] => !!b);
+        if (bases.length === 0 && g.groupId) {
+          bases = this.baseCamps.filter((b) => normGuid(b.groupId) === normGuid(g.groupId));
+        }
+        guild = {
+          name: g.name,
+          role: g.adminUid && normGuid(g.adminUid) === normGuid(uid) ? "admin" : "member",
+          memberCount: g.memberUids.length,
+          baseCampLevel: g.baseCampLevel,
+          bases: bases.map((b) => ({ id: b.id, name: b.name, x: b.x, y: b.y })),
+        };
+      }
+
       players.push({
         uid,
         name: ch?.name || roster?.name || "?",
@@ -499,6 +633,9 @@ class Analyzer {
         palCount: bucket?.total ?? 0,
         pals,
         inventory: this.inventories.get(uid) ?? null,
+        guild,
+        statusPoints: ch?.statusPoints ?? [],
+        unusedStatusPoints: ch?.unusedStatusPoints ?? null,
       });
     }
     players.sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
@@ -508,6 +645,7 @@ class Analyzer {
       inactivePlayers: rows.slice(0, MAX_INACTIVE_ROWS),
       emptyGuildNames: this.emptyGuildNames,
       players,
+      worldSections: [...this.worldSections].sort(),
     };
   }
 }

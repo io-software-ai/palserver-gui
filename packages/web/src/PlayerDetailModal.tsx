@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiX, FiCpu, FiLock, FiPackage, FiRefreshCw, FiTrendingUp, FiUser, FiZap, FiShield } from "react-icons/fi";
+import { FiX, FiCpu, FiHome, FiLock, FiMapPin, FiPackage, FiRefreshCw, FiTrendingUp, FiUser, FiZap, FiShield } from "react-icons/fi";
 import { GiShield } from "react-icons/gi";
 import {
   hasFeature,
+  savToMap,
   type PdPal,
   type PlayerDetail,
   type PdRestStatus,
@@ -32,6 +33,7 @@ export function PlayerDetailModal({
   displayLabel,
   onClose,
   onGoToPalDefender,
+  onShowOnMap,
 }: {
   client: AgentClient;
   instanceId: string;
@@ -40,6 +42,8 @@ export function PlayerDetailModal({
   onClose: () => void;
   /** Jump to the PalDefender tab so the user can enable REST + set a token. */
   onGoToPalDefender?: () => void;
+  /** 切到地圖分頁並聚焦(地圖座標)— 公會據點按鈕用。 */
+  onShowOnMap?: (x: number, y: number) => void;
 }) {
   useI18n();
   const gameData = useGameData();
@@ -249,6 +253,14 @@ export function PlayerDetailModal({
             saveByInstance={saveByInstance}
             gameData={gameData}
             fallbackName={displayLabel}
+            onShowOnMap={
+              onShowOnMap
+                ? (x, y) => {
+                    onShowOnMap(x, y);
+                    onClose();
+                  }
+                : undefined
+            }
           />
         )}
       </div>
@@ -267,12 +279,14 @@ function MergedBody({
   saveByInstance,
   gameData,
   fallbackName,
+  onShowOnMap,
 }: {
   detail: PlayerDetail | null;
   profile: SavePlayerProfile | null;
   saveByInstance: Map<string, SavePalRow>;
   gameData: GameData | null;
   fallbackName: string;
+  onShowOnMap?: (x: number, y: number) => void;
 }) {
   const prog = detail?.available ? detail.progression : null;
   const restPals = detail?.available ? detail.pals : [];
@@ -313,6 +327,11 @@ function MergedBody({
         {lastOnline !== null && <Info label={t("最後上線")} value={lastOnline} />}
         {profile?.inventory && <Info label={t("金錢")} value={profile.inventory.money.toLocaleString()} />}
       </div>
+
+      {profile?.guild && <GuildPanel guild={profile.guild} onShowOnMap={onShowOnMap} />}
+      {profile?.statusPoints && profile.statusPoints.length > 0 && (
+        <StatusPointsPanel points={profile.statusPoints} unused={profile.unusedStatusPoints ?? null} />
+      )}
 
       {prog && <Progression prog={prog} />}
       {detail?.available && detail.techs && (
@@ -386,6 +405,98 @@ function mergePal(restPal: PdPal | null, save: SavePalRow | undefined | null): M
     location: restPal ? REST_LOCATION[restPal.location] : (s?.location ?? "unknown"),
     save: s,
   };
+}
+
+/** 公會面板:職位/成員數/據點等級 + 據點清單(點座標跳地圖,重用地圖的 flyTo)。 */
+function GuildPanel({
+  guild,
+  onShowOnMap,
+}: {
+  guild: NonNullable<SavePlayerProfile["guild"]>;
+  onShowOnMap?: (x: number, y: number) => void;
+}) {
+  return (
+    <div>
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-ink-muted">
+        <FiHome className="size-4 text-pal" /> {t("公會")}
+        <span className="truncate font-bold text-ink">{guild.name}</span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+            guild.role === "admin" ? "bg-sun/15 text-sun" : "bg-card-soft text-ink-muted"
+          }`}
+        >
+          {guild.role === "admin" ? t("會長") : t("成員")}
+        </span>
+      </h3>
+      <div className="rounded-cute bg-card-soft/60 p-3">
+        <p className="text-[13px] text-ink-muted">
+          {t("{n} 名成員", { n: guild.memberCount })}
+          {guild.baseCampLevel !== null && <> · {t("據點等級 Lv.{n}", { n: guild.baseCampLevel })}</>}
+          {" · "}
+          {t("{n} 個據點", { n: guild.bases.length })}
+        </p>
+        {guild.bases.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {guild.bases.map((b, i) => {
+              const m = savToMap(b.x, b.y);
+              return (
+                <button
+                  key={b.id}
+                  className={`inline-flex items-center gap-1 rounded-full border-2 px-2.5 py-1 text-xs font-bold transition ${
+                    onShowOnMap
+                      ? "border-line text-ink-muted hover:border-pal hover:text-pal"
+                      : "cursor-default border-line text-ink-muted"
+                  }`}
+                  onClick={onShowOnMap ? () => onShowOnMap(m.x, m.y) : undefined}
+                  title={onShowOnMap ? t("在地圖上查看") : undefined}
+                >
+                  <FiMapPin className="size-3" />
+                  {b.name || t("據點 {n}", { n: i + 1 })}
+                  <span className="font-mono font-normal opacity-70">
+                    ({Math.round(m.x)}, {Math.round(m.y)})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 存檔內部加點名稱(日文)→ 顯示標籤。 */
+const STATUS_LABELS: Record<string, () => string> = {
+  最大HP: () => t("生命"),
+  最大SP: () => t("耐力"),
+  攻撃力: () => t("攻擊"),
+  所持重量: () => t("負重"),
+  捕獲率: () => t("捕獲率"),
+  作業速度: () => t("工作速度"),
+};
+
+/** 加點分配面板(生命/耐力/攻擊/負重/工作速度 + 未分配)。 */
+function StatusPointsPanel({ points, unused }: { points: { name: string; points: number }[]; unused: number | null }) {
+  return (
+    <div>
+      <h3 className="mb-2 inline-flex items-center gap-1.5 text-sm font-extrabold text-ink-muted">
+        <FiTrendingUp className="size-4 text-pal" /> {t("加點分配")}
+        {unused !== null && unused > 0 && (
+          <span className="rounded-full bg-sun/15 px-2 py-0.5 text-xs font-bold text-sun">
+            {t("未分配 {n}", { n: unused })}
+          </span>
+        )}
+      </h3>
+      <div className="grid grid-cols-3 gap-2 rounded-cute bg-card-soft/60 p-3 text-sm sm:grid-cols-6">
+        {points.map((p) => (
+          <div key={p.name}>
+            <p className="text-xs text-ink-muted">{STATUS_LABELS[p.name]?.() ?? p.name}</p>
+            <p className="font-mono font-extrabold">+{p.points}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /** 進度概要:等級/經驗、科技點、頭目、捕捉(PalDefender /progression)。 */
