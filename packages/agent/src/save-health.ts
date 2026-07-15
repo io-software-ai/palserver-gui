@@ -28,6 +28,16 @@ export interface LevelJsonAnalysis {
   players: SavePlayerProfile[];
 }
 
+export interface AnalyzeOptions {
+  /** 容器 id(純 hex 小寫)→ 種類。由 Players/*.sav 解析而來
+   *  (OtomoCharacterContainerId = party、PalStorageContainerId = palbox),
+   *  帕魯依所在容器分類;沒給就全部 unknown。 */
+  containerKinds?: Map<string, "party" | "palbox">;
+}
+
+/** GUID 正規化成純 hex 小寫(容器 id 比對用)。 */
+export const normGuid = (s: string): string => s.replace(/[^0-9a-f]/gi, "").toLowerCase();
+
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 /** 單一玩家保留的帕魯明細上限(palCount 仍是真實總數)。 */
 const MAX_PALS_PER_PLAYER = 1000;
@@ -82,6 +92,7 @@ interface ElementCtx {
   /* CharacterSaveParameterMap 元素的欄位收集(玩家快照用) */
   keyPlayerUid?: string;
   keyInstanceId?: string;
+  containerId?: string;
   nickName?: string;
   levelNum?: number;
   expNum?: number;
@@ -97,6 +108,8 @@ interface ElementCtx {
 }
 
 class Analyzer {
+  constructor(private readonly opts: AnalyzeOptions = {}) {}
+
   private readonly path: (string | number)[] = [];
   private readonly containers: ("obj" | "arr")[] = [];
   private readonly arrIndex: number[] = [];
@@ -223,8 +236,11 @@ class Analyzer {
           }
           bucket.total += 1;
           if (bucket.rows.length < MAX_PALS_PER_PLAYER) {
+            const kinds = this.opts.containerKinds;
+            const kind = e.containerId ? kinds?.get(normGuid(e.containerId)) : undefined;
             bucket.rows.push({
               instanceId: e.keyInstanceId ?? "",
+              location: kind ?? (kinds && kinds.size > 0 && e.containerId ? "base" : "unknown"),
               characterId: e.characterId,
               nickname: e.nickName || undefined,
               level: e.levelNum ?? null,
@@ -319,6 +335,11 @@ class Analyzer {
         }
         if (rel[0] === "key" && prev === "InstanceId" && last === "value" && t.name === "stringValue") {
           e.keyInstanceId = t.value as string;
+          break;
+        }
+        // 所在容器:SaveParameter.value.SlotId.value.ContainerId.value.ID.value
+        if (prev === "ID" && last === "value" && t.name === "stringValue" && rel.includes("SlotId")) {
+          e.containerId ??= t.value as string;
           break;
         }
         // SaveParameter.value 下的角色欄位(玩家與帕魯共用同一批 key 名)
@@ -450,9 +471,10 @@ class Analyzer {
 export function analyzeLevelJsonStream(
   source: Readable,
   levelSavMtimeMs: number,
+  opts: AnalyzeOptions = {},
 ): Promise<LevelJsonAnalysis> {
   return new Promise((resolve, reject) => {
-    const analyzer = new Analyzer();
+    const analyzer = new Analyzer(opts);
     const parser = parserStream({ packValues: true, streamValues: false });
     parser.on("data", (t: Token) => analyzer.token(t));
     parser.on("end", () => resolve(analyzer.finish(levelSavMtimeMs)));
@@ -467,6 +489,7 @@ export async function analyzeLevelJsonFile(
   jsonPath: string,
   levelSavMtimeMs: number,
   onProgress?: (pct: number) => void,
+  opts: AnalyzeOptions = {},
 ): Promise<LevelJsonAnalysis> {
   const total = fs.statSync(jsonPath).size;
   let seen = 0;
@@ -477,5 +500,5 @@ export async function analyzeLevelJsonFile(
       onProgress(Math.min(99, Math.round((seen / total) * 100)));
     });
   }
-  return analyzeLevelJsonStream(stream, levelSavMtimeMs);
+  return analyzeLevelJsonStream(stream, levelSavMtimeMs, opts);
 }

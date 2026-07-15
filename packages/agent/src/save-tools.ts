@@ -16,7 +16,7 @@ import { AGENT_VERSION, DATA_DIR, GITHUB_REPO } from "./env.js";
 import type { InstanceRecord } from "./store.js";
 import type { DriverContext } from "./driver.js";
 import { dirSize, flushWorld, worldDirOf } from "./saves.js";
-import { analyzeLevelJsonFile } from "./save-health.js";
+import { analyzeLevelJsonFile, normGuid } from "./save-health.js";
 
 /**
  * 存檔健檢(save-slim Stage 1,唯讀)— 外部工具管理 + 任務編排。
@@ -254,6 +254,43 @@ function runConvert(bin: string, savPath: string, jsonPath: string): Promise<voi
   });
 }
 
+/** 解析 Players/*.sav 的容器 id,建「容器 → party(身上)/palbox(帕魯箱)」對照,
+ *  讓快照能把帕魯按所在位置分類。單檔失敗不擋整體;檔數設上限防極端伺服器。 */
+const MAX_PLAYER_SAVS = 50;
+async function buildContainerKinds(
+  bin: string,
+  playersDir: string,
+  tmpDir: string,
+): Promise<Map<string, "party" | "palbox">> {
+  const kinds = new Map<string, "party" | "palbox">();
+  if (!fs.existsSync(playersDir)) return kinds;
+  const files = fs
+    .readdirSync(playersDir)
+    .filter((f) => /^[0-9A-Fa-f]{32}\.sav$/.test(f))
+    .slice(0, MAX_PLAYER_SAVS);
+  for (const f of files) {
+    const copy = path.join(tmpDir, `player-${f}`);
+    const out = `${copy}.json`;
+    try {
+      await fs.promises.copyFile(path.join(playersDir, f), copy);
+      await runConvert(bin, copy, out);
+      const sd = (JSON.parse(fs.readFileSync(out, "utf8")) as {
+        properties?: { SaveData?: { value?: Record<string, { value?: { ID?: { value?: unknown } } }> } };
+      }).properties?.SaveData?.value;
+      const otomo = sd?.OtomoCharacterContainerId?.value?.ID?.value;
+      const storage = sd?.PalStorageContainerId?.value?.ID?.value;
+      if (typeof otomo === "string") kinds.set(normGuid(otomo), "party");
+      if (typeof storage === "string") kinds.set(normGuid(storage), "palbox");
+    } catch {
+      // 個別玩家檔壞掉/格式不符:該玩家的帕魯位置會標 unknown,不擋掃描
+    } finally {
+      fs.rmSync(copy, { force: true });
+      fs.rmSync(out, { force: true });
+    }
+  }
+  return kinds;
+}
+
 async function runJob(rec: InstanceRecord, ctx: DriverContext, worldGuid: string): Promise<SaveHealthReport> {
   const job = jobs.get(rec.id)!;
   const worldDir = worldDirOf(rec, ctx, worldGuid);
@@ -292,14 +329,21 @@ async function runJob(rec: InstanceRecord, ctx: DriverContext, worldGuid: string
 
     job.phase = "convert";
     job.pct = null; // 子行程無進度回報
+    // 先解析玩家檔(小,秒級)建容器對照 → 帕魯能分類成「身上/帕魯箱/據點」
+    const containerKinds = await buildContainerKinds(bin, path.join(worldDir, "Players"), tmpDir);
     const jsonPath = path.join(tmpDir, "Level.sav.json");
     await runConvert(bin, savCopy, jsonPath);
 
     job.phase = "analyze";
     job.pct = 0;
-    const analysis = await analyzeLevelJsonFile(jsonPath, levelStat.mtimeMs, (pct) => {
-      job.pct = pct;
-    });
+    const analysis = await analyzeLevelJsonFile(
+      jsonPath,
+      levelStat.mtimeMs,
+      (pct) => {
+        job.pct = pct;
+      },
+      { containerKinds },
+    );
 
     const report: SaveHealthReport = {
       worldGuid,

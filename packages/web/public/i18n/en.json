@@ -1221,5 +1221,11 @@
  "過戶中…": "Transferring…",
  "過戶帕魯歸屬": "Transfer Pal Ownership",
  "共玩存檔的角色過戶與帕魯歸屬修復": "Co-op save repairs: character transfer & pal ownership",
- "共玩修復": "Co-op Repair"
+ "共玩修復": "Co-op Repair",
+ "全部": "All",
+ "身上": "Party",
+ "搜尋名稱、物種或詞條…": "Search name, species, or passive…",
+ "沒有符合搜尋的帕魯。": "No pals match your search.",
+ "這個分類沒有帕魯。": "No pals in this category.",
+ "(顯示前 {shown} / 共 {total})": "(showing first {shown} of {total})"
 }

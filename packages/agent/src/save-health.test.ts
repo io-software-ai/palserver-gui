@@ -45,11 +45,12 @@ function palEntry(
   owner: string,
   characterId: string,
   level: number,
-  opts: { lucky?: boolean; passives?: string[]; talents?: [number, number, number] } = {},
+  opts: { lucky?: boolean; passives?: string[]; talents?: [number, number, number]; containerId?: string } = {},
 ) {
   const [hp, shot, def] = opts.talents ?? [50, 50, 50];
   return charEntry(ZERO, {
     CharacterID: { value: characterId },
+    SlotId: { value: { ContainerId: { value: { ID: { value: opts.containerId ?? "cont-default" } } }, SlotIndex: { value: `__RAW_0__` } } },
     Level: { value: `__RAW_${level}__` },
     Gender: { value: { type: "EPalGenderType", value: "EPalGenderType::Female" } },
     Rank: { value: `__RAW_1__` },
@@ -227,6 +228,40 @@ test("analyzeLevelJsonStream:離線天數以存檔內世界時鐘為準,mtime �
   const noClock = buildJson().replace(/"GameTimeSaveData":\{[^}]*\}\}\},/, "");
   const r2 = await analyzeLevelJsonStream(Readable.from([noClock]), MTIME_MS);
   assert.equal(r2.inactivePlayers[0]?.lastOnlineDaysAgo, 45);
+});
+
+test("analyzeLevelJsonStream:帕魯位置依容器對照分類(party/palbox/base/unknown)", async () => {
+  const doc = {
+    properties: {
+      worldSaveData: {
+        value: {
+          CharacterSaveParameterMap: {
+            value: [
+              playerEntry("p1", "X", 1),
+              palEntry("p1", "A", 1, { containerId: "AABB-01" }), // party
+              palEntry("p1", "B", 2, { containerId: "aabb02" }), // palbox(正規化後相同)
+              palEntry("p1", "C", 3, { containerId: "cccc-03" }), // 不在對照 → base
+            ],
+          },
+        },
+      },
+    },
+  };
+  const json = JSON.stringify(doc).replace(/"__RAW_(-?\d+)__"/g, "$1");
+  const kinds = new Map<string, "party" | "palbox">([
+    ["aabb01", "party"],
+    ["aabb02", "palbox"],
+  ]);
+  const r = await analyzeLevelJsonStream(Readable.from([json]), MTIME_MS, { containerKinds: kinds });
+  const pals = r.players.find((p) => p.uid === "p1")!.pals;
+  const locOf = (id: string) => pals.find((p) => p.characterId === id)!.location;
+  assert.equal(locOf("A"), "party");
+  assert.equal(locOf("B"), "palbox");
+  assert.equal(locOf("C"), "base");
+
+  // 沒給對照表 → 全部 unknown
+  const r2 = await analyzeLevelJsonStream(Readable.from([json]), MTIME_MS);
+  assert.ok(r2.players[0].pals.every((p) => p.location === "unknown"));
 });
 
 test("analyzeLevelJsonStream:荒謬 ticks 回 null 而非硬湊", async () => {

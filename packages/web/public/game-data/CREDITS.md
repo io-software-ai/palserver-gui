@@ -12,9 +12,14 @@ label IDs in the UI (giving items/Pals, moderation lists, etc.).
 - **Active-skill catalog** (`activeSkills.json`): names from
   [paldb.cc](https://paldb.cc)'s `Active_Skills` index (`EPalWazaID`), elements
   joined from [paldeck.cc](https://paldeck.cc)'s skills data by internal id.
+- **Human NPC catalog** (`humans.json` + `humans/` icons): internal ids, names
+  and icons from [paldb.cc](https://paldb.cc)'s `Humans` index page (`en`/`tw`/
+  `ja`/`cn`), which lists non-Pal characters (capturable human NPCs, Syndicate/
+  cult/arena characters, etc.) under the shared `Pals` id namespace.
 
 `passives.json` / `activeSkills.json` are regenerated with
-`node scripts/fetch-skills-passives.mjs`.
+`node scripts/fetch-skills-passives.mjs`. `humans.json` is regenerated with
+`node scripts/fetch-human-npcs.mjs`.
 
 All Palworld artwork is © Pocketpair, Inc. These icons are bundled only to
 label in-game entities within this management tool.

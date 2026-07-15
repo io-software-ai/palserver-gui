@@ -29,6 +29,7 @@
 | `items.json` | `{id, name, icon?, zh?, zhCN?, ja?}` | `items/` | paldb.cc |
 | `passives.json` | `{id, name, zh?, zhCN?, ja?, rank}` | 無（前端畫箭頭） | paldb.cc + paldeck.cc |
 | `activeSkills.json` | `{id, name, zh?, zhCN?, ja?, element?}` | 無 | paldb.cc + paldeck.cc |
+| `humans.json` | `{id, name, icon?, zh?, ja?, zhCN?}` | `humans/` | paldb.cc `/Humans` 索引頁 |
 | `landmarks.json` / `bosses.json` | `{name:{en, zh, zhCN?, ja}, x, y, ...}` | landmark-icons / pals | paldb.cc map data |
 | `ores.json` | `{types:{key:{name, icon, color, big?}}, spots:[{t, x, y}]}` | items/（沿用物品圖示） | paldb.cc map data（`scripts/fetch-map-ores.mjs` 可重跑；礦物名稱/翻譯對接 items.json） |
 
@@ -91,6 +92,25 @@ node scripts/fetch-skills-passives.mjs
 - **詞條 ja 目前抓不到**：paldb ja 詞條頁筆數落後（上次只有 102/114），位置對齊會誤植，故留空。
   若之後 paldb ja 補齊到與 en 同筆同序，可在腳本裡打開 ja 位置對齊。
 - 新版剛出時，個別新詞條 paldb 還沒收錄（上次 `MiniNushi/Whopper` 缺 zh）——正常，之後重跑會補上。
+
+---
+
+## 更新人類 NPC 目錄（humans.json）
+
+玩家詳情頁要標示存檔裡「用帕魯球抓到的人類 NPC」（CharacterID 如 `Hunter_Bat`、
+`Male_People02`）的名稱與圖示，這些角色不在 `pals.json`（不是怕魯），改用
+`humans.json`。這份也是**從來源整份重建**，直接跑：
+
+```
+node scripts/fetch-human-npcs.mjs
+```
+
+它抓 `paldb.cc/{en,tw,ja,cn}/Humans` 索引頁——paldb 把所有非怕魯角色（人類 NPC、
+Syndicate/邪教/競技場角色等）都歸在這頁，id 仍在 `Pals` namespace 下，四語言版本
+用內部 id 直接對接（可靠，不必位置對應）。共用同一張佔位圖
+`T_character_common_human_00.webp` 的條目視同「無專屬圖示」，icon 留空交給前端
+通用人形 fallback。多個 id 共用同一張圖示檔（例如各種 `Hunter_*` 變體）屬正常，
+反映遊戲內角色共用模型的事實。
 
 ---
 

@@ -683,6 +683,9 @@ export interface SavePalRow {
   talentShot: number | null;
   talentDefense: number | null;
   passives: string[];
+  /** 依所在容器分類:party = 玩家身上(隊伍)、palbox = 帕魯箱、base = 據點/其他容器;
+   *  unknown = 玩家 .sav 解析不到容器對照(舊快照或解析失敗)。 */
+  location: "party" | "palbox" | "base" | "unknown";
 }
 
 export interface SavePlayerProfile {

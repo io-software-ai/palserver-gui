@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiX, FiCpu, FiLock, FiPackage, FiRefreshCw, FiTrendingUp, FiZap, FiShield } from "react-icons/fi";
+import { FiX, FiCpu, FiLock, FiPackage, FiRefreshCw, FiTrendingUp, FiUser, FiZap, FiShield } from "react-icons/fi";
 import { GiShield } from "react-icons/gi";
 import {
   hasFeature,
@@ -10,10 +10,10 @@ import {
   type SavePlayerProfile,
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
-import { useGameData, displayName, palIconUrl, itemIconUrl, type GameData } from "./gameData";
+import { useGameData, displayName, findCharacter, itemIconUrl, type GameData } from "./gameData";
 import { maskSteamId } from "./SteamId";
 import { t, useI18n } from "./i18n";
-import { Overlay, card, btn, btnGhost, errorCls } from "./ui";
+import { Overlay, card, btn, btnGhost, errorCls, inputCls } from "./ui";
 
 /**
  * 玩家詳情 — 兩個資料來源「合併成同一個視圖」,不分區:
@@ -276,23 +276,18 @@ function MergedBody({
   const prog = detail?.available ? detail.progression : null;
   const restPals = detail?.available ? detail.pals : [];
 
-  // 統一格式:所有帕魯先合併成 MergedPal,再依 REST 位置分組;
-  // REST 沒列到、但存檔上掛在這位玩家名下的,補進「僅存檔」組(通常是離線情境)
+  // 統一格式:REST 與存檔合併成一份 MergedPal 全集,位置以即時資料優先
+  // (REST 在線分類),離線退回存檔解析的容器分類;僅存檔的帕魯也併入全集。
   const matched = new Set<string>();
-  const groupOf = (loc: PdPal["location"]) =>
-    restPals
-      .filter((p) => p.location === loc)
-      .map((p) => {
-        const s = saveByInstance.get(normId(p.instanceId)) ?? null;
-        if (s) matched.add(normId(s.instanceId));
-        return mergePal(p, s);
-      });
-  const team = groupOf("team");
-  const palbox = groupOf("palbox");
-  const basecamp = groupOf("basecamp");
-  const saveOnly = (profile?.pals ?? [])
-    .filter((s) => !s.instanceId || !matched.has(normId(s.instanceId)))
-    .map((s) => mergePal(null, s));
+  const all: MergedPal[] = restPals.map((p) => {
+    const s = saveByInstance.get(normId(p.instanceId)) ?? null;
+    if (s) matched.add(normId(s.instanceId));
+    return mergePal(p, s);
+  });
+  for (const s of profile?.pals ?? []) {
+    if (s.instanceId && matched.has(normId(s.instanceId))) continue;
+    all.push(mergePal(null, s));
+  }
 
   // REST 有帕魯、快照也有,卻一隻都對不上 → 快照多半是舊版掃的(還沒有 InstanceId)
   const staleSnapshot = restPals.length > 0 && saveByInstance.size > 0 && matched.size === 0;
@@ -315,14 +310,6 @@ function MergedBody({
           value={prog ? `Lv.${prog.level}` : profile?.level !== null && profile ? `Lv.${profile.level}` : "—"}
         />
         {lastOnline !== null && <Info label={t("最後上線")} value={lastOnline} />}
-        {detail?.available ? (
-          <>
-            <Info label={t("隊伍帕魯")} value={String(detail.teamCount)} />
-            <Info label={t("帕魯箱")} value={String(detail.palboxCount)} />
-          </>
-        ) : (
-          profile && <Info label={t("名下帕魯")} value={String(profile.palCount)} />
-        )}
       </div>
 
       {prog && <Progression prog={prog} />}
@@ -343,17 +330,9 @@ function MergedBody({
         </p>
       )}
 
-      <PalGroup title={t("隊伍")} pals={team} gameData={gameData} />
-      <PalGroup title={t("帕魯箱")} pals={palbox} gameData={gameData} />
-      <PalGroup title={t("據點工作中")} pals={basecamp} gameData={gameData} />
-      <PalGroup
-        title={restPals.length > 0 ? t("僅存檔(即時清單未列出)") : t("名下帕魯")}
-        pals={saveOnly}
-        total={restPals.length > 0 ? undefined : profile?.palCount}
-        gameData={gameData}
-      />
+      <PalSection pals={all} totalHint={profile?.palCount} gameData={gameData} />
 
-      {restPals.length === 0 && saveOnly.length === 0 && detail?.available && detail.palsUnavailable && (
+      {all.length === 0 && detail?.available && detail.palsUnavailable && (
         <p className="rounded-xl bg-sun/10 px-3 py-2 text-[13px] font-bold text-sun">
           {t("PalDefender 讀不到離線玩家的帕魯;可用「從存檔刷新」改讀存檔資料。")}
         </p>
@@ -376,8 +355,16 @@ interface MergedPal {
   isBoss: boolean;
   gender: "male" | "female" | null;
   rank: number;
+  /** 位置:即時資料優先(在線分類),否則用存檔解析的容器分類 */
+  location: SavePalRow["location"];
   save: SavePalRow | null;
 }
+
+const REST_LOCATION: Record<PdPal["location"], SavePalRow["location"]> = {
+  team: "party",
+  palbox: "palbox",
+  basecamp: "base",
+};
 
 function mergePal(restPal: PdPal | null, save: SavePalRow | undefined | null): MergedPal {
   const s = save ?? null;
@@ -391,6 +378,7 @@ function mergePal(restPal: PdPal | null, save: SavePalRow | undefined | null): M
     isBoss: s?.isBoss || /^BOSS_/i.test(speciesId),
     gender: s?.gender ?? (/female/i.test(restPal?.gender ?? "") ? "female" : /male/i.test(restPal?.gender ?? "") ? "male" : null),
     rank: s?.rank ?? 0,
+    location: restPal ? REST_LOCATION[restPal.location] : (s?.location ?? "unknown"),
     save: s,
   };
 }
@@ -430,36 +418,111 @@ function Info({ label, value }: { label: string; value: string }) {
 
 const SHOWN_PALS = 60;
 
-/** 統一格式的帕魯分組:在線(REST)與離線(存檔)都長同一張卡。空組不渲染。 */
-function PalGroup({
-  title,
+type PalTab = "all" | "party" | "palbox" | "base";
+
+/**
+ * 帕魯區:分頁籤(全部/身上/帕魯箱/據點)+ 即時搜尋 + 統一卡片格。
+ * 幾百隻的帕魯箱用堆疊區塊會把彈窗拉成無底洞;籤上帶數量、即點即切,
+ * 搜尋涵蓋暱稱/物種顯示名/詞條名。位置未知的(舊快照)只出現在「全部」。
+ */
+function PalSection({
   pals,
-  total,
+  totalHint,
   gameData,
 }: {
-  title: string;
   pals: MergedPal[];
-  /** 存檔明細有上限,真實總數可能更大 */
-  total?: number;
+  /** 存檔明細有上限(每人 1000),真實總數可能更大 */
+  totalHint?: number;
   gameData: GameData | null;
 }) {
+  const [tab, setTab] = useState<PalTab>("all");
+  const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   if (pals.length === 0) return null;
-  const shown = showAll ? pals : pals.slice(0, SHOWN_PALS);
+
+  const counts: Record<PalTab, number> = {
+    all: pals.length,
+    party: pals.filter((p) => p.location === "party").length,
+    palbox: pals.filter((p) => p.location === "palbox").length,
+    base: pals.filter((p) => p.location === "base").length,
+  };
+  const TABS: { id: PalTab; label: string }[] = [
+    { id: "all", label: t("全部") },
+    { id: "party", label: t("身上") },
+    { id: "palbox", label: t("帕魯箱") },
+    { id: "base", label: t("據點") },
+  ];
+
+  const q = query.trim().toLowerCase();
+  const matchQuery = (p: MergedPal): boolean => {
+    if (!q) return true;
+    const entity = findCharacter(gameData, p.speciesId)?.entity;
+    const hay = [p.nickname, p.speciesId, entity ? displayName(entity) : "", entity?.name]
+      .concat(p.save?.passives.map((id) => {
+        const meta = gameData?.passiveById.get(id);
+        return meta ? `${displayName(meta)} ${meta.name}` : id;
+      }) ?? [])
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  };
+
+  const filtered = pals.filter((p) => (tab === "all" || p.location === tab) && matchQuery(p));
+  const shown = showAll || q ? filtered : filtered.slice(0, SHOWN_PALS);
+
   return (
     <div>
-      <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-ink-muted">
-        <FiZap className="size-4 text-pal" /> {title}
-        <span className="rounded-full bg-card-soft px-2 py-0.5 text-xs font-bold">{total ?? pals.length}</span>
-      </h3>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2">
-        {shown.map((p) => (
-          <PalCard key={p.key} p={p} gameData={gameData} />
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="inline-flex items-center gap-1.5 text-sm font-extrabold text-ink-muted">
+          <FiZap className="size-4 text-pal" /> {t("帕魯")}
+          {totalHint !== undefined && totalHint > pals.length && (
+            <span className="text-xs font-normal">
+              {t("(顯示前 {shown} / 共 {total})", { shown: pals.length, total: totalHint })}
+            </span>
+          )}
+        </h3>
+        <input
+          className={`${inputCls} w-44 py-1 text-xs`}
+          placeholder={t("搜尋名稱、物種或詞條…")}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      <div className="mb-2 flex flex-wrap gap-1">
+        {TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            onClick={() => {
+              setTab(id);
+              setShowAll(false);
+            }}
+            className={`rounded-full border-2 px-3 py-1 text-xs font-bold transition ${
+              tab === id
+                ? "border-pal bg-pal/10 text-pal"
+                : "border-line text-ink-muted hover:border-ink-muted"
+            }`}
+          >
+            {label}
+            <span className={`ml-1 ${tab === id ? "" : "opacity-70"}`}>{counts[id]}</span>
+          </button>
         ))}
       </div>
-      {pals.length > SHOWN_PALS && !showAll && (
+
+      {filtered.length === 0 ? (
+        <p className="py-4 text-center text-[13px] text-ink-muted">
+          {q ? t("沒有符合搜尋的帕魯。") : t("這個分類沒有帕魯。")}
+        </p>
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2">
+          {shown.map((p) => (
+            <PalCard key={p.key} p={p} gameData={gameData} />
+          ))}
+        </div>
+      )}
+      {!q && !showAll && filtered.length > SHOWN_PALS && (
         <button className={`${btnGhost} mt-2`} onClick={() => setShowAll(true)}>
-          {t("顯示全部 {n} 隻", { n: pals.length })}
+          {t("顯示全部 {n} 隻", { n: filtered.length })}
         </button>
       )}
     </div>
@@ -474,7 +537,7 @@ const IV_META = () =>
   ] as const;
 
 function PalCard({ p, gameData }: { p: MergedPal; gameData: GameData | null }) {
-  const entity = gameData?.palById.get(p.speciesId) ?? gameData?.palById.get(`BOSS_${p.speciesId}`);
+  const hit = findCharacter(gameData, p.speciesId);
   const s = p.save;
   return (
     <div className="rounded-xl border-2 border-line p-2.5 transition-colors hover:border-pal/50">
@@ -484,15 +547,16 @@ function PalCard({ p, gameData }: { p: MergedPal; gameData: GameData | null }) {
             p.shiny ? "ring-2 ring-amber-400/70" : ""
           }`}
         >
-          {entity?.icon ? (
-            <img src={palIconUrl(entity.icon)} alt="" className="size-10" />
+          {hit?.iconUrl ? (
+            <img src={hit.iconUrl} alt="" className="size-10" />
           ) : (
-            <span className="text-xs font-bold text-ink-muted">?</span>
+            // 沒有專屬圖示的人類 NPC(或目錄外 id):人形佔位
+            <FiUser className="size-6 text-ink-muted" />
           )}
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-extrabold">
-            {p.nickname || (entity ? displayName(entity) : p.speciesId)}
+            {p.nickname || (hit ? displayName(hit.entity) : p.speciesId)}
           </p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-ink-muted">
             <span className="font-mono font-bold">{p.level !== null ? `Lv.${p.level}` : "—"}</span>
