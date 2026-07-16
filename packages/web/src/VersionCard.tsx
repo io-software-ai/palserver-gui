@@ -91,7 +91,7 @@ export function VersionCard({
           </p>
         ) : (
           <p className="text-[13px] text-ink-muted">
-            {version.reason ?? t("無法判斷是否有新版本(可能連不上 Steam)。")}
+            {version.reason ? t(version.reason) : t("無法判斷是否有新版本(可能連不上 Steam)。")}
           </p>
         )}
       </div>

@@ -14,7 +14,7 @@ import {
 import type { AgentClient } from "./api";
 import { useGameData, displayName, findCharacter, itemIconUrl, type GameData } from "./gameData";
 import { maskSteamId } from "./SteamId";
-import { t, useI18n } from "./i18n";
+import { localizeBaseName, t, useI18n } from "./i18n";
 import { DetailsToggle, Overlay, SponsorHint, card, btn, btnGhost, errorCls, inputCls, useDetailsPref } from "./ui";
 
 /**
@@ -464,7 +464,7 @@ function GuildPanel({
                   title={onShowOnMap ? t("在地圖上查看") : undefined}
                 >
                   <FiMapPin className="size-3" />
-                  {b.name || t("據點 {n}", { n: i + 1 })}
+                  {localizeBaseName(b.name, i)}
                   <span className="font-mono font-normal opacity-70">
                     ({Math.round(m.x)}, {Math.round(m.y)})
                   </span>
@@ -486,9 +486,20 @@ const STATUS_LABELS: Record<string, () => string> = {
   所持重量: () => t("負重"),
   捕獲率: () => t("捕獲率"),
   作業速度: () => t("工作速度"),
+  空腹率低減: () => t("飽食度消耗降低"),
+  泳ぎ速度: () => t("游泳速度"),
+  食料腐敗低減: () => t("食物腐敗速度降低"),
+  ジャンプ力: () => t("跳躍力"),
+  滑空速度: () => t("滑翔速度"),
+  崖登り速度: () => t("攀爬速度"),
+  状態異常耐性: () => t("異常狀態抗性"),
+  経験値ボーナス: () => t("經驗值加成"),
+  虹パッシブ率: () => t("彩虹被動技能機率"),
+  移動速度アップ: () => t("移動速度提升"),
+  スタミナ消費軽減: () => t("耐力消耗降低"),
 };
 
-/** 加點分配面板(生命/耐力/攻擊/負重/工作速度 + 未分配)。 */
+/** 加點分配面板(基礎與擴充能力 + 未分配)。 */
 function StatusPointsPanel({ points, unused }: { points: { name: string; points: number }[]; unused: number | null }) {
   return (
     <div>

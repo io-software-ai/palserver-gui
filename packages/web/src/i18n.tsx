@@ -163,6 +163,13 @@ export function t(source: string, params?: Record<string, string | number>): str
   return out;
 }
 
+/** 將遊戲自動產生的日文據點模板名換成目前介面的語言;自訂名稱保持原樣。 */
+export function localizeBaseName(name: string, index: number): string {
+  return !name || /^新規生成拠点テンプレート名\d+\(仮\)$/.test(name)
+    ? t("據點 {n}", { n: index + 1 })
+    : name;
+}
+
 /** React 入口:訂閱語言/字典變化,回傳 t 與目前語言。 */
 export function useI18n(): { lang: Lang; setLang: (l: Lang) => void; t: typeof t } {
   const [, bump] = useState(0);
