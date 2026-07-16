@@ -80,7 +80,7 @@ export const k8sDriver: ServerDriver = {
     }
   },
 
-  async start(rec, _ctx): Promise<void> {
+  async start(rec, _ctx): Promise<boolean> {
     const namespace = rec.k8sNamespace!;
     const statefulSet = rec.k8sStatefulSet!;
     const kc = loadKubeConfig();
@@ -100,6 +100,8 @@ export const k8sDriver: ServerDriver = {
       await new Promise((r) => setTimeout(r, 3000));
       await applyEngineIniK8s(rec).catch(() => {});
     }
+    // Scaling replicas to 1 is idempotent; treat it as an initiated start.
+    return true;
   },
 
   async stop(rec, _ctx): Promise<void> {

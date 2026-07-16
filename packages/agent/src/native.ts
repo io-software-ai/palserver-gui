@@ -758,7 +758,9 @@ export const nativeDriver: ServerDriver = {
 
   async start(rec, ctx) {
     const current = await getNativeStatus(rec, ctx);
-    if (current.status === "running" || current.status === "installing") return;
+    // No-op guard: the caller may believe the old process is gone while it is
+    // still exiting. Return false so restarts don't get reported as done.
+    if (current.status === "running" || current.status === "installing") return false;
 
     fs.mkdirSync(ctx.instanceDir, { recursive: true });
     const appendLog = (line: string) => fs.appendFileSync(logFile(ctx), line + "\n");
@@ -769,7 +771,7 @@ export const nativeDriver: ServerDriver = {
       await ensureInstalled(rec, ctx, appendLog); // validates adopted dirs
       await spawnServer(rec, ctx);
       installErrors.delete(rec.id); // 成功啟動,清掉上次的安裝失敗
-      return;
+      return true;
     }
 
     // Slow path: multi-GB download. Run in the background — the instance
@@ -809,6 +811,7 @@ export const nativeDriver: ServerDriver = {
         installProgress.delete(rec.id);
       }
     })();
+    return true;
   },
 
   async stop(rec, ctx) {
@@ -841,7 +844,29 @@ export const nativeDriver: ServerDriver = {
       const record = readPidRecord(ctx);
       const stillOurs = !!id && (record?.startedAt == null || id.startedAt === record.startedAt);
       const isPalServer = !IS_WIN || /palserver/i.test(id?.image ?? "");
-      if (stillOurs && isPalServer) await killTree(pid);
+      if (stillOurs && isPalServer) {
+        await killTree(pid);
+        // killTree 在 POSIX 只送 SIGTERM、不等退出 —— 必須等程序死透才能清
+        // pid 檔,否則下一個 start() 的「還在跑就 no-op」防護會被繞過,
+        // 疊出搶同一組埠的雙程序。逾時就升級 SIGKILL 再等一輪。
+        for (let i = 0; i < 20 && isAlive(pid); i++) {
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        if (!IS_WIN && isAlive(pid)) {
+          try {
+            process.kill(-pid, "SIGKILL");
+          } catch {
+            try {
+              process.kill(pid, "SIGKILL");
+            } catch {
+              /* already gone */
+            }
+          }
+          for (let i = 0; i < 10 && isAlive(pid); i++) {
+            await new Promise((r) => setTimeout(r, 500));
+          }
+        }
+      }
     }
     fs.rmSync(pidFile(ctx), { force: true });
     await sweepLeftovers();
@@ -939,11 +964,18 @@ function palDefenderLogDir(rec: InstanceRecord, ctx: DriverContext): string | nu
 
 /** Last few non-empty lines of PalDefender's newest log — a hint for why it
  * aborted startup, surfaced in the "startup failure" restart event. Empty when
- * there's no log dir/file. */
-export function newestPalDefenderLogLines(rec: InstanceRecord, ctx: DriverContext, n = 3): string[] {
+ * there's no log dir/file. Pass `sinceMs` to only consider files written after
+ * that time — PalDefender writes one file per run, so without the filter the
+ * newest file may be the *previous* process's log and mislead diagnosis. */
+export function newestPalDefenderLogLines(
+  rec: InstanceRecord,
+  ctx: DriverContext,
+  n = 3,
+  sinceMs?: number,
+): string[] {
   const dir = palDefenderLogDir(rec, ctx);
   if (!dir) return [];
-  const file = newestFile(dir);
+  const file = newestFile(dir, sinceMs);
   if (!file) return [];
   try {
     return fs.readFileSync(file, "utf8").split(/\r?\n/).filter((l) => l.trim()).slice(-n);
@@ -952,7 +984,7 @@ export function newestPalDefenderLogLines(rec: InstanceRecord, ctx: DriverContex
   }
 }
 
-function newestFile(dir: string): string | null {
+function newestFile(dir: string, sinceMs?: number): string | null {
   try {
     const entries = fs
       .readdirSync(dir, { withFileTypes: true })
@@ -961,6 +993,7 @@ function newestFile(dir: string): string | null {
         const full = path.join(dir, e.name);
         return { full, mtime: fs.statSync(full).mtimeMs };
       })
+      .filter((e) => sinceMs === undefined || e.mtime >= sinceMs)
       .sort((a, b) => b.mtime - a.mtime);
     return entries[0]?.full ?? null;
   } catch {

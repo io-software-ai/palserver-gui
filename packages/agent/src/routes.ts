@@ -706,9 +706,13 @@ export function registerRoutes(
 
   app.post("/api/instances/:id/start", async (req) => {
     const rec = reconcileWorldIni(getOr404((req.params as { id: string }).id));
-    await driverOf(rec).start(rec, ctxOf(rec));
-    supervisor.noteManualState(rec.id, true);
-    track("server_started");
+    const started = await driverOf(rec).start(rec, ctxOf(rec));
+    // no-op(本來就在跑)不得重設 lastStartAt —— 否則會重開一個 120 秒的
+    // 「啟動失敗」誤判窗口,窗口內的一般當機會被誤判成 PalDefender 啟動失敗。
+    if (started) {
+      supervisor.noteManualState(rec.id, true);
+      track("server_started");
+    }
     return toSummary(rec);
   });
 
@@ -739,9 +743,11 @@ export function registerRoutes(
     await driverOf(rec).stop(rec, ctxOf(rec));
     presence.markAllOffline(rec.id);
     rec = reconcileWorldIni(rec);
-    await driverOf(rec).start(rec, ctxOf(rec));
-    supervisor.noteManualState(rec.id, true);
-    track("server_started");
+    const started = await driverOf(rec).start(rec, ctxOf(rec));
+    if (started) {
+      supervisor.noteManualState(rec.id, true);
+      track("server_started");
+    }
     return toSummary(rec);
   });
 

@@ -14,8 +14,11 @@ export interface DriverContext {
  */
 export interface ServerDriver {
   status(rec: InstanceRecord, ctx: DriverContext): Promise<{ status: InstanceStatus; runtimeId: string | null }>;
-  /** Prepare (install if needed), apply settings, and start the server. */
-  start(rec: InstanceRecord, ctx: DriverContext): Promise<void>;
+  /** Prepare (install if needed), apply settings, and start the server.
+   * Resolves true when a start was actually initiated (spawn or background
+   * install+spawn); false when it no-opped because the instance was already
+   * running/installing — callers must not report a restart as done on false. */
+  start(rec: InstanceRecord, ctx: DriverContext): Promise<boolean>;
   stop(rec: InstanceRecord, ctx: DriverContext): Promise<void>;
   /** Tear down runtime state (container / process). Never deletes saves. */
   remove(rec: InstanceRecord, ctx: DriverContext): Promise<void>;

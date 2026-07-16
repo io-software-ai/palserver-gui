@@ -286,7 +286,13 @@ export async function updateImage(rec: InstanceRecord, instanceDir: string): Pro
 
 export const dockerDriver: ServerDriver = {
   status: (rec) => getStatus(rec),
-  start: (rec, ctx) => startInstance(rec, ctx.instanceDir),
+  start: async (rec, ctx) => {
+    // Same no-op contract as the native driver: a container that is still
+    // running must not be reported as freshly (re)started.
+    if ((await getStatus(rec)).status === "running") return false;
+    await startInstance(rec, ctx.instanceDir);
+    return true;
+  },
   stop: (rec) => stopInstance(rec),
   remove: (rec) => removeInstanceContainer(rec),
   stats: (rec) => getStats(rec),

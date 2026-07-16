@@ -31,6 +31,10 @@ const MAX_ANNOUNCE_SECONDS = 300;
 /** A native server that exits within this window of starting never really came
  * up — a boot failure, not a mid-game crash. Palworld's own boot takes ~30-60s. */
 const BOOT_GRACE_MS = 120_000;
+/** After a graceful REST /shutdown (waittime 10s), how long we poll for the old
+ * process to actually exit before force-stopping. Big worlds flush saves on the
+ * way out, so this needs headroom beyond the announced waittime. */
+const SHUTDOWN_EXIT_TIMEOUT_MS = 60_000;
 
 interface SupervisorState {
   /** we last observed it running, so an "exited" now means it crashed */
@@ -252,14 +256,18 @@ export class RestartSupervisor {
    * same failure. Sets wasRunning=false so later ticks don't re-flag it. */
   private handleStartupFailure(rec: InstanceRecord, ctx: DriverContext, state: SupervisorState): void {
     state.wasRunning = false;
-    const hint = newestPalDefenderLogLines(rec, ctx, 1)[0];
+    // Only quote PalDefender logs written since this boot — the newest file by
+    // mtime may be the *previous* process's shutdown tail, which reads like
+    // evidence but is just a normal goodbye message.
+    const bootMs = state.lastStartAt ? Date.parse(state.lastStartAt) : undefined;
+    const hint = newestPalDefenderLogLines(rec, ctx, 1, bootMs)[0];
     this.record(rec.id, state, {
       at: new Date().toISOString(),
       reason: "startup-failure",
       ok: false,
       detail:
         "伺服器在啟動階段即結束,且 PalDefender 已開啟「啟動失敗時關閉伺服器」— 研判為 PalDefender 啟動失敗自我關閉,已停止自動重啟以免無限重啟迴圈。請查看 PalDefender 日誌修正原因,或關閉該選項與崩潰自動重啟其一。"
-        + (hint ? ` 最後日誌:${hint}` : ""),
+        + (hint ? ` 最後日誌:${hint}` : "(本次啟動期間沒有 PalDefender 日誌 — 外掛可能未載入,或伺服器在載入外掛前就結束了。)"),
     });
   }
 
@@ -285,16 +293,18 @@ export class RestartSupervisor {
 
     this.busy.add(rec.id);
     try {
-      await driver.start(rec, ctx);
+      const started = await driver.start(rec, ctx);
       const at = new Date().toISOString();
-      state.recentRestarts = [...recent, at];
+      if (started) state.recentRestarts = [...recent, at];
       state.wasRunning = true;
       state.lastStartAt = at;
       this.record(rec.id, state, {
         at,
         reason: "crash",
         ok: true,
-        detail: `伺服器異常結束,已自動重啟(本小時第 ${recent.length + 1} 次)`,
+        detail: started
+          ? `伺服器異常結束,已自動重啟(本小時第 ${recent.length + 1} 次)`
+          : "伺服器異常結束,但偵測時已在執行(可能已被手動啟動),略過自動重啟",
       });
     } catch (err) {
       state.recentRestarts = [...recent, new Date().toISOString()];
@@ -346,6 +356,12 @@ export class RestartSupervisor {
       await rest.save(rec).catch(() => {});
       await new Promise((r) => setTimeout(r, 5000));
 
+      // Remember the old process's identity (native: pid) before asking it to
+      // exit — during the wait below this is how we tell "old process still
+      // exiting" apart from "someone manually restarted and a NEW process is
+      // running", which we must never kill.
+      const oldRuntimeId = (await driver.status(rec, ctx)).runtimeId;
+
       // Try graceful shutdown first (server saves then exits cleanly).
       // Fall back to hard stop if REST is unavailable or shutdown fails.
       const shutdownOk = await rest
@@ -356,21 +372,80 @@ export class RestartSupervisor {
       if (!shutdownOk) {
         await driver.stop(rec, ctx);
       } else {
-        // Graceful shutdown succeeded — the server is (or soon will be) stopped.
-        // Wait a moment for the process to fully exit, then sync driver state.
-        await new Promise((r) => setTimeout(r, 5000));
+        // Graceful shutdown succeeded — but the server only *begins* exiting
+        // after the announced waittime (10s), and flushing a big world can take
+        // longer still. Poll until the old process is really gone: starting the
+        // new one too early makes driver.start() see a live process and silently
+        // no-op — the restart then never happens, and the old process's own
+        // exit a few seconds later gets misread as a PalDefender startup
+        // failure, which halts auto-restart entirely.
+        const deadline = Date.now() + SHUTDOWN_EXIT_TIMEOUT_MS;
+        for (;;) {
+          const cur = await driver.status(rec, ctx);
+          if (cur.status !== "running") break;
+          if (oldRuntimeId !== null && cur.runtimeId !== null && cur.runtimeId !== oldRuntimeId) {
+            // A different process took over mid-wait (manual restart from the
+            // UI). The goal — a fresh server — is already met; hand over.
+            // (Carry lastDailyFire so a daily schedule doesn't refire this
+            // same minute — check() set it in memory only.)
+            const cur2 = this.readState(rec.id);
+            cur2.lastDailyFire = state.lastDailyFire;
+            this.record(rec.id, cur2, {
+              at: new Date().toISOString(),
+              reason,
+              ok: false,
+              detail: "等待舊程序退出期間,伺服器已被手動重啟接手 — 本次排程重啟取消,不影響新程序。",
+            });
+            return;
+          }
+          if (Date.now() >= deadline) {
+            // Still alive past the deadline — escalate like the REST-less path
+            // (driver.stop verifies the PID and waits for it to die).
+            await driver.stop(rec, ctx);
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 1000));
+        }
       }
 
-      await driver.start(rec, ctx);
+      // A manual stop during any of the waits above (announce / save /
+      // shutdown) writes wasRunning=false via noteManualState. Respect it —
+      // resurrecting a server the user just stopped is worse than skipping
+      // one scheduled restart.
+      const preStart = this.readState(rec.id);
+      if (!preStart.wasRunning) {
+        preStart.lastDailyFire = state.lastDailyFire;
+        this.record(rec.id, preStart, {
+          at: new Date().toISOString(),
+          reason,
+          ok: false,
+          detail: "重啟等待期間偵測到手動停止 — 尊重停止指令,本次排程重啟取消(伺服器維持停止)。",
+        });
+        return;
+      }
 
+      const started = await driver.start(rec, ctx);
+      if (!started) {
+        throw new Error("舊伺服器程序尚未退出,無法啟動新程序 — 本次重啟未執行(伺服器維持原狀)");
+      }
+
+      // Re-read state instead of writing back the copy we've held across a
+      // wait that can span minutes — a concurrent manual start/stop updates
+      // the state file, and clobbering it re-arms stale flags.
       const now = new Date().toISOString();
-      state.recentRestarts = [...this.recentWithinHour(state.recentRestarts), now];
-      state.lastScheduledAt = now;
-      state.wasRunning = true;
-      state.lastStartAt = now;
-      this.record(rec.id, state, { at: now, reason, ok: true, detail });
+      const fresh = this.readState(rec.id);
+      fresh.lastDailyFire = state.lastDailyFire; // set by check() at fire time
+      fresh.recentRestarts = [...this.recentWithinHour(fresh.recentRestarts), now];
+      fresh.lastScheduledAt = now;
+      fresh.wasRunning = true;
+      fresh.lastStartAt = now;
+      this.record(rec.id, fresh, { at: now, reason, ok: true, detail });
     } catch (err) {
-      this.record(rec.id, state, {
+      // Fresh read for the same reason as the success path; keep lastDailyFire
+      // so a failed daily restart isn't re-attempted within the same minute.
+      const cur = this.readState(rec.id);
+      cur.lastDailyFire = state.lastDailyFire;
+      this.record(rec.id, cur, {
         at: new Date().toISOString(),
         reason,
         ok: false,
