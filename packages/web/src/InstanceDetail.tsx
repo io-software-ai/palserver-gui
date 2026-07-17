@@ -436,9 +436,6 @@ export function InstanceDetailPage({
                       </button>
                     );
                   })}
-                  <p className="border-t-2 border-line px-2 pb-0.5 pt-1.5 text-[11px] text-ink-muted">
-                    {translate("點一下切換顯示;分頁標籤可直接拖曳排序。")}
-                  </p>
                 </div>
               )}
             </div>
