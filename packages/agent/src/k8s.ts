@@ -171,6 +171,9 @@ export const k8sDriver: ServerDriver = {
         // Wait for PD to generate RESTConfig.json (retry for up to 5 min).
         for (let i = 0; i < 30; i++) {
           const status = await pd.getPdRestStatus(rec, { instanceDir: "" } as DriverContext);
+          // 沒裝 PalDefender 就不用等 RESTConfig.json 了 —— 否則「原味」wine 實例
+          // 每次啟動都會空轉滿 5 分鐘,連 /start API 都被卡住。
+          if (!status.installed) break;
           if (status.configExists) {
             let pdRestartRequired = false;
             if (!status.enabled) {
