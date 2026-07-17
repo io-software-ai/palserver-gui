@@ -89,6 +89,8 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 無法取得快照(note)且不能掃描時整列收起,虛線提示框與其他分頁一樣貼齊頂部 */}
+      {(latest || !note || (canScan && !locked)) && (
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-ink-muted">
           {latest
@@ -126,6 +128,7 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
           </div>
         )}
       </div>
+      )}
 
       {error && <p className={errorCls}>{error}</p>}
       {note && !scanning && <EmptyState icon={<FiAward />}>{note}</EmptyState>}

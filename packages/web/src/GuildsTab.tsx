@@ -90,6 +90,8 @@ export function GuildsTab({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 無法取得快照(note)且不能掃描時整列收起,虛線提示框與其他分頁一樣貼齊頂部 */}
+      {(generatedAt || !note || canScan) && (
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-ink-muted">
           {generatedAt
@@ -109,6 +111,7 @@ export function GuildsTab({
           </button>
         )}
       </div>
+      )}
 
       {error && <p className={errorCls}>{error}</p>}
       {note && !scanning && <EmptyState icon={<FiHome />}>{note}</EmptyState>}
