@@ -117,7 +117,7 @@ function expectedHash(sums: string, assetName: string): string | null {
 }
 
 /** 確保凍結的 palsav 執行檔就位(下載一次即快取;每次呼叫都重驗雜湊)。 */
-async function ensurePalsav(rec: InstanceRecord, onProgress?: (pct: number) => void): Promise<string> {
+export async function ensurePalsav(rec: InstanceRecord, onProgress?: (pct: number) => void): Promise<string> {
   const asset = palsavAssetName(rec);
   if (!asset) throw new Error("此平台不支援存檔健檢");
   const dir = path.join(DATA_DIR, "tools", `palsav-${PALSAV_TAG}`);

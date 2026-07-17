@@ -1583,5 +1583,13 @@
   "登入 Windows 時自動在背景啟動 agent。搭配伺服器「設定」分頁的「自動啟動」,主機開機即自動開服。儲存後立即生效。": "Automatically starts the agent in the background when you log into Windows. Combined with a server's “Auto start” setting, the server comes up as soon as the machine boots. Takes effect immediately after saving.",
   "自動啟動": "Auto start",
   "agent 啟動時自動開這台伺服器。搭配「設定 → 系統 → 開機自動啟動 agent」,主機開機就會自動開服。": "Start this server automatically whenever the agent starts. Combined with Settings → System → “Start agent on boot”, the server comes up when the machine boots.",
-  "這會以錯誤碼結束行程。GUI 已能辨識這種「啟動即失敗」的關閉並自動停止重啟(不會與崩潰自動重啟打成無限迴圈),但仍請留意重啟紀錄中的「啟動失敗」提示並修正 PalDefender 問題。": "This exits the process with an error code. The GUI recognizes this start-then-fail shutdown and stops auto-restarting (no infinite loop with crash auto-restart), but watch for the “start failed” entry in the restart history and fix the PalDefender issue."
+  "這會以錯誤碼結束行程。GUI 已能辨識這種「啟動即失敗」的關閉並自動停止重啟(不會與崩潰自動重啟打成無限迴圈),但仍請留意重啟紀錄中的「啟動失敗」提示並修正 PalDefender 問題。": "This exits the process with an error code. The GUI recognizes this start-then-fail shutdown and stops auto-restarting (no infinite loop with crash auto-restart), but watch for the “start failed” entry in the restart history and fix the PalDefender issue.",
+  "把「全部快速傳送點(174 個,含天墜之地)」解鎖給這個世界的所有玩家?": "Unlock all 174 fast travel points (including Sakurajima/Feybreak content) for every player in this world?",
+  "需要先停止伺服器;執行前會自動備份整個世界;玩家下次進入伺服器即生效。": "The server must be stopped first; a full world backup is made before writing; takes effect the next time each player joins.",
+  "已為 {ok} 位玩家解鎖全部 {total} 個快速傳送點。": "Unlocked all {total} fast travel points for {ok} player(s).",
+  "({n} 個玩家檔失敗,詳見 agent 日誌)": "({n} player file(s) failed; see agent logs)",
+  "快速傳送全開": "Unlock all fast travel",
+  "解鎖中…": "Unlocking…",
+  "把全部快速傳送點解鎖給所有玩家(寫入玩家存檔;需伺服器停止,會先自動備份)": "Unlock every fast travel point for all players (writes player saves; server must be stopped, auto-backup first)",
+  "存檔解鎖(全體玩家快速傳送全開)": "Save unlocks (all fast travel for every player)"
 }

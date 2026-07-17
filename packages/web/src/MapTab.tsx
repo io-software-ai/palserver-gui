@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiRefreshCw, FiMap, FiX, FiHome, FiUsers, FiStar, FiMoon, FiMapPin, FiExternalLink } from "react-icons/fi";
+import { FiRefreshCw, FiMap, FiX, FiHome, FiUsers, FiStar, FiMoon, FiMapPin, FiExternalLink, FiZap } from "react-icons/fi";
 import { GiCrownedSkull, GiMinerals } from "react-icons/gi";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -180,6 +180,34 @@ export function MapTab({
   const [treeBosses, setTreeBosses] = useState<Boss[]>([]);
   const [treeOres, setTreeOres] = useState<OreData | null>(null);
   const [guildHint, setGuildHint] = useState(false);
+  // 快速傳送全開(贊助者):寫入所有玩家存檔;需伺服器停止,agent 會先整世界備份
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockMsg, setUnlockMsg] = useState<string | null>(null);
+  const unlockFastTravel = async () => {
+    if (
+      !confirm(
+        t("把「全部快速傳送點(174 個,含天墜之地)」解鎖給這個世界的所有玩家?") +
+          "\n\n" +
+          t("需要先停止伺服器;執行前會自動備份整個世界;玩家下次進入伺服器即生效。"),
+      )
+    )
+      return;
+    setUnlocking(true);
+    setUnlockMsg(null);
+    try {
+      const r = await client.unlockFastTravel(instanceId);
+      const ok = r.players.filter((p) => p.ok).length;
+      const failed = r.players.length - ok;
+      setUnlockMsg(
+        t("已為 {ok} 位玩家解鎖全部 {total} 個快速傳送點。", { ok: String(ok), total: String(r.total) }) +
+          (failed > 0 ? " " + t("({n} 個玩家檔失敗,詳見 agent 日誌)", { n: String(failed) }) : ""),
+      );
+    } catch (err) {
+      setUnlockMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUnlocking(false);
+    }
+  };
   // 公會詳情點成員 → 地圖跳到該位置。n 是 nonce:同一點連點兩次也要重新觸發。
   const [focus, setFocus] = useState<{ x: number; y: number; n: number } | null>(null);
   // 主世界 / 世界樹(1.0)雙底圖:座標系互相獨立,標記依 isWorldTreeCoord 分流
@@ -511,14 +539,40 @@ export function MapTab({
           </p>
           <p className="mt-0.5 text-[13px] text-ink-muted">{summary}</p>
         </div>
-        <button
-          className={`${btn} inline-flex items-center gap-1.5`}
-          onClick={() => setOpen(true)}
-          disabled={!live?.available}
-        >
-          <FiMap className="size-4" /> {t("開啟地圖")}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {guildsUnlocked ? (
+            <button
+              className={`${btnGhost} inline-flex items-center gap-1.5`}
+              onClick={() => void unlockFastTravel()}
+              disabled={unlocking}
+              title={t("把全部快速傳送點解鎖給所有玩家(寫入玩家存檔;需伺服器停止,會先自動備份)")}
+            >
+              <FiZap className="size-4" /> {unlocking ? t("解鎖中…") : t("快速傳送全開")}
+              <FiStar className="size-3.5 text-pal" />
+            </button>
+          ) : (
+            <button
+              className={`${btnGhost} inline-flex items-center gap-1.5 opacity-70`}
+              title={t("此功能為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。")}
+              onClick={() => setUnlockMsg(t("此功能為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。"))}
+            >
+              <FiZap className="size-4" /> {t("快速傳送全開")}
+              <FiStar className="size-3.5 text-pal" />
+            </button>
+          )}
+          <button
+            className={`${btn} inline-flex items-center gap-1.5`}
+            onClick={() => setOpen(true)}
+            disabled={!live?.available}
+          >
+            <FiMap className="size-4" /> {t("開啟地圖")}
+          </button>
+        </div>
       </div>
+
+      {unlockMsg && (
+        <p className="rounded-xl bg-card-soft px-3 py-2 text-[13px] font-bold">{unlockMsg}</p>
+      )}
 
       {open && mapPanel && <Overlay onClose={() => setOpen(false)}>{mapPanel}</Overlay>}
 

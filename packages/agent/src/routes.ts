@@ -35,6 +35,7 @@ import { AGENT_VERSION, PORT, HOST, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPE
 import { saveSettings } from "./settings.js";
 import { collectSpecs, reviewSpecs } from "./system-review.js";
 import { getBootStart, restartSelf, setBootStart } from "./self-update.js";
+import { unlockAllFastTravel } from "./save-unlocks.js";
 import {
   type AuthContext,
   extractToken,
@@ -1120,6 +1121,18 @@ export function registerRoutes(
 
   /** 各模組元件的最新穩定版(給「有新版」徽章;agent 端 6h 快取)。 */
   app.get("/api/mods/latest", async () => latestModVersions());
+
+  /** 存檔解鎖:全體玩家快速傳送全開(贊助者;需伺服器停止;動手前整世界備份)。 */
+  app.post("/api/instances/:id/save-unlocks/fast-travel", async (req, reply) => {
+    if (!featureEnabled("map-unlocks")) {
+      return reply.code(403).send({ error: "存檔解鎖為贊助者專屬功能,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    const rec = getOr404((req.params as { id: string }).id);
+    if (await isRunning(rec)) {
+      return reply.code(409).send({ error: "請先停止伺服器再執行存檔解鎖(運行中寫入會損壞存檔)" });
+    }
+    return unlockAllFastTravel(rec, ctxOf(rec));
+  });
 
   /** agent 啟動時自動開服的開關(每實例)。 */
   app.put("/api/instances/:id/auto-start", async (req) => {

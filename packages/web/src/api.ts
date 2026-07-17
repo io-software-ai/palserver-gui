@@ -368,6 +368,11 @@ export class AgentClient {
     return this.request(`/api/instances/${id}/stats`);
   }
 
+  /** 存檔解鎖:全體玩家快速傳送全開(贊助者;需伺服器停止)。 */
+  unlockFastTravel(id: string): Promise<{ worldGuid: string; players: { file: string; ok: boolean; detail: string }[]; total: number }> {
+    return this.request(`/api/instances/${id}/save-unlocks/fast-travel`, { method: "POST", body: "{}" });
+  }
+
   /** agent 啟動時自動開服(每實例)。 */
   setAutoStart(id: string, enabled: boolean): Promise<{ autoStart: boolean }> {
     return this.request(`/api/instances/${id}/auto-start`, {
