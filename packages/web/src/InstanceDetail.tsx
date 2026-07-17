@@ -493,6 +493,11 @@ export function InstanceDetailPage({
           instanceId={detail.id}
           running={detail.status === "running"}
           onModsChanged={checkPalDefender}
+          onOpenPalDefender={() => {
+            setPalDefender(true); // 按鈕只在已安裝時出現;搶在重查完成前放行 gating
+            setHiddenTabs(hiddenTabs.filter((id) => id !== "paldefender"));
+            setTab("paldefender");
+          }}
         />
       )}
       {tab === "paldefender" && (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { GiShield, GiScrollUnfurled } from "react-icons/gi";
-import { FiDownload, FiCheck, FiPackage, FiFolder, FiTrash2, FiAlertTriangle } from "react-icons/fi";
+import { FiDownload, FiCheck, FiPackage, FiFolder, FiTrash2, FiAlertTriangle, FiSettings } from "react-icons/fi";
 import type { ModComponent, ModsStatus } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { FileBrowserDialog } from "./FileManager";
@@ -32,12 +32,15 @@ export function ModsTab({
   instanceId,
   running,
   onModsChanged,
+  onOpenPalDefender,
 }: {
   client: AgentClient;
   instanceId: string;
   running: boolean;
-  /** 安裝/移除模組後通知外層(讓 PalDefender 專屬分頁即時出現/消失)。 */
+  /** 安裝/移除模組後通知外層(讓 PalDefender 分頁的 gating 同步)。 */
   onModsChanged?: () => void;
+  /** PalDefender 卡的「設定」按鈕:開啟 PalDefender 分頁並切換過去。 */
+  onOpenPalDefender?: () => void;
 }) {
   useI18n();
   const [mods, setMods] = useState<ModsStatus | null>(null);
@@ -190,6 +193,16 @@ export function ModsTab({
                     >
                       {t("安裝測試版")}
                     </button>
+                    {c.id === "paldefender" && state.installed && onOpenPalDefender && (
+                      <button
+                        className={`${btnGhost} inline-flex items-center gap-1.5`}
+                        onClick={onOpenPalDefender}
+                        title={t("開啟 PalDefender 分頁調整反作弊、廣播、玩家管理等設定")}
+                      >
+                        <FiSettings className="size-4" />
+                        {t("設定")}
+                      </button>
+                    )}
                     {state.installed && (
                       <button
                         className={`${btnGhost} inline-flex items-center gap-1.5 text-berry hover:border-berry`}

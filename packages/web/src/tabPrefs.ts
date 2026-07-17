@@ -41,7 +41,8 @@ export const LOCKED_TABS: Tab[] = ["overview", "instance"];
 /** 依實例模式的預設可見分頁(新手體驗:先少後多,更多分頁到「設定」裡開):
  *  原味 = 開服最必要的五頁;強化(裝了模組)另外亮出吃 PalDefender/進階資料的五頁。 */
 const VANILLA_VISIBLE: Tab[] = ["overview", "settings", "saves", "restart", "instance"];
-const ENHANCED_VISIBLE: Tab[] = [...VANILLA_VISIBLE, "players", "guilds", "map", "paldefender", "palstats"];
+// paldefender 不放進預設:一律由「模組」頁 PalDefender 卡的「設定」按鈕(或＋面板)開啟
+const ENHANCED_VISIBLE: Tab[] = [...VANILLA_VISIBLE, "players", "guilds", "map", "palstats"];
 
 /** 模式預設的「隱藏清單」(= 全部分頁 − 可見集合)。 */
 export function defaultHiddenTabs(enhanced: boolean): Tab[] {
