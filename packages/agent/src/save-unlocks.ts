@@ -5,8 +5,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { DriverContext } from "./driver.js";
 import type { InstanceRecord } from "./store.js";
-import { serverRoot } from "./native.js";
-import { activeWorldGuid, createBackup } from "./saves.js";
+import { activeWorldGuidAsync, createBackup, worldDirOf } from "./saves.js";
 import { ensurePalsav, palsavAssetName } from "./save-tools.js";
 import { FAST_TRAVEL_GUIDS } from "./fast-travel-points.js";
 
@@ -97,11 +96,10 @@ export async function unlockAllFastTravel(
   if (FAST_TRAVEL_GUIDS.length === 0) {
     throw Object.assign(new Error("快速傳送點清單尚未內建,請更新 agent"), { statusCode: 500 });
   }
-  const root = serverRoot(rec, ctx);
-  const guid = activeWorldGuid(root);
-  if (!guid) throw Object.assign(new Error("找不到啟用中的世界存檔"), { statusCode: 409 });
+  const guid = await activeWorldGuidAsync(rec, ctx);
+  if (!guid) throw Object.assign(new Error("找不到啟用中的世界存檔(GameUserSettings.ini 沒有 DedicatedServerName?)"), { statusCode: 409 });
 
-  const playersDir = path.join(root, "Pal", "Saved", "SaveGames", "0", guid, "Players");
+  const playersDir = path.join(worldDirOf(rec, ctx, guid), "Players");
   if (!fs.existsSync(playersDir)) {
     throw Object.assign(new Error("找不到玩家存檔資料夾(還沒有玩家加入過?)"), { statusCode: 409 });
   }
