@@ -41,20 +41,17 @@ import type { PortsCheckResult } from "./api";
 export function InstanceDetailPage({
   client,
   instanceId,
-  initialTab,
   onBack,
   onDeleted,
 }: {
   client: AgentClient;
   instanceId: string;
-  /** 進頁時預先落在的分頁(例:強化建立完直接帶到「反作弊插件」)。 */
-  initialTab?: Tab;
   onBack: () => void;
   onDeleted: () => void;
 }) {
   useI18n();
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [tab, setTab] = useState<Tab>(initialTab ?? "overview");
+  const [tab, setTab] = useState<Tab>("overview");
   // 玩家詳情「據點跳地圖」:切到地圖分頁並聚焦座標(n 為 nonce,連點同一點也重觸發)
   const [mapFocus, setMapFocus] = useState<{ x: number; y: number; n: number } | null>(null);
   // 分頁偏好每實例獨立;預設集合只看「建立時選的口味」——事後手動安裝模組
