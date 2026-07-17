@@ -688,14 +688,6 @@ export class AgentClient {
     return this.request(`/api/instances/${id}/saves/stats-history${q}`);
   }
 
-  /** 玩家連線用的公開位址(playit.gg 隧道等):空字串 = 清除。 */
-  setExternalAddress(id: string, address: string): Promise<{ externalAddress: string | null }> {
-    return this.request(`/api/instances/${id}/external-address`, {
-      method: "PUT",
-      body: JSON.stringify({ address }),
-    });
-  }
-
   /** 啟動前埠占用檢查(遺戲/查詢/REST/RCON/PalDefender)。 */
   portsCheck(id: string): Promise<PortsCheckResult> {
     return this.request(`/api/instances/${id}/ports/check`);

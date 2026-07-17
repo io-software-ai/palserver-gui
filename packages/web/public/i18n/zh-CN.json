@@ -1462,12 +1462,7 @@
   "直連": "直连",
   "公開 IP + 路由器開埠(進階)": "公开 IP + 路由器开端口(进阶)",
   "playit.gg — 免費隧道,五分鐘搞定": "playit.gg — 免费隧道,五分钟搞定",
-  "playit 給你一個公開位址,自動轉發到這台伺服器:不用動路由器,朋友直接輸入位址就能玩。": "playit 给你一个公开地址,自动转发到这台服务器:不用动路由器,朋友直接输入地址就能玩。",
-  "到 playit.gg 下載並安裝(免費,支援 Windows/Linux),執行後照指示在網頁按「同意」完成綁定。": "到 playit.gg 下载并安装(免费,支持 Windows/Linux),运行后照指示在网页按「同意」完成绑定。",
-  "在 playit 網頁按「Create Tunnel」:類型選 Custom → UDP,Local port 填 {port}。": "在 playit 网页按「Create Tunnel」:类型选 Custom → UDP,Local port 填 {port}。",
-  "把 playit 給你的位址(例:xxx.gl.ply.gg:12345)貼到下面,之後這張卡就會顯示給朋友的位址。": "把 playit 给你的地址(例:xxx.gl.ply.gg:12345)贴到下面,之后这张卡就会显示给朋友的地址。",
   "前往 playit.gg": "前往 playit.gg",
-  "貼上 playit 位址(例:xxx.gl.ply.gg:12345)": "粘贴 playit 地址(例:xxx.gl.ply.gg:12345)",
   "給朋友的位址(點擊複製):": "给朋友的地址(点击复制):",
   "用 VPN 連線": "用 VPN 连线",
   "公開 IP 直連": "公开 IP 直连",
@@ -1482,5 +1477,9 @@
   "類型選 Custom → 協定 UDP;Local Port 填 {port}": "类型选 Custom → 协议 UDP;Local Port 填 {port}",
   "按 Create — 回到這裡,位址幾秒內會自動出現": "按 Create — 回到这里,地址几秒内会自动出现",
   "Kubernetes Pod": "Kubernetes Pod",
-  "帶星號的主題為贊助者專屬,請在下方輸入贊助者識別碼解鎖。": "带星号的主题为赞助者专属,请在下方输入赞助者识别码解锁。"
+  "帶星號的主題為贊助者專屬,請在下方輸入贊助者識別碼解鎖。": "带星号的主题为赞助者专属,请在下方输入赞助者识别码解锁。",
+  "playit 會給你一個專屬位址,朋友輸入就能進來,路由器什麼都不用設定。": "playit 会给你一个专属地址,朋友输入就能进来,路由器什么都不用设置。",
+  "下載並執行 playit(免費),照畫面指示完成綁定。": "下载并运行 playit(免费),照画面指示完成绑定。",
+  "按「Create Tunnel」建隧道:類型選 Custom → UDP,Local port 填 {port}。": "按“Create Tunnel”建隧道:类型选 Custom → UDP,Local port 填 {port}。",
+  "把 playit 顯示的位址傳給朋友,輸入就能一起玩。": "把 playit 显示的地址传给朋友,输入就能一起玩。"
 }

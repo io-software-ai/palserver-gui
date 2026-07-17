@@ -1402,12 +1402,7 @@
   "直連": "Direct",
   "公開 IP + 路由器開埠(進階)": "Public IP + router port forwarding (advanced)",
   "playit.gg — 免費隧道,五分鐘搞定": "playit.gg — free tunnel, done in five minutes",
-  "playit 給你一個公開位址,自動轉發到這台伺服器:不用動路由器,朋友直接輸入位址就能玩。": "playit gives you a public address that forwards to this server: no router changes, and friends just type the address.",
-  "到 playit.gg 下載並安裝(免費,支援 Windows/Linux),執行後照指示在網頁按「同意」完成綁定。": "Download and install from playit.gg (free, Windows/Linux). Run it and approve the agent in the browser page it opens.",
-  "在 playit 網頁按「Create Tunnel」:類型選 Custom → UDP,Local port 填 {port}。": "On the playit website press \"Create Tunnel\": type Custom → UDP, local port {port}.",
-  "把 playit 給你的位址(例:xxx.gl.ply.gg:12345)貼到下面,之後這張卡就會顯示給朋友的位址。": "Paste the address playit gives you (e.g. xxx.gl.ply.gg:12345) below — this card will then show it as the address for friends.",
   "前往 playit.gg": "Open playit.gg",
-  "貼上 playit 位址(例:xxx.gl.ply.gg:12345)": "Paste your playit address (e.g. xxx.gl.ply.gg:12345)",
   "給朋友的位址(點擊複製):": "Address for friends (click to copy):",
   "用 VPN 連線": "Connect via VPN",
   "公開 IP 直連": "Direct via public IP",
@@ -1422,5 +1417,9 @@
   "類型選 Custom → 協定 UDP;Local Port 填 {port}": "Choose type Custom → protocol UDP; set Local Port to {port}",
   "按 Create — 回到這裡,位址幾秒內會自動出現": "Click Create — come back here; the address appears automatically within seconds",
   "Kubernetes Pod": "Kubernetes Pod",
-  "帶星號的主題為贊助者專屬,請在下方輸入贊助者識別碼解鎖。": "Themes marked with a star are sponsor-exclusive. Enter your sponsor ID below to unlock."
+  "帶星號的主題為贊助者專屬,請在下方輸入贊助者識別碼解鎖。": "Themes marked with a star are sponsor-exclusive. Enter your sponsor ID below to unlock.",
+  "playit 會給你一個專屬位址,朋友輸入就能進來,路由器什麼都不用設定。": "playit gives you a dedicated address friends can just type to join — zero router setup.",
+  "下載並執行 playit(免費),照畫面指示完成綁定。": "Download and run playit (free), then follow the on-screen steps to link it.",
+  "按「Create Tunnel」建隧道:類型選 Custom → UDP,Local port 填 {port}。": "Click “Create Tunnel”: choose Custom → UDP and set Local port to {port}.",
+  "把 playit 顯示的位址傳給朋友,輸入就能一起玩。": "Send the address playit shows you to your friends — they type it in and play."
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { FiCopy, FiCheck, FiGlobe, FiExternalLink, FiShield, FiMessageCircle, FiX, FiZap } from "react-icons/fi";
+import { FiCopy, FiCheck, FiEye, FiEyeOff, FiGlobe, FiExternalLink, FiShield, FiMessageCircle, FiX, FiZap } from "react-icons/fi";
 import type { ConnectionInfo } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { copyText } from "./clipboard";
@@ -21,7 +21,7 @@ export function ConnectionCard({
 }) {
   useI18n();
   const [info, setInfo] = useState<ConnectionInfo | null>(null);
-  const { ipService, vpn } = usePromoConfig();
+  const { ipService, vpn, playit } = usePromoConfig();
   // 連線方式三選一(每實例記憶);playit 是新手最短路徑,當預設
   const [method, setMethodState] = useState<"playit" | "vpn" | "direct">(
     () => (localStorage.getItem(`palserver.connMethod.${instanceId}`) as "playit" | "vpn" | "direct") || "playit",
@@ -30,25 +30,10 @@ export function ConnectionCard({
     setMethodState(m);
     localStorage.setItem(`palserver.connMethod.${instanceId}`, m);
   };
-  const [addr, setAddr] = useState("");
-  const [savingAddr, setSavingAddr] = useState(false);
-  const saveAddr = async () => {
-    setSavingAddr(true);
-    try {
-      await client.setExternalAddress(instanceId, addr.trim());
-      refresh();
-    } finally {
-      setSavingAddr(false);
-    }
-  };
-
   const refresh = useCallback(() => {
     client
       .connection(instanceId)
-      .then((i) => {
-        setInfo(i);
-        setAddr((prev) => (prev === "" ? (i.externalAddress ?? "") : prev));
-      })
+      .then(setInfo)
       .catch(() => setInfo(null));
   }, [client, instanceId]);
 
@@ -104,44 +89,31 @@ export function ConnectionCard({
         <Section
           icon={<FiZap className="size-4 text-pal" />}
           title={t("playit.gg — 免費隧道,五分鐘搞定")}
-          hint={t("playit 給你一個公開位址,自動轉發到這台伺服器:不用動路由器,朋友直接輸入位址就能玩。")}
+          hint={t("playit 會給你一個專屬位址,朋友輸入就能進來,路由器什麼都不用設定。")}
         >
           <ol className="mb-2 flex list-decimal flex-col gap-1 pl-5 text-xs text-ink-muted">
-            <li>{t("到 playit.gg 下載並安裝(免費,支援 Windows/Linux),執行後照指示在網頁按「同意」完成綁定。")}</li>
-            <li>{t("在 playit 網頁按「Create Tunnel」:類型選 Custom → UDP,Local port 填 {port}。", { port })}</li>
-            <li>{t("把 playit 給你的位址(例:xxx.gl.ply.gg:12345)貼到下面,之後這張卡就會顯示給朋友的位址。")}</li>
+            <li>{t("下載並執行 playit(免費),照畫面指示完成綁定。")}</li>
+            <li>{t("按「Create Tunnel」建隧道:類型選 Custom → UDP,Local port 填 {port}。", { port })}</li>
+            <li>{t("把 playit 顯示的位址傳給朋友,輸入就能一起玩。")}</li>
           </ol>
-          <a
-            className={`${btnGhost} mb-2 inline-flex items-center gap-1.5 px-3 py-1 text-xs`}
-            href="https://playit.gg"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <FiExternalLink className="size-3.5" /> {t("前往 playit.gg")}
-          </a>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              className="min-w-0 flex-1 rounded-lg border-2 border-line bg-card px-3 py-1.5 font-mono text-sm"
-              value={addr}
-              placeholder={t("貼上 playit 位址(例:xxx.gl.ply.gg:12345)")}
-              onChange={(e) => setAddr(e.target.value)}
-              maxLength={120}
-            />
-            <button
-              type="button"
-              className={`${btnPrimary} px-3 py-1.5 text-xs`}
-              onClick={() => void saveAddr()}
-              disabled={savingAddr || addr.trim() === (info.externalAddress ?? "")}
+          <div className="flex flex-wrap gap-2">
+            <a
+              className={`${btnGhost} inline-flex items-center gap-1.5 px-3 py-1 text-xs`}
+              href={playit.site}
+              target="_blank"
+              rel="noreferrer"
             >
-              {savingAddr ? t("儲存中…") : t("儲存")}
-            </button>
+              <FiExternalLink className="size-3.5" /> {t("前往 playit.gg")}
+            </a>
+            <a
+              className={`${btnGhost} inline-flex items-center gap-1.5 px-3 py-1 text-xs`}
+              href={playit.tutorial}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <FiExternalLink className="size-3.5" /> {t("教學影片")}
+            </a>
           </div>
-          {info.externalAddress && (
-            <div className="mt-2">
-              <p className="mb-1 text-xs font-bold text-ink-muted">{t("給朋友的位址(點擊複製):")}</p>
-              <AddressChip address={info.externalAddress} />
-            </div>
-          )}
         </Section>
       )}
 
@@ -188,7 +160,7 @@ export function ConnectionCard({
                   : t("朋友直接輸入下面的位址即可(請確認防火牆放行 UDP {port})。", { port })
               }
             >
-              <AddressChip address={`${info.publicIp}:${port}`} />
+              <AddressChip address={`${info.publicIp}:${port}`} secret />
             </Section>
           )}
           <div className="rounded-xl border-2 border-pal/40 bg-pal/5 p-3">
@@ -221,8 +193,7 @@ export function ConnectionCard({
         </>
       )}
 
-      {/* mt-auto:卡片被拉伸到與左欄同高時,提示貼底、空白留在中段之後 */}
-      <p className="mt-auto text-xs text-ink-muted">
+      <p className="text-xs text-ink-muted">
         {t("提示:朋友連線用的是「遊戲埠 UDP {port}」。若朋友連不進來,先確認伺服器正在運作中、且防火牆有放行。", { port })}
       </p>
     </div>
@@ -252,8 +223,11 @@ function Section({
   );
 }
 
-function AddressChip({ address }: { address: string }) {
+function AddressChip({ address, secret }: { address: string; secret?: boolean }) {
   const [copied, setCopied] = useState(false);
+  // 敏感位址(公開 IP):預設模糊遮蔽(與配對碼同款),點眼睛才顯示;複製一律複製真值。
+  const [revealed, setRevealed] = useState(false);
+  const hidden = secret && !revealed;
   const copy = async () => {
     if (await copyText(address)) {
       setCopied(true);
@@ -266,7 +240,21 @@ function AddressChip({ address }: { address: string }) {
       className="inline-flex items-center gap-2 rounded-lg border-2 border-line bg-card-soft px-3 py-1.5 font-mono text-sm font-bold transition hover:border-pal"
       title={t("點擊複製")}
     >
-      {address}
+      <span className={hidden ? "select-none blur-[6px]" : ""}>{address}</span>
+      {secret && (
+        <span
+          role="button"
+          tabIndex={0}
+          title={hidden ? t("顯示") : t("隱藏")}
+          className="text-ink-muted transition hover:text-pal"
+          onClick={(e) => {
+            e.stopPropagation();
+            setRevealed((v) => !v);
+          }}
+        >
+          {hidden ? <FiEye className="size-4" /> : <FiEyeOff className="size-4" />}
+        </span>
+      )}
       {copied ? <FiCheck className="size-4 text-grass" /> : <FiCopy className="size-4 text-ink-muted" />}
     </button>
   );

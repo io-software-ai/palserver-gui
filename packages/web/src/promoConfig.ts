@@ -25,6 +25,8 @@ export interface PromoConfig {
     radmin: { site: string; tutorial: string };
     tailscale: { site: string; tutorial: string };
   };
+  /** playit.gg 官網與教學連結(邀請卡 playit 分頁)。 */
+  playit: { site: string; tutorial: string };
   /** 感謝名單(header 右上角彈窗):開發人員 + 推廣大使 + 捐贈名單連結。 */
   credits: {
     developers: { name: string; role: string; url?: string }[];
@@ -71,6 +73,11 @@ const DEFAULT: PromoConfig = {
       tutorial:
         "https://www.youtube.com/results?search_query=Tailscale+Palworld+%E5%B0%88%E7%94%A8%E4%BC%BA%E6%9C%8D%E5%99%A8+%E6%95%99%E5%AD%B8",
     },
+  },
+  playit: {
+    site: "https://playit.gg/",
+    tutorial:
+      "https://www.youtube.com/results?search_query=playit.gg+Palworld+%E4%BC%BA%E6%9C%8D%E5%99%A8+%E6%95%99%E5%AD%B8",
   },
   credits: {
     developers: [

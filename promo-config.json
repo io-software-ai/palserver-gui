@@ -28,16 +28,44 @@
       "tutorial": "https://www.youtube.com/results?search_query=Tailscale+Palworld+%E5%B0%88%E7%94%A8%E4%BC%BA%E6%9C%8D%E5%99%A8+%E6%95%99%E5%AD%B8"
     }
   },
+  "playit": {
+    "site": "https://playit.gg/",
+    "tutorial": "https://www.youtube.com/results?search_query=playit.gg+Palworld+%E4%BC%BA%E6%9C%8D%E5%99%A8+%E6%95%99%E5%AD%B8"
+  },
   "credits": {
     "developers": [
-      { "name": "Dalufish", "role": "核心開發人員", "url": "https://www.instagram.com/stories/easonlu0303/" },
-      { "name": "147", "role": "核心團隊維護者", "url": "https://toc.icu" },
-      { "name": "墨殘", "role": "核心團隊維護者", "url": "https://www.youtube.com/@Bad_Mo" },
-      { "name": "LilaS", "role": "核心團隊維護者・資安", "url": "https://lilas-tw.com/" },
-      { "name": "咖啡", "role": "核心團隊維護者", "url": "" }
+      {
+        "name": "Dalufish",
+        "role": "核心開發人員",
+        "url": "https://www.instagram.com/stories/easonlu0303/"
+      },
+      {
+        "name": "147",
+        "role": "核心團隊維護者",
+        "url": "https://toc.icu"
+      },
+      {
+        "name": "墨殘",
+        "role": "核心團隊維護者",
+        "url": "https://www.youtube.com/@Bad_Mo"
+      },
+      {
+        "name": "LilaS",
+        "role": "核心團隊維護者・資安",
+        "url": "https://lilas-tw.com/"
+      },
+      {
+        "name": "咖啡",
+        "role": "核心團隊維護者",
+        "url": ""
+      }
     ],
     "ambassadors": [
-      { "name": "捷克", "role": "推廣大使", "url": "https://www.youtube.com/@PXJ" }
+      {
+        "name": "捷克",
+        "role": "推廣大使",
+        "url": "https://www.youtube.com/@PXJ"
+      }
     ],
     "donate": "https://buymeacoffee.com/dalufish"
   }

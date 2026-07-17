@@ -445,29 +445,6 @@ function OverviewTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {!hiddenCards.includes("ports") && (
-        <div className="rounded-cute border-2 border-sun/45 bg-sun/10 px-4 py-3">
-          <div className="flex items-start justify-between gap-2">
-            <p className="inline-flex min-w-0 items-center gap-2 text-sm font-extrabold text-sun">
-              <FiAlertTriangle className="size-4 shrink-0" /> {t("多台伺服器?這些埠都不能重複")}
-            </p>
-            <button
-              className="-mr-1 -mt-1 rounded-lg p-1 text-ink-muted transition hover:bg-card-soft hover:text-ink"
-              onClick={() => setHiddenCards([...hiddenCards, "ports"])}
-              title={t("隱藏此卡片(可在設定恢復)")}
-              aria-label={t("隱藏此卡片(可在設定恢復)")}
-            >
-              <FiX className="size-4" />
-            </button>
-          </div>
-          <p className="mt-1 text-[13px] text-ink-muted">
-            {t("同一台主機上跑多個伺服器時,每台的以下埠都必須各自不同,否則會發生埠綁定衝突,導致伺服器起不來或玩家連不上:")}
-          </p>
-          <p className="mt-1 text-[13px] font-bold">
-            {t("遊戲埠(port) · Steam 查詢埠(queryport) · RCON 埠 · REST API 埠 · PalDefender REST 埠(預設 17993)")}
-          </p>
-        </div>
-      )}
       {/* 邀請卡顯示時:左欄「伺服器資訊+遊戲版本」疊放,右欄邀請卡(內容高度);
           關掉邀請卡後:回到資訊左、版本右的兩欄並排。 */}
       {(() => {
