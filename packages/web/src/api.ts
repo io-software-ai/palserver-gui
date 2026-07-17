@@ -81,6 +81,8 @@ export interface AgentSettingsStatus {
   autoOpenBrowser: AgentSettingField<boolean>;
   /** 免安裝執行檔可一鍵重啟;開發模式為 false(需手動重啟)。 */
   canRestart: boolean;
+  /** Windows 免安裝執行檔:登入時自動啟動 agent(讀自 Run key)。其他情境為 null(UI 不顯示)。 */
+  bootStart: boolean | null;
 }
 export interface AgentSettingsPatch {
   requireToken?: boolean;
@@ -89,6 +91,7 @@ export interface AgentSettingsPatch {
   agentHost?: string;
   webOrigins?: string;
   autoOpenBrowser?: boolean;
+  bootStart?: boolean;
 }
 
 /** 配置評估健檢(對應 agent 的 system-review.ts;rating 由前端翻成文字與顏色)。 */
@@ -363,6 +366,14 @@ export class AgentClient {
 
   stats(id: string): Promise<InstanceStats> {
     return this.request(`/api/instances/${id}/stats`);
+  }
+
+  /** agent 啟動時自動開服(每實例)。 */
+  setAutoStart(id: string, enabled: boolean): Promise<{ autoStart: boolean }> {
+    return this.request(`/api/instances/${id}/auto-start`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    });
   }
 
   mods(id: string): Promise<ModsStatus> {

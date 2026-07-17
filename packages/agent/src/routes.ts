@@ -34,7 +34,7 @@ import type { RestartSupervisor } from "./supervisor.js";
 import { AGENT_VERSION, PORT, HOST, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER, ENV_LOCKED, IS_PORTABLE_EXE } from "./env.js";
 import { saveSettings } from "./settings.js";
 import { collectSpecs, reviewSpecs } from "./system-review.js";
-import { restartSelf } from "./self-update.js";
+import { getBootStart, restartSelf, setBootStart } from "./self-update.js";
 import {
   type AuthContext,
   extractToken,
@@ -345,6 +345,8 @@ export function registerRoutes(
     webOrigins: { value: WEB_ORIGINS.join(","), envLocked: ENV_LOCKED.webOrigins },
     autoOpenBrowser: { value: OPEN_BROWSER, envLocked: ENV_LOCKED.autoOpenBrowser },
     canRestart: IS_PORTABLE_EXE,
+    // Windows 免安裝執行檔才支援登入自啟;其餘平台/開發模式為 null(UI 不顯示)
+    bootStart: process.platform === "win32" && IS_PORTABLE_EXE ? await getBootStart() : null,
   }));
   app.put("/api/settings", async (req) => {
     const b = z
@@ -355,9 +357,13 @@ export function registerRoutes(
         agentHost: z.string().max(64).optional(),
         webOrigins: z.string().max(2000).optional(),
         autoOpenBrowser: z.boolean().optional(),
+        bootStart: z.boolean().optional(),
       })
       .parse(req.body);
-    saveSettings(b);
+    const { bootStart, ...rest } = b;
+    saveSettings(rest);
+    // 登入自啟寫進 Windows Run key,存了就生效(不用重啟 agent)
+    if (bootStart !== undefined) await setBootStart(bootStart);
     return { ok: true };
   });
 
@@ -574,6 +580,7 @@ export function registerRoutes(
       serverDir: rec.serverDir ?? null,
       effectiveServerDir: rec.backend === "native" ? serverRoot(rec, ctxOf(rec)) : null,
       settings: rec.settings,
+      autoStart: rec.autoStart ?? false,
     };
   });
 
@@ -1113,6 +1120,14 @@ export function registerRoutes(
 
   /** 各模組元件的最新穩定版(給「有新版」徽章;agent 端 6h 快取)。 */
   app.get("/api/mods/latest", async () => latestModVersions());
+
+  /** agent 啟動時自動開服的開關(每實例)。 */
+  app.put("/api/instances/:id/auto-start", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+    store.update(rec.id, { autoStart: enabled });
+    return { autoStart: enabled };
+  });
 
   /** 暫時停用/啟用(不刪檔,改名主 DLL):改版日的安全退路。 */
   app.post("/api/instances/:id/mods/:component/enabled", async (req, reply) => {

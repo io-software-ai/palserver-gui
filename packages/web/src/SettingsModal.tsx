@@ -370,6 +370,7 @@ function SecuritySettings({ client }: { client: AgentClient }) {
           agentHost: s.agentHost.value,
           webOrigins: s.webOrigins.value,
           autoOpenBrowser: s.autoOpenBrowser.value,
+          bootStart: s.bootStart ?? undefined,
         });
       })
       .catch(() => {});
@@ -391,6 +392,7 @@ function SecuritySettings({ client }: { client: AgentClient }) {
       if (!st.agentHost.envLocked) p.agentHost = (form.agentHost ?? "").trim() || "0.0.0.0";
       if (!st.webOrigins.envLocked) p.webOrigins = (form.webOrigins ?? "").trim();
       if (!st.autoOpenBrowser.envLocked) p.autoOpenBrowser = !!form.autoOpenBrowser;
+      if (st.bootStart !== null) p.bootStart = !!form.bootStart;
       await client.saveAgentSettings(p);
       setSaved(true);
     } finally {
@@ -424,6 +426,23 @@ function SecuritySettings({ client }: { client: AgentClient }) {
           <p className="rounded-xl bg-card-soft px-3 py-2 text-xs text-ink-muted">
             {t("改動需重啟 agent 才生效。由環境變數設定的項目以環境變數為準,無法在此修改。")}
           </p>
+
+          {st.bootStart !== null && (
+            <label className="flex cursor-pointer items-start gap-2.5">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-pal"
+                checked={!!form.bootStart}
+                onChange={(e) => set({ bootStart: e.target.checked })}
+              />
+              <span className="text-[13px]">
+                <b className="font-bold">{t("開機自動啟動 agent")}</b>
+                <span className="block text-xs text-ink-muted">
+                  {t("登入 Windows 時自動在背景啟動 agent。搭配伺服器「設定」分頁的「自動啟動」,主機開機即自動開服。儲存後立即生效。")}
+                </span>
+              </span>
+            </label>
+          )}
 
           <label className={`flex items-start gap-2.5 ${st.autoOpenBrowser.envLocked ? "opacity-50" : "cursor-pointer"}`}>
             <input

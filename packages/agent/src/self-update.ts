@@ -418,6 +418,44 @@ async function run({ canApply, onRestart, log }: UpdateOps): Promise<void> {
   }
 }
 
+const BOOT_RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+const BOOT_RUN_NAME = "palserver-agent";
+
+/** Windows 登入自啟:寫 HKCU Run key(免管理員權限)。只在免安裝執行檔有意義。
+ *  回傳是否有實際套用(非 Windows / 開發模式回 false)。 */
+export async function setBootStart(enabled: boolean): Promise<boolean> {
+  if (process.platform !== "win32") return false;
+  const layout = installLayout();
+  if (!layout) return false;
+  try {
+    if (enabled) {
+      await execFileP(
+        "reg",
+        ["add", BOOT_RUN_KEY, "/v", BOOT_RUN_NAME, "/t", "REG_SZ", "/d", `"${layout.exePath}"`, "/f"],
+        { windowsHide: true },
+      );
+    } else {
+      await execFileP("reg", ["delete", BOOT_RUN_KEY, "/v", BOOT_RUN_NAME, "/f"], { windowsHide: true }).catch(
+        () => {},
+      ); // 不存在時 delete 會失敗,視為已達成
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 目前是否已設定登入自啟(查 Run key)。 */
+export async function getBootStart(): Promise<boolean> {
+  if (process.platform !== "win32") return false;
+  try {
+    const { stdout } = await execFileP("reg", ["query", BOOT_RUN_KEY, "/v", BOOT_RUN_NAME], { windowsHide: true });
+    return stdout.includes(BOOT_RUN_NAME);
+  } catch {
+    return false;
+  }
+}
+
 /** 重啟自己(給「儲存系統設定後套用」用)。只在免安裝執行檔有意義;
  *  開發模式(execPath 是 node)不做,交由使用者手動重啟。 */
 export function restartSelf(): boolean {

@@ -98,7 +98,7 @@ export function PlayersTab({
     }
   }, [client, instanceId]);
 
-  const bannedIds = new Set(moderation.bans.map((b) => b.userId).filter(Boolean));
+  const bannedIds = new Set(moderation.bans.map((b) => b.userId).filter((x): x is string => !!x));
   const whitelistedIds = new Set(moderation.whitelist.filter((w) => !w.isIp).map((w) => w.value));
 
   useEffect(() => {
@@ -128,7 +128,11 @@ export function PlayersTab({
 
   const playerAction = async (player: RestPlayer, action: "kick" | "ban") => {
     const verb = action === "kick" ? t("踢出") : t("封鎖");
-    if (!confirm(t("確定要{verb}「{name}」嗎?此舉動會將他從伺服器移除。", { verb, name: player.name }))) return;
+    const explain =
+      action === "kick"
+        ? t("踢出只是把他請出伺服器,他可以立刻重新加入(適合請人重連/暫時處置)。")
+        : t("封鎖會把他加入封鎖名單,在你到下方「封鎖名單」按「解除」之前都無法加入。");
+    if (!confirm(explain + "\n\n" + t("確定要{verb}「{name}」嗎?", { verb, name: player.name }))) return;
     await act(
       () => client.playerAction(instanceId, player.userId, action, t("你已被{verb}", { verb })),
       t("已{verb} {name}", { verb, name: player.name }),
@@ -141,7 +145,15 @@ export function PlayersTab({
     name: string,
     verb: string,
   ) => {
-    if (action === "ban" && !confirm(t("確定要封鎖「{name}」嗎?", { name }))) return;
+    if (
+      action === "ban" &&
+      !confirm(
+        t("封鎖會把他加入封鎖名單,在你到下方「封鎖名單」按「解除」之前都無法加入。") +
+          "\n\n" +
+          t("確定要封鎖「{name}」嗎?", { name }),
+      )
+    )
+      return;
     void act(() => client.moderate(instanceId, action, value), t("已{verb} {name}", { verb: t(verb), name }));
   };
 
@@ -159,6 +171,9 @@ export function PlayersTab({
           client={client}
           instanceId={instanceId}
           onOpen={(id, label) => setDetailFor({ id, label })}
+          bannedIds={moderation.supported ? bannedIds : undefined}
+          onBan={(id, name) => moderate("ban", id, name, "封鎖")}
+          onUnban={(id, name) => moderate("unban", id, name, "解除封鎖")}
         />
         <PresenceTimeline events={events} />
         {detailFor && (
@@ -282,6 +297,9 @@ export function PlayersTab({
         client={client}
         instanceId={instanceId}
         onOpen={(id, label) => setDetailFor({ id, label })}
+        bannedIds={moderation.supported ? bannedIds : undefined}
+        onBan={(id, name) => moderate("ban", id, name, "封鎖")}
+        onUnban={(id, name) => moderate("unban", id, name, "解除封鎖")}
       />
       <ModerationCard
         moderation={moderation}
@@ -324,12 +342,19 @@ function KnownPlayersCard({
   client,
   instanceId,
   onOpen,
+  bannedIds,
+  onBan,
+  onUnban,
 }: {
   known: KnownPlayer[];
   gameData: GameData | null;
   client: AgentClient;
   instanceId: string;
   onOpen: (id: string, label: string) => void;
+  /** 封鎖名單中的 userId(PalDefender 未裝時為 undefined → 不顯示封鎖鈕)。 */
+  bannedIds?: Set<string>;
+  onBan?: (userId: string, name: string) => void;
+  onUnban?: (userId: string, name: string) => void;
 }) {
   const offline = known.filter((p) => !p.online);
   return (
@@ -372,6 +397,24 @@ function KnownPlayersCard({
                     <p>{t("首次出現")} {fmtWhen(p.firstSeen)}</p>
                   </div>
                 )}
+                {bannedIds && (
+                  bannedIds.has(p.userId) ? (
+                    <button
+                      className="shrink-0 rounded-full border-[1.5px] border-line px-3 py-1 text-xs font-bold text-grass transition hover:border-grass"
+                      onClick={() => onUnban?.(p.userId, p.name || p.userId)}
+                    >
+                      {t("解除封鎖")}
+                    </button>
+                  ) : (
+                    <button
+                      className="shrink-0 rounded-full border-[1.5px] border-line px-3 py-1 text-xs font-bold text-berry transition hover:border-berry"
+                      onClick={() => onBan?.(p.userId, p.name || p.userId)}
+                      title={t("離線也能封鎖:加入封鎖名單後,他再嘗試加入會被擋下")}
+                    >
+                      {t("封鎖")}
+                    </button>
+                  )
+                )}
                 <PlayerActionsMenu
                   client={client}
                   instanceId={instanceId}
@@ -385,7 +428,7 @@ function KnownPlayersCard({
       )}
       {offline.length > 0 && (
         <p className="border-t-2 border-line px-5 py-2.5 text-xs text-ink-muted">
-          {t("離線玩家仍可在「指令」分頁被選為目標(例如 unban)。")}
+          {t("解除封鎖就在下方「封鎖名單」卡按「解除」;進階指令可到「指令台」對離線玩家操作。")}
         </p>
       )}
     </div>
@@ -416,6 +459,11 @@ function ModerationCard({
             {moderation.whitelistEnabled ? t("已啟用") : t("未啟用")}
           </span>
         </h3>
+        {!moderation.whitelistEnabled && (
+          <p className="mx-4 mt-3 rounded-xl bg-sun/10 px-3 py-2 text-xs font-bold text-sun">
+            {t("白名單目前未啟用 — 名單不會生效,任何人都能加入。要啟用到「PalDefender」分頁開啟「啟用白名單」。")}
+          </p>
+        )}
         {moderation.whitelist.length === 0 ? (
           <p className="px-5 py-6 text-center text-[13px] text-ink-muted">{t("白名單是空的。")}</p>
         ) : (

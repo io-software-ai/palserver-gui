@@ -100,9 +100,29 @@ export function SavesTab({
   }
 
   const restore = async (name: string) => {
+    // 新手不敢按的主因是「不知道會失去多少」:把備份時間點與回溯量講清楚。
+    const backup = saves.backups.find((b) => b.name === name);
+    let rollback = "";
+    if (backup) {
+      const at = new Date(backup.createdAt);
+      const hours = Math.max(0, (Date.now() - at.getTime()) / 3_600_000);
+      const span =
+        hours < 1
+          ? t("不到 1 小時")
+          : hours < 48
+            ? t("約 {n} 小時", { n: String(Math.round(hours)) })
+            : t("約 {n} 天", { n: String(Math.round(hours / 24)) });
+      rollback = "\n\n" + t("這份備份建立於 {when} — 之後({span})的遊戲進度會消失。", {
+        when: at.toLocaleString(),
+        span,
+      });
+    }
     if (
       !confirm(
-        t("還原備份「{name}」會覆蓋目前的世界存檔。\n\n還原前會自動先幫現有存檔做一份安全備份。確定要繼續嗎?", { name }),
+        t("還原備份「{name}」會覆蓋目前的世界存檔。", { name }) +
+          rollback +
+          "\n\n" +
+          t("還原前會自動先幫現有存檔做一份安全備份。確定要繼續嗎?"),
       )
     )
       return;

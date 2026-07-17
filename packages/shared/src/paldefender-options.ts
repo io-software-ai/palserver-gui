@@ -44,7 +44,8 @@ export const PALDEFENDER_OPTIONS = {
   treeLimiter: { type: "float", default: 0, min: 0, max: 5, step: 0.05, category: "protection", label: "砍樹速率限制(秒/棵)", hint: "限制每棵樹的最短破壞時間,避免火箭快速砍樹造成大量卡頓。0 = 關閉。" },
 
   // ── 白名單與管理員 ──
-  useWhitelist: { type: "bool", default: false, category: "admin", label: "啟用白名單(WhiteList.json)" },
+  useWhitelist: { type: "bool", default: false, category: "admin", label: "啟用白名單(WhiteList.json)",
+    warn: "開啟前先到「玩家」分頁把自己與朋友加入白名單 — 名單為空時所有人(包括你的朋友)都會被擋在門外。" },
   useAdminWhitelist: { type: "bool", default: false, category: "admin", label: "啟用管理員 IP 白名單", hint: "需在 adminIPs 設定 IP(用原始檔編輯)。官方建議開啟以防漏洞。" },
   adminAutoLogin: { type: "bool", default: false, category: "admin", label: "白名單管理員加入時自動登入管理模式" },
   preventAdminPasswordInChat: { type: "bool", default: true, category: "admin", label: "防止管理員密碼在聊天中外洩" },

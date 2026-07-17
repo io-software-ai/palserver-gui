@@ -26,6 +26,8 @@ export type OptionCategory =
  *  hint:顯示在設定項下方的說明/建議值文案(zh-TW 原文,前端 t() 翻譯),純 UI 用、不進 ini。 */
 interface OptionExtras {
   hint?: string;
+  /** 危險/破壞性選項的黃色警告(不可逆、或會斷 GUI 功能)。 */
+  warn?: string;
 }
 export type OptionMeta =
   | ({ type: "float"; default: number; min: number; max: number; step: number; category: OptionCategory; soft?: boolean } & OptionExtras)
@@ -57,11 +59,13 @@ export const WORLD_OPTIONS = {
   bIsMultiplay: { type: "bool", default: false, category: "server" },
   bShowPlayerList: { type: "bool", default: false, category: "server" },
   bIsShowJoinLeftMessage: { type: "bool", default: true, category: "server" },
-  RESTAPIEnabled: { type: "bool", default: true, category: "server" },
+  RESTAPIEnabled: { type: "bool", default: true, category: "server",
+    warn: "關閉後 GUI 的玩家列表、踢出/封鎖、線上地圖、效能監控都會失效 — 除非你清楚在做什麼,建議保持開啟。" },
   RESTAPIPort: { type: "int", default: 8212, min: 1024, max: 65535, category: "server" },
   // 預設啟用:GUI 的倒數公告/廣播/指令台與 PalDefender 管理功能都靠 RCON;
   // 建立時會自動生管理員密碼與唯一埠。
-  RCONEnabled: { type: "bool", default: true, category: "server" },
+  RCONEnabled: { type: "bool", default: true, category: "server",
+    warn: "關閉後 GUI 的停機倒數公告、廣播、指令台都會失效 — 建議保持開啟。" },
   RCONPort: { type: "int", default: 25575, min: 1024, max: 65535, category: "server" },
   ChatPostLimitPerMinute: { type: "int", default: 10, min: 1, max: 120, category: "server" },
   LogFormatType: { type: "enum", default: "Text", choices: ["Text", "Json"], category: "server" },
@@ -109,7 +113,8 @@ export const WORLD_OPTIONS = {
   PalAutoHpRegeneRateInSleep: rate("pal"),
   PalEggDefaultHatchingTime: { type: "float", default: 72, min: 0, max: 240, step: 1, category: "pal" },
   WorkSpeedRate: rate("pal", 1, 0.1, 20),
-  bPalLost: { type: "bool", default: false, category: "pal" },
+  bPalLost: { type: "bool", default: false, category: "pal",
+    warn: "開啟後帕魯死亡即永久消失,無法復活 — 對休閒玩家非常嚴苛,開啟前請確定全員知情。" },
   bAllowGlobalPalboxExport: { type: "bool", default: true, category: "pal" },
   bAllowGlobalPalboxImport: { type: "bool", default: false, category: "pal" },
   EnablePredatorBossPal: { type: "bool", default: true, category: "pal" },
@@ -216,7 +221,8 @@ export const WORLD_OPTIONS = {
   bEnableInvaderEnemy: { type: "bool", default: true, category: "world" },
   bEnableAimAssistPad: { type: "bool", default: true, category: "world" },
   bEnableAimAssistKeyboard: { type: "bool", default: false, category: "world" },
-  bHardcore: { type: "bool", default: false, category: "world" },
+  bHardcore: { type: "bool", default: false, category: "world",
+    warn: "硬核模式:玩家死亡即永久死亡(角色刪除)— 不可逆,開啟前請確定全員知情。" },
   bCharacterRecreateInHardcore: { type: "bool", default: false, category: "world" },
   RandomizerType: {
     type: "enum", default: "None", choices: ["None", "Region", "All"], category: "world",

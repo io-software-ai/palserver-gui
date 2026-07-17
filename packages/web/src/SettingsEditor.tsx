@@ -233,6 +233,12 @@ function OptionRow({
         <p className="text-sm font-bold">{t(OPTION_LABELS[optionKey])}</p>
         <p className="text-xs text-ink-muted">{optionKey}</p>
         {meta.hint && <p className="mt-1 text-xs text-ink-muted">{t(meta.hint)}</p>}
+        {meta.warn && (
+          <p className="mt-1 inline-flex items-start gap-1.5 text-xs font-bold text-sun">
+            <FiAlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            {t(meta.warn)}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-3">
         {meta.type === "bool" && (

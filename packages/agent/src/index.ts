@@ -197,6 +197,23 @@ await app.listen({ host: HOST, port: PORT });
 
 startUpdateChecker(updateOps);
 
+// 標記了「自動啟動」的伺服器:agent 一起來就開服(搭配登入自啟 = 主機開機即開服)。
+// 逐台嘗試,單台失敗(埠占用/檔案問題)寫日誌但不影響其他台。
+void (async () => {
+  for (const rec of store.list()) {
+    if (!rec.autoStart) continue;
+    const driver = rec.backend === "native" ? nativeDriver : rec.backend === "k8s" ? k8sDriver : dockerDriver;
+    try {
+      const { status } = await driver.status(rec, { instanceDir: store.instanceDir(rec.id) });
+      if (status === "running" || status === "restarting" || status === "installing") continue;
+      app.log.info(`自動啟動伺服器:${rec.name}`);
+      await driver.start(rec, { instanceDir: store.instanceDir(rec.id) });
+    } catch (err) {
+      app.log.warn(`自動啟動 ${rec.name} 失敗:${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+})();
+
 // 贊助者識別碼:啟動時驗證一次,之後定期重驗(內部有 12h 節流;訂閱到期/取消會在此收斂)。
 void refreshLicense(true).catch(() => {});
 setInterval(() => void refreshLicense().catch(() => {}), 6 * 60 * 60 * 1000).unref();

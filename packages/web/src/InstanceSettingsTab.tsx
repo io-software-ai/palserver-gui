@@ -30,6 +30,8 @@ export function InstanceSettingsTab({
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
+      <AutoStartCard client={client} detail={detail} />
+
       <ServerFilesCard client={client} instanceId={detail.id} />
 
       {detail.backend === "native" && (
@@ -465,6 +467,43 @@ function DangerZone({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+/** agent 啟動時自動開服的開關。搭配全域設定的「開機自動啟動 agent」= 主機開機即開服。 */
+function AutoStartCard({ client, detail }: { client: AgentClient; detail: InstanceDetail }) {
+  useI18n();
+  const [on, setOn] = useState(detail.autoStart ?? false);
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      const r = await client.setAutoStart(detail.id, !on);
+      setOn(r.autoStart);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+      <div className="min-w-0">
+        <h3 className="text-sm font-extrabold">{t("自動啟動")}</h3>
+        <p className="mt-0.5 text-xs text-ink-muted">
+          {t("agent 啟動時自動開這台伺服器。搭配「設定 → 系統 → 開機自動啟動 agent」,主機開機就會自動開服。")}
+        </p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        disabled={busy}
+        onClick={() => void toggle()}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? "bg-grass" : "bg-line"}`}
+      >
+        <span className={`absolute top-1 size-5 rounded-full bg-white shadow transition-all ${on ? "left-6" : "left-1"}`} />
+      </button>
     </div>
   );
 }

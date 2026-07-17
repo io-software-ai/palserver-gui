@@ -178,6 +178,8 @@ export interface InstanceSummary {
 
 export interface InstanceDetail extends InstanceSummary {
   settings: WorldSettings;
+  /** agent 啟動時自動開服(每實例;在「設定」分頁切換)。 */
+  autoStart?: boolean;
   /** docker: container id · native: process id (null when not running). */
   runtimeId: string | null;
   /** user-configured server dir; null when the agent picks the folder. */
