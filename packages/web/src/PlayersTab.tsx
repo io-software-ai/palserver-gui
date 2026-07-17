@@ -108,11 +108,23 @@ export function PlayersTab({
     let ws: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let retryDelay = 1000; // 斷線重連
+    // WS 不可用時的退路:連到舊版/遠端 agent(沒有 /players/feed)照樣輪詢更新,
+    // 不讓畫面停在最初那次快照。WS 一接上就停輪詢。
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
+    const startPolling = () => {
+      if (pollTimer) return;
+      pollTimer = setInterval(() => void refresh(), 5000);
+    };
+    const stopPolling = () => {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = undefined;
+    };
 
     const connect = () => {
       ws = client.playersFeedSocket(instanceId);
       ws.onmessage = (ev) => {
         retryDelay = 1000;
+        stopPolling(); // 推播活著,輪詢退場
         const data = JSON.parse(ev.data as string) as
           | { live: LiveStatus; known: KnownPlayer[]; events: PresenceEvent[]; moderation: ModerationLists }
           | { error: string };
@@ -128,6 +140,7 @@ export function PlayersTab({
       };
       ws.onclose = () => {
         if (stopped) return;
+        startPolling(); // 斷線期間用輪詢兜底
         retryTimer = setTimeout(connect, retryDelay);
         retryDelay = Math.min(retryDelay * 2, 10000);
       };
@@ -137,6 +150,7 @@ export function PlayersTab({
     return () => {
       stopped = true;
       clearTimeout(retryTimer);
+      stopPolling();
       ws?.close();
     };
   }, [client, instanceId, refresh]);

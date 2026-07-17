@@ -165,13 +165,19 @@ const AnnounceBody = z.object({
 // WebSocket
 interface FeedSocket {
   send: (data: string) => void;
+  close: (code?: number, reason?: string) => void;
   readyState: number;
   OPEN: number;
-  on: (event: "close", cb: () => void) => void;
+  on: (event: "close" | "error", cb: () => void) => void;
 }
 
 // 每個實例共用一份輪詢、推播給所有訂閱的 WebSocket。
-function createInstanceFeed<T>(build: (rec: InstanceRecord) => Promise<T>, intervalMs: number) {
+function createInstanceFeed<T>(
+  // build 以 id 呼叫、自行向 store 取「新鮮的」rec:設定變更(埠/路徑)下一個 tick
+  // 就生效;rec 已不存在(實例被刪)回 null,feed 會收掉所有 socket 與 timer。
+  build: (id: string) => Promise<T | null>,
+  intervalMs: number,
+) {
   const sockets = new Map<string, Set<FeedSocket>>();
   const timers = new Map<string, ReturnType<typeof setInterval>>();
   const busy = new Set<string>();
@@ -182,43 +188,53 @@ function createInstanceFeed<T>(build: (rec: InstanceRecord) => Promise<T>, inter
     timers.delete(id);
   };
 
-  const ensure = (rec: InstanceRecord): void => {
-    if (timers.has(rec.id)) return;
+  const ensure = (id: string): void => {
+    if (timers.has(id)) return;
     const tick = async (): Promise<void> => {
-      const s = sockets.get(rec.id);
+      const s = sockets.get(id);
       if (!s || s.size === 0) return;
-      if (busy.has(rec.id)) return;
-      busy.add(rec.id);
+      if (busy.has(id)) return;
+      busy.add(id);
       try {
-        const payload = JSON.stringify(
-          await build(rec).catch((err: Error) => ({ error: err.message })),
-        );
+        const result = await build(id).catch((err: unknown) => ({
+          error: err instanceof Error ? err.message : String(err),
+        }));
+        if (result === null) {
+          // 實例已被刪除:通知並收掉,timer 不再空轉
+          for (const socket of s) socket.close(1000, "instance removed");
+          sockets.delete(id);
+          stop(id);
+          return;
+        }
+        const payload = JSON.stringify(result);
         for (const socket of s) {
           if (socket.readyState === socket.OPEN) socket.send(payload);
         }
       } finally {
-        busy.delete(rec.id);
+        busy.delete(id);
       }
     };
     void tick();
-    timers.set(rec.id, setInterval(() => void tick(), intervalMs));
+    timers.set(id, setInterval(() => void tick(), intervalMs));
   };
 
-  return function subscribe(rec: InstanceRecord, socket: FeedSocket): void {
-    let s = sockets.get(rec.id);
+  return function subscribe(id: string, socket: FeedSocket): void {
+    let s = sockets.get(id);
     if (!s) {
       s = new Set();
-      sockets.set(rec.id, s);
+      sockets.set(id, s);
     }
     s.add(socket);
-    ensure(rec);
-    socket.on("close", () => {
+    ensure(id);
+    const drop = (): void => {
       s!.delete(socket);
       if (s!.size === 0) {
-        sockets.delete(rec.id);
-        stop(rec.id);
+        sockets.delete(id);
+        stop(id);
       }
-    });
+    };
+    socket.on("close", drop);
+    socket.on("error", drop);
   };
 }
 
@@ -2324,7 +2340,9 @@ export function registerRoutes(
   });
 
   // 玩家頁面即時推播:合併 live/known/events/moderation
-  const subscribePlayerFeed = createInstanceFeed(async (rec) => {
+  const subscribePlayerFeed = createInstanceFeed(async (id) => {
+    const rec = store.get(id);
+    if (!rec) return null; // 實例已刪:feed 收攤
     const [live, known, events, mod] = await Promise.all([
       Promise.resolve(getLiveStatus(rec)),
       computeKnownPlayers(rec),
@@ -2340,6 +2358,6 @@ export function registerRoutes(
       socket.close(4004, "instance not found");
       return;
     }
-    subscribePlayerFeed(rec, socket);
+    subscribePlayerFeed(rec.id, socket);
   });
 }
