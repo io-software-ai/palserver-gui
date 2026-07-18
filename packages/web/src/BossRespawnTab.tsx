@@ -72,6 +72,7 @@ export function BossRespawnTab({
   const [installing, setInstalling] = useState(false);
   const [hideUnknown, setHideUnknown] = useState(false);
   const [dungeonOnlyDead, setDungeonOnlyDead] = useState(false);
+  const [category, setCategory] = useState<"field" | "dungeon">("field");
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
   const refresh = useCallback(async () => {
@@ -288,71 +289,114 @@ export function BossRespawnTab({
             <p className="rounded-xl bg-card-soft px-3 py-2 text-[13px] text-ink-muted">
               {t("尚無回報資料。啟動伺服器後,模組會開始每 15 秒回報頭目狀態。")}
             </p>
-          ) : bosses === null ? null : (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-3 text-[13px] font-bold">
-                <span className="inline-flex items-center gap-1 text-grass">
-                  <GiCrossedSwords className="size-4" /> {t("存活")} {counts.alive}
-                </span>
-                <span className="inline-flex items-center gap-1 text-sun">
-                  <GiDeathSkull className="size-4" /> {t("已擊殺")} {counts.dead}
-                </span>
-                <span className="inline-flex items-center gap-1 text-ink-muted">
-                  {t("未知")} {counts.unknown} / {t("共 {n}", { n: counts.total })}
-                </span>
-              </div>
-              <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-ink-muted">
-                <input type="checkbox" checked={hideUnknown} onChange={(e) => setHideUnknown(e.target.checked)} />
-                {t("只顯示有狀態的頭目")}
-              </label>
-            </div>
-          )}
-
-          <p className="text-xs text-ink-muted">
-            {t("沒有玩家在附近時,遠方區域的頭目不會被載入,狀態顯示為「未知(區域未載入)」。重生倒數以官方預設 60 分鐘估算,實測到一輪重生後改用實測值。")}
-          </p>
-
-          {bosses === null ? (
-            <p className="text-ink-muted">{t("載入頭目清單…")}</p>
           ) : (
-            <div className="flex flex-col gap-2">
-              {shown.map((r) => (
-                <BossRow key={`${r.boss.world}:${r.boss.name.en}:${r.boss.x},${r.boss.y}`} row={r} lang={lang} />
-              ))}
-              {shown.length === 0 && (
-                <EmptyState icon={<GiBossKey />}>{t("目前沒有可顯示的頭目狀態。")}</EmptyState>
-              )}
-            </div>
-          )}
-
-          {dungeons.length > 0 && (
-            <div className="mt-1 flex flex-col gap-2 border-t-2 border-line pt-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-2 text-[13px] font-bold">
-                  <GiCastle className="size-4 text-pal" /> {t("地下城頭目")}
-                  <span className="text-ink-muted">
-                    {t("已擊殺")} {dungeonDead} / {dungeonRows.length}
-                  </span>
-                </div>
-                <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-ink-muted">
-                  <input
-                    type="checkbox"
-                    checked={dungeonOnlyDead}
-                    onChange={(e) => setDungeonOnlyDead(e.target.checked)}
-                  />
-                  {t("只顯示重生中的地城")}
-                </label>
+            <>
+              {/* 分段切換:野外頭目 / 地下城頭目 */}
+              <div className="inline-flex self-start rounded-full border-2 border-line bg-card-soft p-0.5 text-[13px] font-bold">
+                {(["field", "dungeon"] as const).map((cat) => {
+                  const active = category === cat;
+                  const deadN = cat === "field" ? counts.dead : dungeonDead;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategory(cat)}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 transition-colors ${
+                        active ? "bg-pal text-white" : "text-ink-muted"
+                      }`}
+                    >
+                      {cat === "field" ? <GiCrossedSwords className="size-4" /> : <GiCastle className="size-4" />}
+                      {cat === "field" ? t("野外頭目") : t("地下城頭目")}
+                      {deadN > 0 && (
+                        <span
+                          className={`rounded-full px-1.5 text-[11px] ${active ? "bg-white/25" : "bg-sun/20 text-sun"}`}
+                        >
+                          {deadN}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-              <p className="text-xs text-ink-muted">
-                {t("地城頭目的重生時間由遊戲直接提供(精準),且是伺服器端資料,不需玩家在附近。")}
-              </p>
-              {shownDungeons.map((r) => (
-                <DungeonRow key={`${r.d.name}:${r.d.x},${r.d.y}`} row={r} />
-              ))}
-              {shownDungeons.length === 0 && (
-                <EmptyState icon={<GiCastle />}>{t("目前沒有重生中的地城頭目。")}</EmptyState>
+
+              {category === "field" ? (
+                <>
+                  {bosses !== null && (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-3 text-[13px] font-bold">
+                        <span className="inline-flex items-center gap-1 text-grass">
+                          <GiCrossedSwords className="size-4" /> {t("存活")} {counts.alive}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-sun">
+                          <GiDeathSkull className="size-4" /> {t("已擊殺")} {counts.dead}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-ink-muted">
+                          {t("未知")} {counts.unknown} / {t("共 {n}", { n: counts.total })}
+                        </span>
+                      </div>
+                      <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-ink-muted">
+                        <input type="checkbox" checked={hideUnknown} onChange={(e) => setHideUnknown(e.target.checked)} />
+                        {t("只顯示有狀態的頭目")}
+                      </label>
+                    </div>
+                  )}
+                  <p className="text-xs text-ink-muted">
+                    {t("沒有玩家在附近時,遠方區域的頭目不會被載入,狀態顯示為「未知(區域未載入)」。重生倒數以官方預設 60 分鐘估算,實測到一輪重生後改用實測值。")}
+                  </p>
+                  {bosses === null ? (
+                    <p className="text-ink-muted">{t("載入頭目清單…")}</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {shown.map((r) => (
+                        <BossRow key={`${r.boss.world}:${r.boss.name.en}:${r.boss.x},${r.boss.y}`} row={r} lang={lang} />
+                      ))}
+                      {shown.length === 0 && (
+                        <EmptyState icon={<GiBossKey />}>{t("目前沒有可顯示的頭目狀態。")}</EmptyState>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-3 text-[13px] font-bold">
+                      <span className="inline-flex items-center gap-1 text-grass">
+                        <GiCrossedSwords className="size-4" /> {t("存活")} {dungeonRows.length - dungeonDead}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-sun">
+                        <GiDeathSkull className="size-4" /> {t("已擊殺")} {dungeonDead}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-ink-muted">
+                        {t("共 {n}", { n: dungeonRows.length })}
+                      </span>
+                    </div>
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-ink-muted">
+                      <input
+                        type="checkbox"
+                        checked={dungeonOnlyDead}
+                        onChange={(e) => setDungeonOnlyDead(e.target.checked)}
+                      />
+                      {t("只顯示重生中的地城")}
+                    </label>
+                  </div>
+                  <p className="text-xs text-ink-muted">
+                    {t("地城頭目的重生時間由遊戲直接提供(精準),且是伺服器端資料,不需玩家在附近。")}
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {shownDungeons.map((r) => (
+                      <DungeonRow key={`${r.d.name}:${r.d.x},${r.d.y}`} row={r} />
+                    ))}
+                    {dungeonRows.length === 0 ? (
+                      <EmptyState icon={<GiCastle />}>{t("目前沒有地下城頭目資料。")}</EmptyState>
+                    ) : (
+                      shownDungeons.length === 0 && (
+                        <EmptyState icon={<GiCastle />}>{t("目前沒有重生中的地城頭目。")}</EmptyState>
+                      )
+                    )}
+                  </div>
+                </>
               )}
-            </div>
+            </>
           )}
         </div>
       )}
