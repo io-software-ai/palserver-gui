@@ -36,7 +36,11 @@ fs.writeFileSync(
 execFileSync(process.execPath, ["--experimental-sea-config", configPath], { stdio: "inherit" });
 
 // 2) 複製一份 node 執行檔當作載體
+fs.rmSync(exePath, { force: true });
 fs.copyFileSync(process.execPath, exePath);
+// Homebrew may install node as 0555. copyFileSync preserves that mode, but
+// postject needs to update the copied executable in place.
+fs.chmodSync(exePath, 0o755);
 
 // 2.5) Windows:把執行檔圖示換成 palserver 圖示(與網頁 favicon 同款,
 //     來源 images/palserver.ico,由 packages/web/public/logo.png 生成)。
