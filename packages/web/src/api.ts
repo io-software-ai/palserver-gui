@@ -24,6 +24,9 @@ import type {
   LaunchOptions,
   LicenseStatus,
   LiveStatus,
+  MessageBridgeConfig,
+  MessageBridgePatch,
+  MessageBridgeStatus,
   LogSource,
   LogSourceId,
   ModComponent,
@@ -311,6 +314,18 @@ export class AgentClient {
 
   getInstance(id: string): Promise<InstanceDetail> {
     return this.request(`/api/instances/${id}`);
+  }
+
+  messageBridge(id: string): Promise<{ config: MessageBridgeConfig; status: MessageBridgeStatus }> {
+    return this.request(`/api/instances/${id}/message-bridge`);
+  }
+
+  updateMessageBridge(id: string, patch: MessageBridgePatch): Promise<{ config: MessageBridgeConfig; status: MessageBridgeStatus }> {
+    return this.request(`/api/instances/${id}/message-bridge`, { method: "PUT", body: JSON.stringify(patch) });
+  }
+
+  messageBridgeWebhookUrl(id: string): string {
+    return `${this.conn.url}/api/instances/${id}/message-bridge/webhook`;
   }
 
   createInstance(input: CreateInstanceInput): Promise<InstanceSummary> {

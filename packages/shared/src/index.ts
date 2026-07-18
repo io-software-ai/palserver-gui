@@ -192,6 +192,69 @@ export interface InstanceDetail extends InstanceSummary {
   effectiveServerDir: string | null;
 }
 
+/* ── Group chat ↔ game message bridge ── */
+
+export type MessageBridgePlatform = "onebot" | "discord" | "telegram" | "webhook";
+
+export interface MessageBridgeConfig {
+  enabled: boolean;
+  relayGroupToGame: boolean;
+  relayGameToGroup: boolean;
+  notifyJoinLeave: boolean;
+  notifyCapture: boolean;
+  notifyDeath: boolean;
+  commandPrefix: string;
+  onebot: {
+    added: boolean;
+    enabled: boolean;
+    wsUrl: string;
+    groupId: string;
+    adminIds: string[];
+    accessTokenSet: boolean;
+  };
+  discord: {
+    added: boolean;
+    enabled: boolean;
+    channelId: string;
+    adminIds: string[];
+    tokenSet: boolean;
+  };
+  telegram: {
+    added: boolean;
+    enabled: boolean;
+    chatId: string;
+    adminIds: string[];
+    tokenSet: boolean;
+  };
+  webhook: {
+    added: boolean;
+    enabled: boolean;
+    url: string;
+    adminIds: string[];
+    secretSet: boolean;
+  };
+}
+
+/** Secrets are write-only. Omit or send an empty string to preserve the saved value. */
+export interface MessageBridgePatch {
+  enabled?: boolean;
+  relayGroupToGame?: boolean;
+  relayGameToGroup?: boolean;
+  notifyJoinLeave?: boolean;
+  notifyCapture?: boolean;
+  notifyDeath?: boolean;
+  commandPrefix?: string;
+  onebot?: { added?: boolean; enabled?: boolean; wsUrl?: string; groupId?: string; adminIds?: string[]; accessToken?: string };
+  discord?: { added?: boolean; enabled?: boolean; channelId?: string; adminIds?: string[]; token?: string };
+  telegram?: { added?: boolean; enabled?: boolean; chatId?: string; adminIds?: string[]; token?: string };
+  webhook?: { added?: boolean; enabled?: boolean; url?: string; adminIds?: string[]; secret?: string };
+}
+
+export interface MessageBridgeStatus {
+  running: boolean;
+  platforms: Record<MessageBridgePlatform, { connected: boolean; error: string | null }>;
+}
+
 export interface InstanceStats {
   /** null when a backend has not collected two valid samples yet. */
   cpuPercent: number | null;

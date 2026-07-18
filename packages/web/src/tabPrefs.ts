@@ -17,6 +17,7 @@ export type Tab =
   | "breeding"
   | "saves"
   | "restart"
+  | "bridge"
   | "instance";
 
 /** 分頁顯示順序與標籤(label 會過 i18n)。「設定」刻意排在「日誌」右邊。 */
@@ -36,6 +37,7 @@ export const TABS: { id: Tab; label: string }[] = [
   { id: "breeding", label: "配種計算" },
   { id: "saves", label: "存檔備份" },
   { id: "restart", label: "伺服器重啟" },
+  { id: "bridge", label: "群服互通" },
   { id: "instance", label: "設定" },
 ];
 
@@ -44,7 +46,7 @@ export const LOCKED_TABS: Tab[] = ["overview", "instance"];
 
 /** 依實例模式的預設可見分頁(新手體驗:先少後多,更多分頁到「設定」裡開):
  *  原味 = 開服最必要的五頁;強化(裝了模組)另外亮出吃 PalDefender/進階資料的五頁。 */
-const VANILLA_VISIBLE: Tab[] = ["overview", "settings", "saves", "restart", "instance"];
+const VANILLA_VISIBLE: Tab[] = ["overview", "settings", "saves", "restart", "bridge", "instance"];
 const ENHANCED_VISIBLE: Tab[] = [...VANILLA_VISIBLE, "players", "guilds", "map", "paldefender", "palstats"];
 
 /** 模式預設的「隱藏清單」(= 全部分頁 − 可見集合)。 */
@@ -63,7 +65,7 @@ const EVENT = "palserver:tabprefs";
 // 沒自訂過的實例一律用模式預設;要調整就到該實例的「設定 → 顯示的分頁」。
 
 /** breeding 之前就存在的分頁 —— 舊資料沒有 knownTabs 紀錄時,視為只認識這些。 */
-const LEGACY_KNOWN: Tab[] = TABS.map((t) => t.id).filter((id) => id !== "breeding");
+const LEGACY_KNOWN: Tab[] = TABS.map((t) => t.id).filter((id) => id !== "breeding" && id !== "bridge");
 
 /** 自訂過清單的使用者:新版新增的分頁若屬「模式預設隱藏」,補進其隱藏清單——
  *  否則儲存清單裡沒有新 id,更新後新分頁會突然自己冒出來。明確開啟過的(清單外

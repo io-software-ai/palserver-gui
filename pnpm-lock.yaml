@@ -53,6 +53,9 @@ importers:
       stream-json:
         specifier: ^3.5.0
         version: 3.5.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.0
       zod:
         specifier: ^3.24.0
         version: 3.25.76

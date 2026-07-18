@@ -25,6 +25,7 @@ import {
   type InstanceDetail,
   type InstanceSummary,
   type KnownPlayer,
+  type MessageBridgePatch,
   type RconCommandsResponse,
 } from "@palserver/shared";
 import { fetchServerCommands, rconExec, requireRcon } from "./rcon.js";
@@ -32,6 +33,7 @@ import type { PresenceTracker } from "./presence.js";
 import type { BackupScheduler } from "./backup-scheduler.js";
 import type { RestartSupervisor } from "./supervisor.js";
 import type { PublicMapPublisher } from "./public-map.js";
+import type { MessageBridgeService } from "./message-bridge.js";
 import { AGENT_VERSION, PORT, HOST, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER, ENV_LOCKED, IS_PORTABLE_EXE } from "./env.js";
 import { saveSettings } from "./settings.js";
 import { collectSpecs, reviewSpecs } from "./system-review.js";
@@ -248,6 +250,7 @@ export function registerRoutes(
   scheduler: BackupScheduler,
   supervisor: RestartSupervisor,
   publicMap: PublicMapPublisher,
+  messageBridge: MessageBridgeService,
   auth: AuthContext,
   updateOps: UpdateOps,
 ): void {
@@ -2404,6 +2407,46 @@ export function registerRoutes(
   app.get("/api/instances/:id/logs/sources", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
     return driverOf(rec).logSources(rec, ctxOf(rec));
+  });
+
+  // 群聊 ↔ 游戏消息桥。密钥只写不读；公开 webhook 入口使用独立共享密钥认证。
+  app.get("/api/instances/:id/message-bridge", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return { config: messageBridge.getConfig(rec.id), status: messageBridge.getStatus(rec.id) };
+  });
+
+  const MessageBridgePatchSchema = z.object({
+    enabled: z.boolean().optional(),
+    relayGroupToGame: z.boolean().optional(),
+    relayGameToGroup: z.boolean().optional(),
+    notifyJoinLeave: z.boolean().optional(),
+    notifyCapture: z.boolean().optional(),
+    notifyDeath: z.boolean().optional(),
+    commandPrefix: z.string().trim().min(1).max(3).optional(),
+    onebot: z.object({ added: z.boolean().optional(), enabled: z.boolean().optional(), wsUrl: z.string().trim().max(500).optional(), groupId: z.string().trim().max(100).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), accessToken: z.string().max(2000).optional() }).optional(),
+    discord: z.object({ added: z.boolean().optional(), enabled: z.boolean().optional(), channelId: z.string().trim().max(100).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), token: z.string().max(2000).optional() }).optional(),
+    telegram: z.object({ added: z.boolean().optional(), enabled: z.boolean().optional(), chatId: z.string().trim().max(100).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), token: z.string().max(2000).optional() }).optional(),
+    webhook: z.object({ added: z.boolean().optional(), enabled: z.boolean().optional(), url: z.string().trim().max(1000).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), secret: z.string().max(2000).optional() }).optional(),
+  }).strict();
+
+  app.put("/api/instances/:id/message-bridge", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    const patch = MessageBridgePatchSchema.parse(req.body) as MessageBridgePatch;
+    const config = await messageBridge.updateConfig(rec.id, patch);
+    return { config, status: messageBridge.getStatus(rec.id) };
+  });
+
+  app.post("/api/instances/:id/message-bridge/webhook", async (req, reply) => {
+    const rec = store.get((req.params as { id: string }).id);
+    if (!rec) return reply.code(404).send({ error: "instance not found" });
+    const body = z.object({ userId: z.string().max(128).optional(), author: z.string().max(80).optional(), text: z.string().trim().min(1).max(500) }).parse(req.body);
+    const supplied = String(req.headers["x-palserver-secret"] ?? "");
+    try {
+      await messageBridge.receiveWebhook(rec.id, supplied, body.userId ?? "", body.author ?? "Webhook", body.text);
+      return { ok: true };
+    } catch (err) {
+      return reply.code(401).send({ error: err instanceof Error ? err.message : String(err) });
+    }
   });
 
   app.get("/api/instances/:id/logs", { websocket: true }, (socket, req) => {
