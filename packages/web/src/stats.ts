@@ -3,7 +3,7 @@
  * 上報是 agent 端的事(packages/agent/src/telemetry.ts)。
  */
 
-export const STATS_URL = "https://palserver-stats.iosoftware.workers.dev";
+export const STATS_URL = "https://stats.iosoftware.ai";
 
 export interface GlobalStats {
   /** GUI 在 GitHub Releases 的下載總數(統計端抓不到時為 null)。 */
