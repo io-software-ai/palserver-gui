@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractPaldeck } from "./save-tools.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { extractPaldeck, getBreedingSnapshot } from "./save-tools.js";
+import type { DriverContext } from "./driver.js";
 
 // 形狀出處:KrisCris/Palworld-Pal-Editor player_entity.py:383-408(palworld-save-tools JSON 慣例)。
 // 簡單型別的 Map 條目 key/value 是裸值;防禦性也要接受 {value} 包裝。
@@ -62,6 +66,32 @@ test("extractPaldeck:只有 unlock flag 也能運作,且去重", () => {
     },
   };
   assert.deepEqual(extractPaldeck(sd), ["Kitsunebi"]);
+});
+
+test("getBreedingSnapshot:只攤平帕魯並保留主人來源", () => {
+  const instanceDir = fs.mkdtempSync(path.join(os.tmpdir(), "palserver-breeding-test-"));
+  try {
+    fs.writeFileSync(
+      path.join(instanceDir, "save-players.json"),
+      JSON.stringify({
+        world: {
+          worldGuid: "world",
+          generatedAt: "2026-07-18T00:00:00Z",
+          levelSavMtime: "2026-07-18T00:00:00Z",
+          players: [{
+            uid: "owner-1", name: "Alice", pals: [{ instanceId: "pal-1", characterId: "SheepBall" }],
+          }],
+        },
+      }),
+    );
+    const result = getBreedingSnapshot({ instanceDir } as DriverContext, "world");
+    assert.equal(result.generatedAt, "2026-07-18T00:00:00Z");
+    assert.deepEqual(result.pals, [{
+      instanceId: "pal-1", characterId: "SheepBall", ownerUid: "owner-1", ownerName: "Alice",
+    }]);
+  } finally {
+    fs.rmSync(instanceDir, { recursive: true, force: true });
+  }
 });
 
 test("computeScanStats:公會深度欄位(成員等級對聯/活躍/駐守/倉庫/研究/資產)", async () => {

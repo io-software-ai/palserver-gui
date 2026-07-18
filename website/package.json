@@ -4,16 +4,20 @@
   "private": true,
   "description": "palserver GUI 官方網站(Next.js 靜態匯出)",
   "scripts": {
+    "predev": "node scripts/copy-map-assets.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-map-assets.mjs",
     "build": "next build",
     "preview": "npx serve out"
   },
   "dependencies": {
+    "leaflet": "^1.9.4",
     "next": "^15.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

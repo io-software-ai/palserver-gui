@@ -38,18 +38,33 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const json = (data: unknown, status = 200) =>
+/** map/publish、map/unpublish 是伺服器對伺服器端點(agent 直連,從不被瀏覽器呼叫),
+ *  不帶 Access-Control-Allow-Origin,避免任意網頁能用受害者瀏覽器發request。 */
+const NO_CORS_HEADERS = {
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+/** cors=false 時不附加 Access-Control-Allow-Origin 等標頭(見上)。預設 true 維持既有端點行為不變。 */
+const json = (data: unknown, status = 200, extraHeaders: Record<string, string> = {}, cors = true) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...(cors ? CORS_HEADERS : {}), ...extraHeaders },
   });
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
-    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
+    if (req.method === "OPTIONS") {
+      const noCors = url.pathname === "/api/map/publish" || url.pathname === "/api/map/unpublish";
+      return new Response(null, { status: 204, headers: noCors ? NO_CORS_HEADERS : CORS_HEADERS });
+    }
     if (req.method === "POST" && url.pathname === "/api/event") return handleEvent(req, env);
     if (req.method === "GET" && url.pathname === "/api/stats") return handleStats(env);
+    // 公開地圖快照
+    if (req.method === "POST" && url.pathname === "/api/map/publish") return handleMapPublish(req, env);
+    if (req.method === "GET" && url.pathname === "/api/map/snapshot") return handleMapSnapshot(req, env);
+    if (req.method === "POST" && url.pathname === "/api/map/unpublish") return handleMapUnpublish(req, env);
     // 贊助者識別碼(先行版授權)
     if (req.method === "POST" && url.pathname === "/api/license/activate") return handleLicenseActivate(req, env);
     if (req.method === "POST" && url.pathname === "/api/license/deactivate") return handleLicenseDeactivate(req, env);
@@ -175,6 +190,162 @@ async function githubDownloads(env: Env): Promise<number | null> {
   } catch {
     return cached?.total ?? null;
   }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * 公開地圖快照
+ *  - POST /api/map/publish   {id, key, snapshot} — agent 每 60 秒推送(伺服器端呼叫,免 CORS)
+ *  - GET  /api/map/snapshot  ?id=...             — 公開讀取,viewer 頁用(開放 CORS)
+ *  - POST /api/map/unpublish {id, key}           — 服主下架
+ * id = shareId,首次出現即註冊(存 key 的 SHA-256 雜湊,不存明碼);之後同 id 須帶對的
+ * key 才能覆寫或下架。snapshot 原樣以 JSON 字串存,GET 回傳時還原成物件。
+ *
+ * 濫用防護:
+ *  - 新 id 註冊(還沒被人用過的 id)才會計入 per-IP 節流與總量上限,已存在 id 的更新/
+ *    下架不受影響(那條路徑已經有 key 驗證與 10 秒節流擋著)。
+ *  - unpublish 是「墓碑」(revoked=1 + 清空 snapshot),不是真的刪列 —— 避免任何人(含
+ *    拿舊 key 的殘留背景程序)再對同一個已下架的 id 重新 publish,把它當「首次註冊」復活。
+ * ──────────────────────────────────────────────────────────────────────── */
+
+const MAP_ID_RE = /^[A-Za-z0-9_-]{8,32}$/;
+const MAP_SNAPSHOT_MAX_BYTES = 131072;
+const MAP_PUBLISH_MIN_INTERVAL_MS = 10_000;
+/** 同一個 IP 24 小時內最多能註冊幾個「新」id(更新既有 id 不算)。 */
+const MAP_REG_RATE_LIMIT = 10;
+const MAP_REG_RATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** map_reg 節流紀錄的保留期限,超過就在下一次新註冊時順手清掉。 */
+const MAP_REG_RETENTION_MS = 48 * 60 * 60 * 1000;
+/** 全站同時存在的地圖分享數上限,超過就拒絕新註冊(更新既有 id 不受影響)。 */
+const MAP_SHARES_CAPACITY = 50_000;
+/** 超過這麼久沒更新的快照視為過期,在新註冊路徑順手清掉(含已撤銷的墓碑列)。 */
+const MAP_SHARES_TTL_MS = 60 * 24 * 60 * 60 * 1000;
+
+interface MapShareRow {
+  id: string;
+  key_hash: string;
+  updated_at: number;
+  snapshot: string;
+  revoked: number;
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function handleMapPublish(req: Request, env: Env): Promise<Response> {
+  let body: { id?: unknown; key?: unknown; snapshot?: unknown };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return json({ error: "invalid json" }, 400, {}, false);
+  }
+  const id = typeof body.id === "string" ? body.id.slice(0, 64) : "";
+  const key = typeof body.key === "string" ? body.key.slice(0, 256) : "";
+  if (!MAP_ID_RE.test(id)) return json({ error: "bad id" }, 400, {}, false);
+  if (!key) return json({ error: "bad key" }, 400, {}, false);
+  if (typeof body.snapshot !== "object" || body.snapshot === null) {
+    return json({ error: "bad snapshot" }, 400, {}, false);
+  }
+
+  const snapshotJson = JSON.stringify(body.snapshot);
+  if (new TextEncoder().encode(snapshotJson).length > MAP_SNAPSHOT_MAX_BYTES) {
+    return json({ error: "snapshot too large" }, 413, {}, false);
+  }
+
+  const now = Date.now();
+  const existing = await env.DB.prepare("SELECT key_hash, updated_at, revoked FROM map_shares WHERE id = ?1")
+    .bind(id)
+    .first<Pick<MapShareRow, "key_hash" | "updated_at" | "revoked">>();
+
+  if (!existing) {
+    // 新 id:先擋濫用註冊,再寫入。
+    const ip = req.headers.get("CF-Connecting-IP") ?? "unknown";
+    const ipHash = await sha256Hex(ip);
+    const regCount = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM map_reg WHERE ip_hash = ?1 AND created_at >= ?2",
+    )
+      .bind(ipHash, now - MAP_REG_RATE_WINDOW_MS)
+      .first<{ n: number }>();
+    if ((regCount?.n ?? 0) >= MAP_REG_RATE_LIMIT) {
+      return json({ error: "rate-limited" }, 429, {}, false);
+    }
+
+    const totalCount = await env.DB.prepare("SELECT COUNT(*) AS n FROM map_shares").first<{ n: number }>();
+    if ((totalCount?.n ?? 0) >= MAP_SHARES_CAPACITY) {
+      return json({ error: "capacity" }, 503, {}, false);
+    }
+
+    // 註冊此 id,只存 key 的雜湊。
+    const keyHash = await sha256Hex(key);
+    await env.DB.prepare(`INSERT INTO map_shares (id, key_hash, updated_at, snapshot) VALUES (?1, ?2, ?3, ?4)`)
+      .bind(id, keyHash, now, snapshotJson)
+      .run();
+    await env.DB.prepare("INSERT INTO map_reg (ip_hash, created_at) VALUES (?1, ?2)").bind(ipHash, now).run();
+    // 頻率低的路徑,順手清過期資料(節流紀錄、逾期未更新的快照與已撤銷的墓碑列)。
+    await env.DB.prepare("DELETE FROM map_reg WHERE created_at < ?1").bind(now - MAP_REG_RETENTION_MS).run();
+    await env.DB.prepare("DELETE FROM map_shares WHERE updated_at < ?1").bind(now - MAP_SHARES_TTL_MS).run();
+    return json({ ok: true }, 200, {}, false);
+  }
+
+  // 已撤銷的墓碑:不論 key 對不對一律拒絕,擋住舊 key 重新註冊復活。
+  if (existing.revoked) return json({ error: "revoked" }, 410, {}, false);
+
+  const keyHash = await sha256Hex(key);
+  if (!timingSafeEqual(keyHash, existing.key_hash)) return json({ error: "bad-key" }, 401, {}, false);
+  if (now - existing.updated_at < MAP_PUBLISH_MIN_INTERVAL_MS) {
+    return json({ error: "too many requests" }, 429, {}, false);
+  }
+
+  await env.DB.prepare("UPDATE map_shares SET updated_at = ?1, snapshot = ?2 WHERE id = ?3")
+    .bind(now, snapshotJson, id)
+    .run();
+  return json({ ok: true }, 200, {}, false);
+}
+
+/** 公開讀取,viewer 頁用:開放 CORS,15 秒可快取。 */
+async function handleMapSnapshot(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const id = (url.searchParams.get("id") ?? "").slice(0, 64);
+  if (!MAP_ID_RE.test(id)) return json({ error: "bad id" }, 400);
+
+  const row = await env.DB.prepare("SELECT updated_at, snapshot, revoked FROM map_shares WHERE id = ?1")
+    .bind(id)
+    .first<Pick<MapShareRow, "updated_at" | "snapshot" | "revoked">>();
+  if (!row || row.revoked) return json({ error: "not found" }, 404);
+
+  let snapshot: unknown;
+  try {
+    snapshot = JSON.parse(row.snapshot);
+  } catch {
+    snapshot = null;
+  }
+  return json({ updatedAt: row.updated_at, snapshot }, 200, { "Cache-Control": "public, max-age=15" });
+}
+
+async function handleMapUnpublish(req: Request, env: Env): Promise<Response> {
+  let body: { id?: unknown; key?: unknown };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return json({ error: "invalid json" }, 400, {}, false);
+  }
+  const id = typeof body.id === "string" ? body.id.slice(0, 64) : "";
+  const key = typeof body.key === "string" ? body.key.slice(0, 256) : "";
+  if (!MAP_ID_RE.test(id) || !key) return json({ error: "bad request" }, 400, {}, false);
+
+  const row = await env.DB.prepare("SELECT key_hash FROM map_shares WHERE id = ?1")
+    .bind(id)
+    .first<Pick<MapShareRow, "key_hash">>();
+  if (!row) return json({ error: "not found" }, 404, {}, false);
+
+  const keyHash = await sha256Hex(key);
+  if (!timingSafeEqual(keyHash, row.key_hash)) return json({ error: "bad-key" }, 401, {}, false);
+
+  // 墓碑,不是真的刪列:擋住之後任何人(含拿舊 key 的殘留背景程序)對同 id 重新
+  // publish 時被當「首次註冊」復活這個 id(見 handleMapPublish 的 revoked 檢查)。
+  await env.DB.prepare("UPDATE map_shares SET revoked = 1, snapshot = '' WHERE id = ?1").bind(id).run();
+  return json({ ok: true }, 200, {}, false);
 }
 
 /* ────────────────────────────────────────────────────────────────────────

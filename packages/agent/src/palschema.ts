@@ -16,7 +16,7 @@ import type { DriverContext } from "./driver.js";
 import type { InstanceRecord } from "./store.js";
 import { serverPlatform } from "./platform.js";
 import { serverRoot } from "./native.js";
-import { activeWorldGuid, activeWorldGuidAsync, createBackup } from "./saves.js";
+import { activeWorldGuidAsync, createBackup } from "./saves.js";
 import {
   runtimeExists,
   runtimeMkdir,
@@ -262,7 +262,8 @@ export async function installPalSchema(rec: InstanceRecord, ctx: DriverContext):
   const root = serverRoot(rec, ctx);
 
   // 風險轉變時點:best-effort 先備份當前世界(伺服器已停也能 tar;失敗不阻擋)。
-  const guid = activeWorldGuid(root);
+  // 注意 activeWorldGuid 吃 Saved 根目錄,用 Async 版由 rec/ctx 正確解析。
+  const guid = await activeWorldGuidAsync(rec, ctx);
   if (guid) await createBackup(rec, ctx, guid).catch(() => {});
 
   fs.mkdirSync(ctx.instanceDir, { recursive: true });

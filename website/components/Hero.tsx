@@ -1,4 +1,5 @@
 import Shot from './Shot';
+import DownloadLink from './DownloadLink';
 import type { Dictionary } from '@/i18n/dictionaries';
 import type { Locale } from '@/i18n/config';
 
@@ -15,9 +16,7 @@ export default function Hero({ d, lang }: { d: Dictionary['hero']; lang: Locale 
         </h1>
         <p className="sub">{d.sub}</p>
         <div className="cta">
-          <a className="btn btn-p" href="https://github.com/io-software-ai/palserver-gui/releases">
-            {d.ctaDownload}
-          </a>
+          <DownloadLink className="btn btn-p">{d.ctaDownload}</DownloadLink>
           <a className="btn btn-g" href="#features">
             {d.ctaLearn}
           </a>

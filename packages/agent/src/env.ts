@@ -100,6 +100,11 @@ export const LICENSE_URLS = process.env.PALSERVER_LICENSE_URL
   ? [process.env.PALSERVER_LICENSE_URL]
   : STATS_URLS;
 
+/** 公開地圖 viewer 的網址(shareId 組出完整分享連結,見 public-map.ts)。
+ * 自架/測試時可用環境變數覆寫。 */
+export const PALSERVER_MAP_VIEWER =
+  process.env.PALSERVER_MAP_VIEWER ?? "https://palserver-gui.iosoftware.ai/map/";
+
 export const CONTAINER_PREFIX = "palserver-";
 export const INSTANCE_LABEL = "app.palserver.instance";
 

@@ -827,6 +827,18 @@ export interface SavePlayersSummary {
   players: Omit<SavePlayerProfile, "pals">[];
 }
 
+/** 配種計算器使用的輕量存檔快照。保留個體來源,方便玩家回到正確的帕魯箱找雙親。 */
+export interface SaveBreedingPal extends SavePalRow {
+  ownerUid: string;
+  ownerName: string;
+}
+
+export interface SaveBreedingSnapshot {
+  worldGuid: string;
+  generatedAt: string | null;
+  pals: SaveBreedingPal[];
+}
+
 /** 每次掃描落地的精簡統計(排行榜/週報用;存 save-stats-history.json,追加不覆蓋)。 */
 export interface SaveScanTopPal {
   characterId: string;
@@ -1171,4 +1183,90 @@ export interface ImportSaveResult {
   backedUp: boolean;
   /** 匯入時發現共玩遺留的 WorldOptions.sav 並已自動停用(改名保留)。 */
   worldOptionsDisabled?: boolean;
+}
+
+/* ── 公開地圖(伺服器主一鍵把地圖公開到全網)──
+ * agent 定時把「已在 agent 端過濾好」的快照推到雲端 Worker,公開 viewer 只讀 Worker,
+ * 不會直接連到 agent。發布金鑰(secret)不放在這個型別裡 —— 它只存在 agent 端,詳見
+ * packages/agent/src/public-map.ts。 */
+
+/** 每實例的公開地圖發布設定(前端可見/可改的部分)。 */
+export interface PublicMapSettings {
+  enabled: boolean;
+  /** 公開分享 ID(進 viewer 網址的 ?s= 參數)。啟用時由 agent 產生;停用後保留,
+   *  重新啟用沿用同一個,除非呼叫 rotate。 */
+  shareId?: string;
+  showPlayers: boolean;
+  showPlayerNames: boolean;
+  showOfflinePlayers: boolean;
+  showBases: boolean;
+  showGuildNames: boolean;
+  /** 發布延遲(分鐘):0 = 即時;5 / 15 = 發布 N 分鐘前的緩衝快照,防止即時 PvP 用地圖抓位置。 */
+  delayMinutes: 0 | 5 | 15;
+}
+
+export const DEFAULT_PUBLIC_MAP_SETTINGS: PublicMapSettings = {
+  enabled: false,
+  showPlayers: true,
+  showPlayerNames: false,
+  showOfflinePlayers: false,
+  showBases: true,
+  showGuildNames: false,
+  delayMinutes: 0,
+};
+
+/** 上次推送雲端 Worker 的結果,供管理頁顯示。 */
+export interface PublicMapPublishResult {
+  at: number;
+  ok: boolean;
+  error?: string;
+}
+
+/** GET / PUT /api/instances/:id/public-map 的回應形狀。 */
+export interface PublicMapStatus {
+  settings: PublicMapSettings;
+  shareUrl: string | null;
+  lastPublish: PublicMapPublishResult | null;
+}
+
+/** 快照裡的座標屬於主世界底圖還是世界樹(見 savToMap / savToWorldTreeMap)。 */
+export type PublicMapArea = "world" | "tree";
+
+/** 快照裡的一個玩家點(在線或離線,同一形狀)。 */
+export interface PublicMapPlayerPoint {
+  /** 名字,或關閉「顯示玩家名稱」時的匿名代號(Player 1..n)。 */
+  n: string;
+  lv: number;
+  x: number;
+  y: number;
+  m: PublicMapArea;
+}
+
+/** 快照裡的一個公會據點。 */
+export interface PublicMapBasePoint {
+  x: number;
+  y: number;
+  m: PublicMapArea;
+  /** 公會名 — 只有「顯示公會名稱」開啟且贊助者授權(guild-map)才有,否則整欄省略。 */
+  g?: string;
+}
+
+/** 公開地圖快照格式 v1 — 雲端 Worker 與公開 viewer 依此消費,欄位名不可改。
+ *  過濾在 agent 端完成:被設定關掉的圖層,對應欄位整個省略(不是空陣列)。 */
+export interface PublicMapSnapshot {
+  v: 1;
+  name: string;
+  generatedAt: number;
+  onlineCount: number;
+  maxPlayers?: number;
+  show: {
+    players: boolean;
+    names: boolean;
+    offline: boolean;
+    bases: boolean;
+    guildNames: boolean;
+  };
+  players?: PublicMapPlayerPoint[];
+  offline?: PublicMapPlayerPoint[];
+  bases?: PublicMapBasePoint[];
 }

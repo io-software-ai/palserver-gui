@@ -1,4 +1,5 @@
 import { GitHubIcon } from './icons';
+import DownloadLink from './DownloadLink';
 import type { Dictionary } from '@/i18n/dictionaries';
 
 export default function ClosingCta({ d }: { d: Dictionary['closing'] }) {
@@ -12,9 +13,7 @@ export default function ClosingCta({ d }: { d: Dictionary['closing'] }) {
             {d.lead}
           </p>
           <div className="cta" style={{ marginTop: 0 }}>
-            <a className="btn btn-p" href="https://github.com/io-software-ai/palserver-gui/releases">
-              {d.ctaDownload}
-            </a>
+            <DownloadLink className="btn btn-p">{d.ctaDownload}</DownloadLink>
             <a className="btn btn-g" href="https://github.com/io-software-ai/palserver-gui">
               <GitHubIcon />
               GitHub

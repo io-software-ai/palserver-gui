@@ -11,6 +11,7 @@ import type {
   SaveHealthReport,
   SaveHealthStatus,
   SaveHealthPhase,
+  SaveBreedingSnapshot,
   SavePlayerProfile,
   SavePlayersSnapshot,
   SavePlayersSummary,
@@ -117,7 +118,7 @@ function expectedHash(sums: string, assetName: string): string | null {
 }
 
 /** 確保凍結的 palsav 執行檔就位(下載一次即快取;每次呼叫都重驗雜湊)。 */
-async function ensurePalsav(rec: InstanceRecord, onProgress?: (pct: number) => void): Promise<string> {
+export async function ensurePalsav(rec: InstanceRecord, onProgress?: (pct: number) => void): Promise<string> {
   const asset = palsavAssetName(rec);
   if (!asset) throw new Error("此平台不支援存檔健檢");
   const dir = path.join(DATA_DIR, "tools", `palsav-${PALSAV_TAG}`);
@@ -205,6 +206,18 @@ function readSnapshots(ctx: DriverContext): Record<string, SavePlayersSnapshot> 
   } catch {
     return {};
   }
+}
+
+/** 配種工具只需要個體與主人,不回傳背包/公會等大型玩家檔案。 */
+export function getBreedingSnapshot(ctx: DriverContext, worldGuid: string): SaveBreedingSnapshot {
+  const snapshot = readSnapshots(ctx)[worldGuid];
+  return {
+    worldGuid,
+    generatedAt: snapshot?.generatedAt ?? null,
+    pals: (snapshot?.players ?? []).flatMap((player) =>
+      player.pals.map((pal) => ({ ...pal, ownerUid: player.uid, ownerName: player.name })),
+    ),
+  };
 }
 
 function writeSnapshot(ctx: DriverContext, snapshot: SavePlayersSnapshot): void {

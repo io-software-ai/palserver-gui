@@ -3,3 +3,7 @@ node_modules/
 out/
 next-env.d.ts
 *.tsbuildinfo
+
+# /map viewer 的底圖/地標素材由 scripts/copy-map-assets.mjs 從 ../packages/web/public
+# 同步。實測 Zeabur 建置環境拿不到 ../packages(2026-07-18 部署後 404),所以素材直接
+# 進 git;本地 build 前腳本仍會覆寫同步,packages/web 更新後記得重跑並 commit。

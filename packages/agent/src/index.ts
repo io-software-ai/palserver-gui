@@ -23,6 +23,7 @@ import { InstanceStore } from "./store.js";
 import { PresenceTracker } from "./presence.js";
 import { BackupScheduler } from "./backup-scheduler.js";
 import { RestartSupervisor } from "./supervisor.js";
+import { PublicMapPublisher } from "./public-map.js";
 import { fetchLatest } from "./version.js";
 import { isInstalling, nativeDriver } from "./native.js";
 import { dockerDriver } from "./docker.js";
@@ -169,6 +170,14 @@ const supervisor = new RestartSupervisor(store, (rec) =>
 );
 supervisor.start();
 
+// 公開地圖:服主開啟後,定期把過濾好的快照推到雲端 Worker(見 public-map.ts)。
+const publicMap = new PublicMapPublisher(
+  store,
+  (rec) => (rec.backend === "native" ? nativeDriver : rec.backend === "k8s" ? k8sDriver : dockerDriver),
+  presence,
+);
+publicMap.start();
+
 // 每小時自動掃描存檔(排行榜/週報資料;每實例可在排行榜分頁開關)
 startAutoScanLoop({
   list: () => store.list(),
@@ -191,7 +200,7 @@ const updateOps: UpdateOps = {
   log: (msg) => app.log.info(`[update] ${msg}`),
 };
 
-registerRoutes(app, store, presence, scheduler, supervisor, auth, updateOps);
+registerRoutes(app, store, presence, scheduler, supervisor, publicMap, auth, updateOps);
 
 await app.listen({ host: HOST, port: PORT });
 

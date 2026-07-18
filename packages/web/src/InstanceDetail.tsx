@@ -11,6 +11,7 @@ import { SettingsEditor } from "./SettingsEditor";
 import { ModsTab } from "./ModsTab";
 import { PalDefenderTab } from "./PalDefenderTab";
 import { PalStatsTab } from "./PalStatsTab";
+import { BreedingTab } from "./BreedingTab";
 import { PlayersTab } from "./PlayersTab";
 import { GuildsTab } from "./GuildsTab";
 import { LeaderboardTab } from "./LeaderboardTab";
@@ -57,8 +58,12 @@ export function InstanceDetailPage({
   const [mapFocus, setMapFocus] = useState<{ x: number; y: number; n: number } | null>(null);
   // 分頁偏好每實例獨立;預設集合只看「建立時選的口味」——事後手動安裝模組
   // 不改變預設可見分頁(避免裝完 PalDefender 分頁自己跳出來),要開去「＋」面板。
+  // PalDefender 分頁的 gating(裝了才有/預設顯示);checkPalDefender 重查後更新。
+  const [palDefender, setPalDefender] = useState(false);
   const enhancedMode = detail ? detail.flavor === "modded" : false;
-  const [hiddenTabs, setHiddenTabs] = useHiddenTabs(instanceId, enhancedMode);
+  // PalDefender 已安裝時,其分頁預設顯示(裝了反作弊插件卻找不到設定分頁很困惑;
+  // 只影響 paldefender 這一頁,不牽動其他強化分頁)。使用者仍可在「＋」面板手動隱藏。
+  const [hiddenTabs, setHiddenTabs] = useHiddenTabs(instanceId, enhancedMode, palDefender);
   const [tabOrder, setTabOrder] = useTabOrder(instanceId);
   // 「＋」快速開啟面板:列出被隱藏(且通過 gating)的分頁,點了立刻顯示並切換過去
   const [morePanel, setMorePanel] = useState(false);
@@ -92,9 +97,10 @@ export function InstanceDetailPage({
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingWorld, setSavingWorld] = useState(false);
-  const [palDefender, setPalDefender] = useState(false);
   // 非 null 時代表正在倒數(數字為剩餘秒數),用來鎖按鈕與顯示提示。
   const [countdown, setCountdown] = useState<number | null>(null);
+  // 倒數中的動作(停止/重啟):停止倒數時把「停止」鈕換成「立即停止」(再按一下跳過倒數)
+  const countdownAction = useRef<"stop" | "restart" | null>(null);
   // 意外停止偵測:上次輪詢還是 running、這次變 stopped、且使用者沒按過停止/重啟
   // → 幾乎都是閃退(壞 ini / 模組衝突),要明講而不是默默變「已停止」。
   const stopRequested = useRef(false);
@@ -150,11 +156,6 @@ export function InstanceDetailPage({
       .catch(() => setPalDefender(false));
   }, [client, instanceId]);
   useEffect(() => checkPalDefender(), [checkPalDefender]);
-  // 移除 PalDefender 時人正停在該分頁 → 退回總覽(帕魯數值不依賴 PalDefender,不在此列)
-  useEffect(() => {
-    // 強化(modded)實例例外:autoEnhance 會裝 PalDefender,分頁常駐(裝好前顯示原因)
-    if (tab === "paldefender" && !palDefender && detail?.flavor !== "modded") setTab("overview");
-  }, [tab, palDefender, detail]);
 
   useEffect(() => {
     void refresh();
@@ -192,6 +193,7 @@ export function InstanceDetailPage({
           .catch(() => 0);
         if (seconds > 0) {
           const startedAt = Date.now();
+          countdownAction.current = action as "stop" | "restart";
           setCountdown(seconds);
           timer = setInterval(() => {
             const left = seconds - Math.floor((Date.now() - startedAt) / 1000);
@@ -205,7 +207,17 @@ export function InstanceDetailPage({
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       if (timer) clearInterval(timer);
+      countdownAction.current = null;
       setCountdown(null);
+    }
+  };
+
+  /** 倒數中的「立即停止」:中止 agent 端倒數,原請求立刻執行停止。 */
+  const stopNow = async () => {
+    try {
+      await client.action(instanceId, "stop", undefined, true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -266,10 +278,11 @@ export function InstanceDetailPage({
           ) : (
             <button
               className={`${btn} inline-flex items-center gap-1.5`}
-              onClick={() => act("stop")}
-              disabled={countdown !== null}
+              onClick={() => (countdown !== null && countdownAction.current === "stop" ? void stopNow() : void act("stop"))}
+              disabled={countdown !== null && countdownAction.current !== "stop"}
             >
-              <FiSquare className="size-4" /> {t("停止")}
+              <FiSquare className="size-4" />{" "}
+              {countdown !== null && countdownAction.current === "stop" ? t("立即停止") : t("停止")}
             </button>
           )}
           <button
@@ -441,11 +454,13 @@ export function InstanceDetailPage({
       )}
 
       {(() => {
-        // 依每實例自訂順序排列,再套 gating(PalDefender 裝了才有、贊助旗標)
+        // 依每實例自訂順序排列,再套 gating(贊助旗標)。
+        // 注意:paldefender 不做「裝了才有」的 gate——安裝入口就在該分頁裡
+        // (版本管理卡),濾掉會讓新伺服器完全沒有安裝 PalDefender 的路徑。
+        // 未安裝時分頁預設隱藏(tabPrefs),從「＋」面板開啟;裝了自動顯示。
         const orderedTabs = tabOrder
           .map((id) => TABS.find((tb) => tb.id === id))
           .filter((tb): tb is (typeof TABS)[number] => !!tb)
-          .filter((tb) => tb.id !== "paldefender" || palDefender || detail.flavor === "modded")
           .filter((tb) => tb.id !== "palstats" || SHOW_SPONSOR_FEATURES);
         const visibleTabs = orderedTabs.filter((tb) => LOCKED_TABS.includes(tb.id) || !hiddenTabs.includes(tb.id));
         const manageable = orderedTabs.filter((tb) => !LOCKED_TABS.includes(tb.id));
@@ -594,6 +609,7 @@ export function InstanceDetailPage({
         <PalDefenderTab client={client} instanceId={detail.id} running={detail.status === "running"} />
       )}
       {tab === "palstats" && <PalStatsTab client={client} instanceId={detail.id} running={detail.status === "running"} />}
+      {tab === "breeding" && <BreedingTab client={client} instanceId={detail.id} />}
       {tab === "saves" && (
         <SavesTab client={client} instanceId={detail.id} running={detail.status === "running"} />
       )}

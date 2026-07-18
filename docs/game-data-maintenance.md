@@ -270,3 +270,9 @@ node scripts/fetch-pal-stats-defaults.mjs
 - **research.json 的 ja 是「同名比對」不是「位置比對」**：paldb 的卡片頁面順序跟
   `oMaN-Rod` 的 id 順序不一致（同分類內排序依據不同），直接位置對齊會整批錯位；
   一律先用英文顯示名字串鎖定同一張卡再取 ja，對不上就留空。
+
+## breeding.json(配種配方表)
+
+- 位置:`packages/web/public/game-data/breeding.json`(來源:[tylercamp/palcalc](https://github.com/tylercamp/palcalc),MIT)
+- 遊戲改版新增帕魯後,等 PalCalc 上游更新,再跑 `node scripts/fetch-palcalc-breeding.mjs` 重新生成。
+- 注意:配種目標選單同時依賴 `pals.json` 的物種名稱/圖示——PalCalc 領先本地資料時,新物種會缺名稱且無法選為目標,兩者要一起更新。

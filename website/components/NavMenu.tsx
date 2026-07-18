@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { GitHubIcon } from './icons';
+import DownloadLink from './DownloadLink';
 import LangSwitch from './LangSwitch';
 import type { Dictionary } from '@/i18n/dictionaries';
 import type { Locale } from '@/i18n/config';
@@ -59,6 +60,9 @@ export default function NavMenu({ d, lang }: { d: Dictionary['nav']; lang: Local
         <a href="#team" onClick={close}>
           {d.team}
         </a>
+        <a href={`/${lang}/changelog/`} onClick={close}>
+          {d.changelog}
+        </a>
         <div className="pdiv" />
         <LangSwitch current={lang} />
         <a
@@ -69,13 +73,9 @@ export default function NavMenu({ d, lang }: { d: Dictionary['nav']; lang: Local
           <GitHubIcon />
           {d.github}
         </a>
-        <a
-          className="btn btn-p"
-          href="https://github.com/io-software-ai/palserver-gui/releases"
-          onClick={close}
-        >
+        <DownloadLink className="btn btn-p" onClick={close}>
           {d.download}
-        </a>
+        </DownloadLink>
       </div>
     </div>
   );

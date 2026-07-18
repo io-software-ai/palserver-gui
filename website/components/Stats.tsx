@@ -3,13 +3,13 @@
 import { useEffect, useRef } from 'react';
 import type { Dictionary } from '@/i18n/dictionaries';
 
-const STATS_URL = 'https://palserver-stats.iosoftware.workers.dev/api/stats';
+const STATS_URL = 'https://stats.iosoftware.ai/api/stats';
 /** 第 3 個數字接 worker 的 serverStarts:SSR 先給近期快照(SEO / 無 JS 也有數字),
  *  client 端再抓即時值更新。其餘為固定文案數字。 */
 const VALUES: ({ n: number; live?: string } | 'free')[] = [
   { n: 0 },
   { n: 13 },
-  { n: 26755, live: 'serverStarts' },
+  { n: 86157, live: 'serverStarts' },
   'free',
 ];
 

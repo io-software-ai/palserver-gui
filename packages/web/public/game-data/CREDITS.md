@@ -58,6 +58,14 @@ are refreshed with `node scripts/fetch-game-data-i18n.mjs technologies`.
 All Palworld artwork is © Pocketpair, Inc. These icons are bundled only to
 label in-game entities within this management tool.
 
+## Breeding data
+
+`breeding.json` is a compact transform of the breeding database from
+[`tylercamp/palcalc`](https://github.com/tylercamp/palcalc), Copyright 2024
+Tyler Camp, used under the MIT License. It is regenerated with
+`node scripts/fetch-palcalc-breeding.mjs`; the original copyright notice and
+license are preserved in this repository's `THIRD_PARTY_LICENSES.md`.
+
 ## World Tree base map
 
 `packages/web/public/worldtree-map.webp` is stitched from paldb.cc's World

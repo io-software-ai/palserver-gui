@@ -106,6 +106,7 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 - **Pal stat editor** (via PalSchema): tweak a species' base HP / attack / defense / capture rate etc., **with a separate override for the boss variant**; one-click PalSchema install, a change log, and one-click revert-all
 - **Teleport players**: teleport a player to another player, or to **coordinates picked on the map**
 - **Bulk-give items**: an item icon picker + quantity, grant several at once
+- **Breeding planner**: reads every pal from the latest save scan and computes the shortest breeding route to a target species with chosen passives — a tree view shows each step's parents, their owner and location (recipe data from the MIT-licensed Pal Calc)
 - Custom Pals / eggs, guild base details, landmark names
 
 **Other**

@@ -57,3 +57,25 @@ CREATE TABLE IF NOT EXISTS licenses (
 --     ORDER BY (l.bound_to IS NOT NULL) DESC, l.created_at ASC, l.code ASC LIMIT 1);
 DROP INDEX IF EXISTS idx_licenses_email;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_licenses_email_unique ON licenses(email) WHERE email IS NOT NULL;
+
+-- 公開地圖快照:服主一鍵把伺服器地圖公開到全網,agent 每 60 秒推送最新快照,
+-- 公開 viewer 頁用 id(shareId)讀取。key_hash 只存 SHA-256 雜湊,不存明碼,
+-- 用於 publish/unpublish 時證明擁有權(誰能覆寫/下架這個 id)。
+-- revoked:unpublish 留下的墓碑(1 = 已下架,snapshot 同時清空),擋住舊 key 之後
+-- 重新 publish 同一個 id 時被當「首次註冊」復活(見 src/index.ts 的 handleMapPublish)。
+CREATE TABLE IF NOT EXISTS map_shares (
+  id TEXT PRIMARY KEY,
+  key_hash TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  snapshot TEXT NOT NULL,
+  revoked INTEGER NOT NULL DEFAULT 0
+);
+
+-- 新 id 註冊的 per-IP 節流紀錄(只在「新 id」首次註冊時寫入一筆,更新既有 id 不算)。
+-- 24 小時內同一 ip_hash 超過門檻就拒絕新註冊,擋濫用把 D1 灌爆;48 小時前的舊紀錄
+-- 在下一次新註冊時順手清掉,不需要另外排程。ip_hash 是 CF-Connecting-IP 的 SHA-256。
+CREATE TABLE IF NOT EXISTS map_reg (
+  ip_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_map_reg_ip_created ON map_reg(ip_hash, created_at);

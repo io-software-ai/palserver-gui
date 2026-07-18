@@ -19,7 +19,6 @@ export function ModsTab({
   running: boolean;
   /** 安裝/移除模組後通知外層(讓 PalDefender 分頁的 gating 同步)。 */
   onModsChanged?: () => void;
-  /** PalDefender 卡的「設定」按鈕:開啟 PalDefender 分頁並切換過去。 */
 }) {
   useI18n();
   const [mods, setMods] = useState<ModsStatus | null>(null);

@@ -13,7 +13,7 @@
  *   node manage.mjs reset  <code>                    解除某張碼的機器綁定(讓贊助者換機)
  *
  * 環境變數(可寫在 shell 或 packages/stats/.env,別 commit):
- *   WORKER_URL           預設 https://palserver-stats.iosoftware.workers.dev
+ *   WORKER_URL           預設 https://stats.iosoftware.ai
  *   ADMIN_TOKEN          issue / reset 用(= worker 上設的 ADMIN_TOKEN)
  *   BMC_WEBHOOK_SECRET   test-webhook 簽章用(= worker 上設的 BMC_WEBHOOK_SECRET)
  */
@@ -33,7 +33,7 @@ try {
   /* 沒有 .env 就算了 */
 }
 
-const WORKER_URL = (process.env.WORKER_URL ?? "https://palserver-stats.iosoftware.workers.dev").replace(/\/$/, "");
+const WORKER_URL = (process.env.WORKER_URL ?? "https://stats.iosoftware.ai").replace(/\/$/, "");
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? "";
 const BMC_WEBHOOK_SECRET = process.env.BMC_WEBHOOK_SECRET ?? "";
 

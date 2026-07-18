@@ -32,10 +32,12 @@ import { fetchServerCommands, rconExec, requireRcon } from "./rcon.js";
 import type { PresenceTracker } from "./presence.js";
 import type { BackupScheduler } from "./backup-scheduler.js";
 import type { RestartSupervisor } from "./supervisor.js";
+import type { PublicMapPublisher } from "./public-map.js";
 import { AGENT_VERSION, PORT, HOST, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER, ENV_LOCKED, IS_PORTABLE_EXE } from "./env.js";
 import { saveSettings } from "./settings.js";
 import { collectSpecs, reviewSpecs } from "./system-review.js";
 import { getBootStart, restartSelf, setBootStart } from "./self-update.js";
+import { unlockAllFastTravel } from "./save-unlocks.js";
 import {
   type AuthContext,
   extractToken,
@@ -71,6 +73,7 @@ import {
 } from "./k8s-file-browser.js";
 import * as saves from "./saves.js";
 import {
+  getBreedingSnapshot,
   getGuildsSnapshot,
   getHealthStatus,
   getPlayerProfile,
@@ -119,22 +122,124 @@ const COUNTDOWN_MARKS = [60, 30, 20, 10, 5, 3, 2, 1];
  * 手動停止/重啟前,在遊戲聊天室倒數公告再執行。訊息用呼叫端(GUI)傳來的在地化模板,
  * `{n}` 由這裡代入剩餘秒數;公告走伺服器 REST,REST 沒開就直接跳過(不空等)。
  */
-async function announceCountdown(rec: InstanceRecord, seconds: number, template: string): Promise<void> {
+async function announceCountdown(
+  rec: InstanceRecord,
+  seconds: number,
+  template: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const say = (n: number) => rest.announce(rec, template.split("{n}").join(String(n)));
   const marks = [seconds, ...COUNTDOWN_MARKS.filter((m) => m < seconds)];
+  // 可中止的 sleep:「立即停止」時提前醒來,直接進入停止流程
+  const sleepAbortable = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ms);
+      signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true },
+      );
+    });
   try {
     await say(marks[0]); // 先發第一則,順便確認 REST 可用
   } catch {
     return; // REST 未啟用 — 無法公告,直接執行,不空等
   }
   for (let i = 0; i < marks.length; i++) {
+    if (signal?.aborted) return;
     if (i > 0) await say(marks[i]).catch(() => {});
     const next = marks[i + 1] ?? 0;
-    await sleep((marks[i] - next) * 1000);
+    await sleepAbortable((marks[i] - next) * 1000);
   }
 }
 
-const AnnounceBody = z.object({ announceTemplate: z.string().max(500).optional() });
+/** 進行中的停機倒數(instance id → 中止器);「立即停止」按第二下時取消。 */
+const pendingCountdowns = new Map<string, AbortController>();
+
+const AnnounceBody = z.object({
+  announceTemplate: z.string().max(500).optional(),
+  /** true = 跳過/中止倒數公告,立即執行(停止按第二下)。 */
+  immediate: z.boolean().optional(),
+});
+
+// WebSocket
+interface FeedSocket {
+  send: (data: string) => void;
+  close: (code?: number, reason?: string) => void;
+  readyState: number;
+  OPEN: number;
+  on: (event: "close" | "error", cb: () => void) => void;
+}
+
+// 每個實例共用一份輪詢、推播給所有訂閱的 WebSocket。
+function createInstanceFeed<T>(
+  // build 以 id 呼叫、自行向 store 取「新鮮的」rec:設定變更(埠/路徑)下一個 tick
+  // 就生效;rec 已不存在(實例被刪)回 null,feed 會收掉所有 socket 與 timer。
+  build: (id: string) => Promise<T | null>,
+  intervalMs: number,
+) {
+  const sockets = new Map<string, Set<FeedSocket>>();
+  const timers = new Map<string, ReturnType<typeof setInterval>>();
+  const busy = new Set<string>();
+
+  const stop = (id: string): void => {
+    const timer = timers.get(id);
+    if (timer) clearInterval(timer);
+    timers.delete(id);
+  };
+
+  const ensure = (id: string): void => {
+    if (timers.has(id)) return;
+    const tick = async (): Promise<void> => {
+      const s = sockets.get(id);
+      if (!s || s.size === 0) return;
+      if (busy.has(id)) return;
+      busy.add(id);
+      try {
+        const result = await build(id).catch((err: unknown) => ({
+          error: err instanceof Error ? err.message : String(err),
+        }));
+        if (result === null) {
+          // 實例已被刪除:通知並收掉,timer 不再空轉
+          for (const socket of s) socket.close(1000, "instance removed");
+          sockets.delete(id);
+          stop(id);
+          return;
+        }
+        const payload = JSON.stringify(result);
+        for (const socket of s) {
+          if (socket.readyState === socket.OPEN) socket.send(payload);
+        }
+      } finally {
+        busy.delete(id);
+      }
+    };
+    void tick();
+    timers.set(id, setInterval(() => void tick(), intervalMs));
+  };
+
+  return function subscribe(id: string, socket: FeedSocket): void {
+    let s = sockets.get(id);
+    if (!s) {
+      s = new Set();
+      sockets.set(id, s);
+    }
+    s.add(socket);
+    ensure(id);
+    const drop = (): void => {
+      s!.delete(socket);
+      if (s!.size === 0) {
+        sockets.delete(id);
+        stop(id);
+      }
+    };
+    socket.on("close", drop);
+    socket.on("error", drop);
+  };
+}
 
 export function registerRoutes(
   app: FastifyInstance,
@@ -142,6 +247,7 @@ export function registerRoutes(
   presence: PresenceTracker,
   scheduler: BackupScheduler,
   supervisor: RestartSupervisor,
+  publicMap: PublicMapPublisher,
   auth: AuthContext,
   updateOps: UpdateOps,
 ): void {
@@ -932,16 +1038,33 @@ export function registerRoutes(
   /** 停止/重啟前若帶了 announceTemplate 且伺服器在跑,依該實例的 announceSeconds 設定
    * 先在遊戲聊天室倒數公告(0 秒 = 不公告)。announceSeconds 與自動重啟共用同一個設定。 */
   const announceBeforeDowntime = async (rec: InstanceRecord, body: unknown): Promise<void> => {
-    const template = AnnounceBody.safeParse(body ?? {}).data?.announceTemplate;
+    const parsed = AnnounceBody.safeParse(body ?? {}).data;
+    if (parsed?.immediate) return; // 立即模式:不倒數
+    const template = parsed?.announceTemplate;
     if (!template) return;
     const seconds = Math.min(Math.max(supervisor.readPolicy(rec.id).announceSeconds, 0), 300);
     if (seconds <= 0) return;
     if ((await driverOf(rec).status(rec, ctxOf(rec))).status !== "running") return;
-    await announceCountdown(rec, seconds, template);
+    const ctrl = new AbortController();
+    pendingCountdowns.set(rec.id, ctrl);
+    try {
+      await announceCountdown(rec, seconds, template, ctrl.signal);
+    } finally {
+      pendingCountdowns.delete(rec.id);
+    }
   };
 
   app.post("/api/instances/:id/stop", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
+    // 「立即停止」:有進行中的倒數就中止它 —— 原請求會馬上接手執行停止,
+    // 本請求只回摘要,避免兩個請求同時對 driver 下 stop。
+    if (AnnounceBody.safeParse(req.body ?? {}).data?.immediate) {
+      const pending = pendingCountdowns.get(rec.id);
+      if (pending) {
+        pending.abort();
+        return toSummary(rec);
+      }
+    }
     await announceBeforeDowntime(rec, req.body);
     await driverOf(rec).stop(rec, ctxOf(rec));
     presence.markAllOffline(rec.id);
@@ -969,6 +1092,9 @@ export function registerRoutes(
     // 真正刪除。driver.remove 負責各後端的收尾:停止行程 / 移除容器 / 刪除 agent
     // 自行安裝的外部目錄(native)。k8s 只縮到 0、刻意保留叢集 PVC(那不是我們建的)。
     await driverOf(rec).remove(rec, ctxOf(rec));
+    // 公開地圖:secret 只存在 instanceDir/public-map.json 裡,目錄砍掉前要先讓發布器讀出來
+    // 搬進全域下架佇列,否則 Worker 上的快照永遠沒人能撤銷(見 public-map.ts Finding C)。
+    await publicMap.instanceRemoved(rec.id);
     // agent 自管的資料根目錄(native 安裝+存檔、docker 綁定掛載資料、pid/log)一併刪掉。
     // 對 k8s 這個目錄通常是空的,force 會忽略不存在。
     fs.rmSync(store.instanceDir(rec.id), { recursive: true, force: true });
@@ -1121,6 +1247,18 @@ export function registerRoutes(
 
   /** 各模組元件的最新穩定版(給「有新版」徽章;agent 端 6h 快取)。 */
   app.get("/api/mods/latest", async () => latestModVersions());
+
+  /** 存檔解鎖:全體玩家快速傳送全開(贊助者;需伺服器停止;動手前整世界備份)。 */
+  app.post("/api/instances/:id/save-unlocks/fast-travel", async (req, reply) => {
+    if (!featureEnabled("map-unlocks")) {
+      return reply.code(403).send({ error: "存檔解鎖為贊助者專屬功能,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    const rec = getOr404((req.params as { id: string }).id);
+    if (await isRunning(rec)) {
+      return reply.code(409).send({ error: "請先停止伺服器再執行存檔解鎖(運行中寫入會損壞存檔)" });
+    }
+    return unlockAllFastTravel(rec, ctxOf(rec));
+  });
 
   /** agent 啟動時自動開服的開關(每實例)。 */
   app.put("/api/instances/:id/auto-start", async (req) => {
@@ -1281,8 +1419,7 @@ export function registerRoutes(
   // 統一名冊:有開 PalDefender REST 就以它的 /players 為準(1.8+ 含離線玩家),
   // 用 agent 自己的紀錄補歷史欄位(首見/上線時長/等級);沒開就純用自己的紀錄。
   // PalDefender 沒列到、但自己看過的玩家也保留(舊版 PalDefender 只回在線時的兜底)。
-  app.get("/api/instances/:id/players/known", async (req) => {
-    const rec = getOr404((req.params as { id: string }).id);
+  const computeKnownPlayers = async (rec: InstanceRecord): Promise<KnownPlayer[]> => {
     const own = presence.knownPlayers(rec.id);
     const pd = await getPdPlayers(rec, ctxOf(rec));
     if (!pd.available) return own;
@@ -1305,6 +1442,11 @@ export function registerRoutes(
     });
     for (const leftover of byId.values()) merged.push(leftover);
     return merged;
+  };
+
+  app.get("/api/instances/:id/players/known", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return computeKnownPlayers(rec);
   });
 
   app.get("/api/instances/:id/players/events", async (req) => {
@@ -1766,6 +1908,50 @@ export function registerRoutes(
     return { externalAddress: updated.externalAddress ?? null };
   });
 
+  // ── 公開地圖:服主一鍵把地圖公開到全網(贊助者先行版 public-map)。
+  // 過濾在 agent 端(public-map.ts)完成,這裡只是薄薄一層 CRUD + 立即發布觸發。
+  // gating 只擋「新開啟」與「換連結」:關閉與查看狀態永遠放行,授權過期的服主
+  // 才能把已公開的地圖關掉;背景 tick 另外會在授權過期時自動跳過發布(見 public-map.ts)。
+  app.get("/api/instances/:id/public-map", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return publicMap.status(rec);
+  });
+
+  app.put("/api/instances/:id/public-map", async (req, reply) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    const { settings } = z
+      .object({
+        settings: z.object({
+          enabled: z.boolean().optional(),
+          showPlayers: z.boolean().optional(),
+          showPlayerNames: z.boolean().optional(),
+          showOfflinePlayers: z.boolean().optional(),
+          showBases: z.boolean().optional(),
+          showGuildNames: z.boolean().optional(),
+          delayMinutes: z.union([z.literal(0), z.literal(5), z.literal(15)]).optional(),
+        }),
+      })
+      .parse(req.body);
+    // 只擋「從關閉開啟」這個轉換;已經開啟時改子設定(或重送 enabled:true)不擋,
+    // 讓授權過期但先前已開啟的服主仍能調整顯示內容(實際發布與否由 tick 的 gate 把關)。
+    if (settings.enabled === true && !publicMap.status(rec).settings.enabled && !featureEnabled("public-map")) {
+      return reply
+        .code(403)
+        .send({ error: "此功能為贊助者先行版,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    return publicMap.updateSettings(rec, settings);
+  });
+
+  app.post("/api/instances/:id/public-map/rotate", async (req, reply) => {
+    if (!featureEnabled("public-map")) {
+      return reply
+        .code(403)
+        .send({ error: "此功能為贊助者先行版,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    const rec = getOr404((req.params as { id: string }).id);
+    return publicMap.rotate(rec);
+  });
+
   app.get("/api/instances/:id/version", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
     return getVersionStatus(rec, ctxOf(rec));
@@ -1998,6 +2184,17 @@ export function registerRoutes(
       return { worldGuid, profile };
     }
     return getPlayersSummary(ctxOf(rec), worldGuid);
+  });
+
+  // 配種計算器專用輕量快照:一次取得全服帕魯,不夾帶玩家背包等無關資料。
+  app.get("/api/instances/:id/saves/breeding-snapshot", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    const q = z
+      .object({ worldGuid: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, "世界 GUID 格式不合法").optional() })
+      .parse(req.query);
+    const worldGuid = q.worldGuid ?? (await saves.activeWorldGuidAsync(rec, ctxOf(rec)));
+    if (!worldGuid) throw Object.assign(new Error("找不到啟用中的世界"), { statusCode: 404 });
+    return getBreedingSnapshot(ctxOf(rec), worldGuid);
   });
 
   // ── 掃描統計歷史(每次健檢追加一筆;排行榜/週報分頁讀這裡)──
@@ -2324,5 +2521,27 @@ export function registerRoutes(
       })
       .catch((err: Error) => socket.close(1011, err.message.slice(0, 120)));
     socket.on("close", () => cleanup?.());
+  });
+
+  // 玩家頁面即時推播:合併 live/known/events/moderation
+  const subscribePlayerFeed = createInstanceFeed(async (id) => {
+    const rec = store.get(id);
+    if (!rec) return null; // 實例已刪:feed 收攤
+    const [live, known, events, mod] = await Promise.all([
+      Promise.resolve(getLiveStatus(rec)),
+      computeKnownPlayers(rec),
+      Promise.resolve(presence.events(rec.id, 50)),
+      getModerationLists(rec, ctxOf(rec)),
+    ]);
+    return { live, known, events, moderation: mod };
+  }, 5000);
+
+  app.get("/api/instances/:id/players/feed", { websocket: true }, (socket, req) => {
+    const rec = store.get((req.params as { id: string }).id);
+    if (!rec) {
+      socket.close(4004, "instance not found");
+      return;
+    }
+    subscribePlayerFeed(rec.id, socket);
   });
 }

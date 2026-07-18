@@ -1,4 +1,5 @@
 import { GitHubIcon } from './icons';
+import DownloadLink from './DownloadLink';
 import LangSwitch from './LangSwitch';
 import NavMenu from './NavMenu';
 import type { Dictionary } from '@/i18n/dictionaries';
@@ -19,6 +20,7 @@ export default function Nav({ d, lang }: { d: Dictionary['nav']; lang: Locale })
           <a href="#how">{d.how}</a>
           <a href="#start">{d.start}</a>
           <a href="#team">{d.team}</a>
+          <a href={`/${lang}/changelog/`}>{d.changelog}</a>
         </div>
         <div className="sp" />
         {/* 桌機:一整排控制項;手機隱藏,改由 NavMenu 漢堡收納 */}
@@ -28,12 +30,7 @@ export default function Nav({ d, lang }: { d: Dictionary['nav']; lang: Locale })
             <GitHubIcon />
             {d.github}
           </a>
-          <a
-            className="btn btn-p btn-sm"
-            href="https://github.com/io-software-ai/palserver-gui/releases"
-          >
-            {d.download}
-          </a>
+          <DownloadLink className="btn btn-p btn-sm">{d.download}</DownloadLink>
         </div>
         <NavMenu d={d} lang={lang} />
       </div>

@@ -1,0 +1,410 @@
+/* /map 公開地圖 viewer:沿用 app/globals.css 的顏色變數(--pal/--card/--ink...),
+   自成一套版面(不套用行銷首頁的 nav/hero/reveal 那些)。 */
+
+.map2-boot {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: center;
+}
+.map2-boot p {
+  color: var(--muted);
+  font-size: 14px;
+}
+.map2-state-card {
+  max-width: 420px;
+  padding: 28px 24px;
+  border-radius: 20px;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+/* 狀態頁(缺參數/連結失效/連不上)的品牌鎖印,比頭欄用的版本大一號、置中、
+   底下留白跟卡片拉開距離——分享連結失效時使用者第一眼看到的還是 palserver 品牌。 */
+.map2-boot-brand {
+  margin-bottom: 24px;
+  font-size: 17px;
+}
+.map2-boot-brand .map2-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+}
+.map2-state-card h1 {
+  font-size: 19px;
+  font-weight: 900;
+  margin: 0 0 10px;
+}
+.map2-state-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.map2-page {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.map2-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--nav);
+  backdrop-filter: blur(12px);
+}
+/* 品牌鎖印:尺寸/圓角原樣抄官網 nav .logo(website/app/globals.css:30-32),
+   點擊連回官網對應語系首頁,是這頁「官網品牌延伸」外框的視覺錨點。 */
+.map2-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+.map2-brand:hover {
+  opacity: 0.72;
+}
+.map2-brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.map2-brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9px;
+  display: block;
+}
+/* 官網 nav 的等效寫法是 `nav .sp{flex:1}`(scoped 在 <nav> 底下),這裡不在 <nav>
+   裡,所以另開一個同義的 class 把品牌鎖印跟伺服器資訊推到頭欄兩端。 */
+.map2-spacer {
+  flex: 1;
+}
+.map2-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+.map2-servername {
+  font-weight: 900;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40vw;
+}
+.map2-online {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.map2-ago {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.map2-banner {
+  flex-shrink: 0;
+  padding: 9px 16px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  background: color-mix(in srgb, #e0a53f 22%, var(--card));
+  color: #8a5a12;
+  border-bottom: 1px solid color-mix(in srgb, #e0a53f 40%, var(--line));
+}
+@media (prefers-color-scheme: dark) {
+  .map2-banner {
+    color: #ffd9a0;
+  }
+}
+:root[data-theme='dark'] .map2-banner {
+  color: #ffd9a0;
+}
+
+/* 圖層開關列:改用官網的 pill 按鈕語言(.btn-sm/.btn-g,website/app/globals.css:38-42)
+   同款圓角/邊框/hover 上浮,只是縮到工具列尺度;背景用 --paper 讓按鈕像浮在紙面上,
+   跟下面的地圖卡片拉出層次,不再是一條實色的分隔列。 */
+.map2-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px 10px;
+  background: var(--paper);
+}
+.map2-tbtn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.map2-tbtn:hover {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--pal) 35%, var(--line));
+  transform: translateY(-1px);
+}
+.map2-tbtn-on {
+  border-color: var(--pal);
+  color: var(--on-pal);
+  background: var(--pal);
+  box-shadow: 0 8px 18px -8px var(--pal);
+}
+.map2-tbtn-on:hover {
+  color: var(--on-pal);
+}
+/* 世界切換:原樣抄官網語言切換器 nav .lang 的雙層結構(website/app/globals.css:294-298)
+   ——外層淺框墊 2px 內距,選中的膠囊用實心 --pal 背景。 */
+.map2-worldswitch {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 1px;
+  padding: 2px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+}
+.map2-wbtn {
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 800;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.map2-wbtn-on {
+  background: var(--pal);
+  color: var(--on-pal);
+}
+
+/* 地圖舞台:留白呼吸空間,把 Leaflet 畫布包進官網卡片語言的圓角容器
+   (圓角/邊框/陰影原樣抄 .shot,website/app/globals.css:92)。手機 ≤480px 卡片
+   退化為滿版無邊框,把面積讓給地圖本體,見下方媒體查詢。 */
+.map2-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  background: var(--paper);
+  padding: 2px 20px 20px;
+}
+.map2-card {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1.5px solid var(--line);
+  box-shadow: var(--shadow);
+  background: var(--card-2);
+}
+.map2-canvas {
+  width: 100%;
+  height: 100%;
+  background: var(--card-2);
+}
+/* Leaflet 內建縮放控制的外觀重上一層皮,跟卡片圓角/邊框語言一致;
+   marker/徽章本身(markerIcon.ts、.pmap2-*)完全沒動,只有這個地圖 UI 控制項。 */
+.map2-card .leaflet-control-zoom {
+  border: 1.5px solid var(--line) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.map2-card .leaflet-control-zoom a {
+  background: var(--card) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+.map2-card .leaflet-control-zoom a:hover {
+  background: var(--card-2) !important;
+}
+
+.map2-footer {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 7px 10px;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+}
+.map2-footer a {
+  color: var(--pal-deep);
+  font-weight: 800;
+  transition: opacity 0.15s ease;
+}
+.map2-footer a:hover {
+  opacity: 0.72;
+}
+
+/* 圓形徽章體系 — 玩家/離線玩家/公會據點/地標共用同一套視覺(圓形、描邊、卡片底、陰影),
+   對齊 packages/web/src/MapTab.tsx 的 .pmap-avatar 語言。各類型只靠 inline style(尺寸/
+   描邊色/底色)與少數修飾 class 分化,細節見 markerIcon.ts。 */
+.leaflet-div-icon.pmap2-badge-wrap {
+  background: transparent;
+  border: none;
+}
+.pmap2-badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 3px;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  background: var(--card);
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.45);
+  transition: transform 0.1s;
+  overflow: hidden;
+}
+.pmap2-badge-wrap:hover .pmap2-badge {
+  transform: scale(1.12);
+}
+/* 據點/地標的徽章描邊粗一點,跟玩家的細框拉出層級。 */
+.pmap2-badge--thick {
+  border-width: 3px;
+}
+.pmap2-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.4));
+}
+.pmap2-badge-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #fff;
+  font-weight: 800;
+  line-height: 1;
+}
+/* 離線玩家:變暗 + 去飽和,同 GUI 的 .pmap-avatar.pmap-offline。 */
+.pmap2-badge-offline {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+.pmap2-label {
+  /* left/top 由呼叫端(markerIcon.ts 的 nameLabelHtml)依徽章尺寸算好,用 inline style 帶。 */
+  position: absolute;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: #fff;
+  background: rgb(20 16 32 / 0.72);
+  padding: 1px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.pmap2-label-offline {
+  opacity: 0.7;
+}
+.pmap2-tooltip.leaflet-tooltip {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 12px;
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 480px) {
+  .map2-header {
+    padding: 8px 12px;
+    gap: 6px 10px;
+  }
+  /* 手機頂欄收成單行:字標與更新時間讓位給伺服器名/在線數,logo 徽章仍可點回官網。 */
+  .map2-brand-name {
+    display: none;
+  }
+  .map2-brand-mark {
+    width: 25px;
+    height: 25px;
+    border-radius: 8px;
+  }
+  .map2-ago {
+    display: none;
+  }
+  .map2-servername {
+    max-width: 46vw;
+    font-size: 14px;
+  }
+  .map2-toolbar {
+    padding: 8px 12px 8px;
+    gap: 6px;
+  }
+  .map2-tbtn {
+    padding: 5px 10px;
+    font-size: 11.5px;
+  }
+  .map2-wbtn {
+    padding: 5px 11px;
+    font-size: 11.5px;
+  }
+  /* 卡片退化為滿版:地圖面積優先,呼吸留白與圓角框只在桌機保留。 */
+  .map2-stage {
+    padding: 0;
+  }
+  .map2-card {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+  .map2-card .leaflet-control-zoom {
+    border-radius: 10px !important;
+  }
+  .map2-footer {
+    font-size: 10px;
+  }
+}

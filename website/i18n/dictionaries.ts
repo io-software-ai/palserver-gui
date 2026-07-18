@@ -19,7 +19,8 @@ type FeatureText = {
 
 export type Dictionary = {
   meta: { title: string; description: string; ogAlt: string };
-  nav: { features: string; how: string; start: string; team: string; github: string; download: string };
+  nav: { features: string; how: string; start: string; team: string; github: string; download: string; changelog: string };
+  changelog: { title: string; sub: string; back: string; viewOnGitHub: string; loading: string; error: string; latest: string };
   hero: {
     eyebrow: string;
     h1Emph: string;
@@ -89,7 +90,16 @@ const zh: Dictionary = {
       'palserver GUI 是免費開源的帕魯(Palworld)專用伺服器管理工具:一鍵開服、內建世界地圖、三套主題、80+ 世界設定、模組管理、自動備份、手機遠端管理。零指令、零設定檔, 免安裝下載即用。',
     ogAlt: 'palserver GUI 伺服器管理總覽畫面',
   },
-  nav: { features: '功能', how: '如何運作', start: '開始使用', team: '團隊', github: 'GitHub', download: '下載' },
+  nav: { features: '功能', how: '如何運作', start: '開始使用', team: '團隊', github: 'GitHub', download: '下載', changelog: '更新日誌' },
+  changelog: {
+    title: '更新日誌',
+    sub: '每個版本改了什麼——即時抓取自 GitHub Releases。',
+    back: '回官網',
+    viewOnGitHub: '在 GitHub 查看這一版',
+    loading: '載入更新資料中…',
+    error: '無法載入更新資料,請直接到 GitHub Releases 查看。',
+    latest: '最新版',
+  },
   hero: {
     eyebrow: '開源 · 免費 · 帕魯專用伺服器管理',
     h1Emph: '一鍵',
@@ -283,7 +293,16 @@ const zhCN: Dictionary = {
       'palserver GUI 是免费开源的帕鲁(Palworld)专用服务器管理工具:一键开服、内置世界地图、三套主题、80+ 世界设置、模组管理、自动备份、手机远程管理。零命令、零配置文件,免安装、下载即用。',
     ogAlt: 'palserver GUI 服务器管理总览界面',
   },
-  nav: { features: '功能', how: '工作原理', start: '开始使用', team: '团队', github: 'GitHub', download: '下载' },
+  nav: { features: '功能', how: '工作原理', start: '开始使用', team: '团队', github: 'GitHub', download: '下载', changelog: '更新日志' },
+  changelog: {
+    title: '更新日志',
+    sub: '每个版本改了什么——实时抓取自 GitHub Releases。',
+    back: '回官网',
+    viewOnGitHub: '在 GitHub 查看这一版',
+    loading: '加载更新数据中…',
+    error: '无法加载更新数据,请直接到 GitHub Releases 查看。',
+    latest: '最新版',
+  },
   hero: {
     eyebrow: '开源 · 免费 · 帕鲁专用服务器管理',
     h1Emph: '一键',
@@ -477,7 +496,16 @@ const en: Dictionary = {
       'palserver GUI is a free, open-source manager for Palworld dedicated servers: one-click hosting, a built-in world map, three themes, 80+ world settings, mod management, automatic backups, and remote control from your phone. No commands, no config files — download and run, no install.',
     ogAlt: 'palserver GUI server management overview',
   },
-  nav: { features: 'Features', how: 'How it works', start: 'Get started', team: 'Team', github: 'GitHub', download: 'Download' },
+  nav: { features: 'Features', how: 'How it works', start: 'Get started', team: 'Team', github: 'GitHub', download: 'Download', changelog: 'Changelog' },
+  changelog: {
+    title: 'Changelog',
+    sub: 'What changed in every release — pulled live from GitHub Releases.',
+    back: 'Back to site',
+    viewOnGitHub: 'View this release on GitHub',
+    loading: 'Loading releases…',
+    error: 'Could not load release data — view it on GitHub Releases instead.',
+    latest: 'Latest',
+  },
   hero: {
     eyebrow: 'Open source · Free · Palworld dedicated server manager',
     h1Emph: 'One click',
@@ -671,7 +699,16 @@ const ja: Dictionary = {
       'palserver GUI は無料・オープンソースの Palworld 専用サーバー管理ツールです。ワンクリックでサーバー起動、内蔵ワールドマップ、3 テーマ、80 以上のワールド設定、MOD 管理、自動バックアップ、スマホからの遠隔管理。コマンド不要・設定ファイル不要、インストール不要でダウンロードしてすぐ使えます。',
     ogAlt: 'palserver GUI サーバー管理の概要画面',
   },
-  nav: { features: '機能', how: '仕組み', start: '使い方', team: 'チーム', github: 'GitHub', download: 'ダウンロード' },
+  nav: { features: '機能', how: '仕組み', start: '使い方', team: 'チーム', github: 'GitHub', download: 'ダウンロード', changelog: '更新履歴' },
+  changelog: {
+    title: '更新履歴',
+    sub: '各バージョンの変更点 — GitHub Releases からリアルタイムに取得。',
+    back: 'サイトへ戻る',
+    viewOnGitHub: 'GitHub でこのリリースを見る',
+    loading: '更新情報を読み込み中…',
+    error: '更新情報を読み込めませんでした。GitHub Releases でご確認ください。',
+    latest: '最新版',
+  },
   hero: {
     eyebrow: 'オープンソース · 無料 · Palworld 専用サーバー管理',
     h1Emph: 'ワンクリック',

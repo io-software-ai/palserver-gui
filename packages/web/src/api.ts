@@ -40,11 +40,14 @@ import type {
   PdRestStatus,
   PlayerDetail,
   PresenceEvent,
+  PublicMapSettings,
+  PublicMapStatus,
   RconCommandsResponse,
   RestartPolicy,
   RestartStatus,
   AutoScanSetting,
   SaveGuild,
+  SaveBreedingSnapshot,
   SaveHealthStatus,
   SavePlayerProfile,
   SavePlayersSummary,
@@ -319,10 +322,15 @@ export class AgentClient {
     id: string,
     action: "start" | "stop" | "restart",
     announceTemplate?: string,
+    /** true = 中止進行中的倒數公告,立即執行(「立即停止」按第二下)。 */
+    immediate?: boolean,
   ): Promise<InstanceSummary> {
     return this.request(`/api/instances/${id}/${action}`, {
       method: "POST",
-      body: announceTemplate ? JSON.stringify({ announceTemplate }) : undefined,
+      body:
+        announceTemplate || immediate
+          ? JSON.stringify({ announceTemplate, immediate })
+          : undefined,
     });
   }
 
@@ -366,6 +374,11 @@ export class AgentClient {
 
   stats(id: string): Promise<InstanceStats> {
     return this.request(`/api/instances/${id}/stats`);
+  }
+
+  /** 存檔解鎖:全體玩家快速傳送全開(贊助者;需伺服器停止)。 */
+  unlockFastTravel(id: string): Promise<{ worldGuid: string; players: { file: string; ok: boolean; detail: string }[]; total: number }> {
+    return this.request(`/api/instances/${id}/save-unlocks/fast-travel`, { method: "POST", body: "{}" });
   }
 
   /** agent 啟動時自動開服(每實例)。 */
@@ -520,6 +533,24 @@ export class AgentClient {
 
   guild(id: string, guildId: string): Promise<PdGuildDetail> {
     return this.request(`/api/instances/${id}/guilds/${encodeURIComponent(guildId)}`);
+  }
+
+  /** 公開地圖目前設定 + 分享連結 + 最後一次發布結果。 */
+  publicMap(id: string): Promise<PublicMapStatus> {
+    return this.request(`/api/instances/${id}/public-map`);
+  }
+
+  /** 更新公開地圖設定(局部);回傳同 publicMap()。 */
+  updatePublicMap(id: string, settings: Partial<PublicMapSettings>): Promise<PublicMapStatus> {
+    return this.request(`/api/instances/${id}/public-map`, {
+      method: "PUT",
+      body: JSON.stringify({ settings }),
+    });
+  }
+
+  /** 撤銷舊分享連結、產生新的;回傳同 publicMap()。 */
+  rotatePublicMapLink(id: string): Promise<PublicMapStatus> {
+    return this.request(`/api/instances/${id}/public-map/rotate`, { method: "POST" });
   }
 
   palDefenderRest(id: string): Promise<PdRestStatus> {
@@ -708,6 +739,11 @@ export class AgentClient {
   playersSnapshot(id: string, worldGuid?: string): Promise<SavePlayersSummary & { worldGuid: string }> {
     const q = worldGuid ? `?worldGuid=${encodeURIComponent(worldGuid)}` : "";
     return this.request(`/api/instances/${id}/saves/players-snapshot${q}`);
+  }
+
+  breedingSnapshot(id: string, worldGuid?: string): Promise<SaveBreedingSnapshot> {
+    const q = worldGuid ? `?worldGuid=${encodeURIComponent(worldGuid)}` : "";
+    return this.request(`/api/instances/${id}/saves/breeding-snapshot${q}`);
   }
 
   /** 帕魯歸屬過戶:把共玩殘留 uid 名下的帕魯過戶給指定玩家(需停服,會先強制備份)。 */
@@ -937,6 +973,14 @@ export class AgentClient {
     const wsUrl = this.conn.url.replace(/^http/, "ws");
     return new WebSocket(
       `${wsUrl}/api/instances/${id}/logs?token=${encodeURIComponent(this.conn.token)}&source=${source}`,
+    );
+  }
+
+  // 玩家頁面即時推播(合併live/known/events/moderation)。
+  playersFeedSocket(id: string): WebSocket {
+    const wsUrl = this.conn.url.replace(/^http/, "ws");
+    return new WebSocket(
+      `${wsUrl}/api/instances/${id}/players/feed?token=${encodeURIComponent(this.conn.token)}`,
     );
   }
 }
