@@ -1,5 +1,11 @@
 # 下一版 release 草稿(尚未發布)
 
+## 頭目重生時間(贊助 feature `boss-respawn`,2026-07-18)
+- feat:新分頁「頭目重生」——安裝純伺服器端 UE4SS Lua 模組 `PalserverBossReporter`,每 15s 輪詢頭目 spawner 死活,寫 `Pal/Saved/palserver-boss-state.json`;agent 讀檔、web 拿 `bosses.json` 全 90 隻野外頭目做座標一對一配對,顯示死活 / 重生倒數(預設 60 分,實測到連續一輪後改用實測值)。玩家端不需安裝。安裝流程照 PalStatsTab(gating→ModInstallCard→清單),缺 UE4SS 自動裝標準版。
+- 對抗式審查已修 8 項:①座標配對改一對一 greedy(避免 Lyleen/Lyleen Noct 等 <60 單位鄰居誤配)②uninstall 一併刪狀態檔(防重裝復活舊時間)③實測重生間隔加觀測連續性守衛(卸載空窗不灌水)④風險警告登記進 DISMISSIBLE_WARNINGS(可從設定恢復)⑤bosses.json 載入前不顯示 counts 摘要 ⑥loadPrevState 逐物件解析、相容舊格式 ⑦三態還原 null≠已擊殺。
+- **待實機驗證(Windows 測試機 + 真玩家)**:UE4SS 安裝路徑實效、模組回報實際落檔、真玩家打頭目的活→死→活轉變、座標配對命中率(mapdata vs 實際 spawner 偏差)。目前僅 mock 三態(鎖定/未裝/已裝)playwright 截圖 + 純函式單元測試(shared 15 + agent 70 全過)。
+- 可調參數:`BOSS_MATCH_MAP_RADIUS=60`(配對半徑)、`DEFAULT_BOSS_RESPAWN_SECONDS=3600`、`CONTINUITY_SEC=45`(Lua 連續性門檻)。地城頭目(DungeonSaveData)日後可另做。
+
 ## 配種計算(PR #43 已合併 + 收尾)
 - feat:PalCalc 配種計算分頁(UCKETX,PR #43):存檔掃描全服帕魯→最短配種路線樹狀圖。
 - 已納入贊助者功能(breeding-calc);審查後修正:計算中提示真的會顯示(雙層 rAF)、改條件清舊結果、掃描輪詢斷線停止+unmount 清理、配方 2.3MB 模組級快取、機率性遺傳免責文案、EmptyState 統一、四語 README 同步。

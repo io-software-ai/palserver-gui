@@ -16,7 +16,8 @@ export const BOSS_STATE_REL = "Pal/Saved/palserver-boss-state.json";
 export const DEFAULT_BOSS_RESPAWN_SECONDS = 3600;
 /** state 距今超過這個秒數視為過時(模組每 15s 寫一次,寬限到 60s)。 */
 export const BOSS_STATE_STALE_SECONDS = 60;
-/** 世界座標轉地圖座標後,與 bosses.json 頭目配對的最大距離(地圖單位,全幅 ±1000)。 */
+/** 世界座標轉地圖座標後,與 bosses.json 頭目配對的最大距離(地圖單位;吸收 mapdata 與
+ *  實際 spawner 座標的偏差)。註:野外頭目地圖座標實測約 x∈[-1700,910]、y∈[-1980,840]。 */
 export const BOSS_MATCH_MAP_RADIUS = 60;
 
 /** 模組寫到 state 檔的一筆 spawner 狀態。 */
@@ -73,7 +74,8 @@ export function bossStateMapCoord(entry: Pick<BossStateEntry, "x" | "y">): { x: 
 
 /**
  * 在模組回報的 spawner 中,找出離地圖座標 (mapX,mapY) 最近且在半徑內的一筆。
- * 找不到回 null(= 該頭目所在區域未載入,狀態未知)。
+ * 找不到回 null。注意:單獨對每隻頭目呼叫這個會有「鄰近頭目共用同一 spawner」的誤配
+ * 問題(bosses.json 有多對頭目間距 < 半徑),需要一對一指派時請用 assignReportedBosses。
  */
 export function matchReportedBoss(
   mapX: number,
@@ -92,6 +94,37 @@ export function matchReportedBoss(
     }
   }
   return best;
+}
+
+/**
+ * 一對一最近指派:把每個回報的 spawner 指給地圖座標最近、且在半徑內的頭目;最近的配對
+ * 優先成立,配到的頭目與 spawner 都移出候選。避免鄰近頭目(bosses.json 有多對間距 < 半徑,
+ * 如 Lyleen 與 Lyleen Noct 僅約 4.5 單位)共用同一 spawner,或把「所在區域未載入」的頭目
+ * 誤標成鄰居的死活/倒數。呼叫端須先依世界(主世界 / 世界樹)分池後分別呼叫。
+ * 回傳 Map<頭目物件, 指派到的 spawner>;沒配到的頭目不在 Map 內(= 狀態未知)。
+ */
+export function assignReportedBosses<T extends { x: number; y: number }>(
+  bosses: readonly T[],
+  reported: readonly BossStateEntry[],
+  radius = BOSS_MATCH_MAP_RADIUS,
+): Map<T, BossStateEntry> {
+  const pairs: { boss: T; entry: BossStateEntry; d: number }[] = [];
+  for (const entry of reported) {
+    const m = bossStateMapCoord(entry);
+    for (const boss of bosses) {
+      const d = Math.hypot(m.x - boss.x, m.y - boss.y);
+      if (d <= radius) pairs.push({ boss, entry, d });
+    }
+  }
+  pairs.sort((a, b) => a.d - b.d);
+  const out = new Map<T, BossStateEntry>();
+  const usedEntry = new Set<BossStateEntry>();
+  for (const p of pairs) {
+    if (out.has(p.boss) || usedEntry.has(p.entry)) continue;
+    out.set(p.boss, p.entry);
+    usedEntry.add(p.entry);
+  }
+  return out;
 }
 
 export type BossLiveStatus = "alive" | "dead" | "unknown";

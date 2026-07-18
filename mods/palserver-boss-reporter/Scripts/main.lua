@@ -30,19 +30,26 @@ local function loadPrevState()
   local body = f:read("*a")
   f:close()
   local n = 0
-  for name, alive, diedAt, respawnedAt, respawnInterval in
-    body:gmatch('{"name":"(.-)","alive":(%a+),"diedAt":(-?%d+),"respawnedAt":(-?%d+),"respawnInterval":(-?%d+)') do
-    -- 三態還原:"null" → nil(未知),不可誤標為 false(已擊殺)。
-    local av
-    if alive == "true" then av = true elseif alive == "false" then av = false end
-    track[name] = {
-      alive = av,
-      diedAt = tonumber(diedAt),
-      respawnedAt = tonumber(respawnedAt),
-      respawnInterval = tonumber(respawnInterval),
-      lastSeen = 0,
-    }
-    n = n + 1
+  -- 逐一物件解析(每筆 spawner 是無巢狀的 {...});逐欄位抓,舊版無 respawnInterval 也不整批失敗。
+  for obj in body:gmatch('{"name".-}') do
+    local name = obj:match('"name":"(.-)"')
+    if name then
+      local alive = obj:match('"alive":(%a+)')
+      local diedAt = obj:match('"diedAt":(-?%d+)')
+      local respawnedAt = obj:match('"respawnedAt":(-?%d+)')
+      local respawnInterval = obj:match('"respawnInterval":(-?%d+)')  -- 舊格式沒有 → nil
+      -- 三態還原:"null" → nil(未知),不可誤標為 false(已擊殺)。
+      local av
+      if alive == "true" then av = true elseif alive == "false" then av = false end
+      track[name] = {
+        alive = av,
+        diedAt = tonumber(diedAt) or -1,
+        respawnedAt = tonumber(respawnedAt) or -1,
+        respawnInterval = tonumber(respawnInterval) or -1,
+        lastSeen = 0,
+      }
+      n = n + 1
+    end
   end
   log("restored " .. n .. " tracked spawners from previous state")
 end

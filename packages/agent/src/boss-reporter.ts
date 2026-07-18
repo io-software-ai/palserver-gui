@@ -158,4 +158,6 @@ export async function removeBossReporter(rec: InstanceRecord, ctx: DriverContext
     await runtimeWriteText(rec, ctx, modsTxtRel, filtered);
   }
   await runtimeRemove(rec, ctx, BOSS_MARKER_REL).catch(() => {});
+  // 一併清掉狀態檔,否則日後重裝時 Lua 的 loadPrevState 會把過期的死亡時間/倒數復活。
+  await runtimeRemove(rec, ctx, BOSS_STATE_REL).catch(() => {});
 }

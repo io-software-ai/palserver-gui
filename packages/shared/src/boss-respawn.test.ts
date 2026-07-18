@@ -5,6 +5,7 @@ import {
   bossStateMapCoord,
   isBossStateStale,
   matchReportedBoss,
+  assignReportedBosses,
   DEFAULT_BOSS_RESPAWN_SECONDS,
   BOSS_MATCH_MAP_RADIUS,
   type BossStateEntry,
@@ -112,6 +113,28 @@ test("matchReportedBoss:世界樹 spawner 對到自身的世界樹地圖座標",
   const treeSpawner = entry({ name: "tree", x: 520440, y: -727175 });
   const m = bossStateMapCoord(treeSpawner);
   assert.equal(matchReportedBoss(m.x, m.y, [treeSpawner]), treeSpawner);
+});
+
+test("assignReportedBosses:一對一,鄰近頭目不共用 spawner(未載入者維持未知)", () => {
+  // Lyleen / Lyleen Noct 型:兩頭目僅 4.5 地圖單位,只有一隻的 spawner 被回報。
+  const A = { x: 100, y: 100 };
+  const B = { x: 104.5, y: 100 };
+  const spawnerAtA = entry({ name: "sp", alive: true, x: -77988, y: 203900 }); // 地圖 (100,100)
+  const m = bossStateMapCoord(spawnerAtA);
+  assert.ok(Math.abs(m.x - 100) < 1e-6 && Math.abs(m.y - 100) < 1e-6, "spawner 應落在 (100,100)");
+  const assigned = assignReportedBosses([A, B], [spawnerAtA]);
+  assert.equal(assigned.get(A), spawnerAtA, "最近的 A 拿到 spawner");
+  assert.equal(assigned.has(B), false, "B 未配到 → 狀態未知(不被鄰居冒充)");
+});
+
+test("assignReportedBosses:兩 spawner 兩頭目各自最近配對(不交叉)", () => {
+  const A = { x: 0, y: 0 };
+  const B = { x: 500, y: 0 };
+  const spA = entry({ name: "a", x: -123888, y: 158000 }); // 地圖 (0,0)
+  const spB = entry({ name: "b", x: -123888, y: 158000 + 500 * 459 }); // 地圖 (500,0)
+  const assigned = assignReportedBosses([A, B], [spB, spA]); // 故意亂序
+  assert.equal(assigned.get(A), spA);
+  assert.equal(assigned.get(B), spB);
 });
 
 test("依世界分池(isWorldTreeCoord)後,主世界/世界樹 spawner 各歸各池——防 ±1000 撞號誤配", () => {

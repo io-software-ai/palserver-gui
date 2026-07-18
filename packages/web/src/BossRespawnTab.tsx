@@ -4,7 +4,7 @@ import { GiBossKey, GiCrossedSwords, GiDeathSkull } from "react-icons/gi";
 import {
   hasFeature,
   isWorldTreeCoord,
-  matchReportedBoss,
+  assignReportedBosses,
   bossRespawnInfo,
   type BossRespawnStatus,
   type BossStateEntry,
@@ -139,9 +139,17 @@ export function BossRespawnTab({
   }
   const rows = useMemo<Row[]>(() => {
     if (!bosses) return [];
+    // 一對一指派(依世界分池),避免鄰近頭目共用同一 spawner 或把未載入頭目誤標成鄰居狀態。
+    const mainAssign = assignReportedBosses(
+      bosses.filter((b) => b.world !== "tree"),
+      mainReported,
+    );
+    const treeAssign = assignReportedBosses(
+      bosses.filter((b) => b.world === "tree"),
+      treeReported,
+    );
     return bosses.map((boss) => {
-      const pool = boss.world === "tree" ? treeReported : mainReported;
-      const matched = matchReportedBoss(boss.x, boss.y, pool);
+      const matched = (boss.world === "tree" ? treeAssign : mainAssign).get(boss) ?? null;
       const info = bossRespawnInfo(matched, now);
       // 排序:重生倒數中(最快先) < 存活 < 已擊殺但無倒數 < 未知
       const sortKey =
