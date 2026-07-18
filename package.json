@@ -15,6 +15,7 @@
     "dev:web": "pnpm build:shared && pnpm --filter @palserver/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm build:shared && pnpm -r typecheck",
+    "test": "pnpm build:shared && pnpm -r --if-present test",
     "bundle:agent": "pnpm build:shared && pnpm --filter @palserver/agent build && node scripts/bundle-agent.mjs",
     "release:exe": "pnpm build:shared && pnpm --filter @palserver/web build && pnpm bundle:agent && node scripts/build-sea.mjs"
   },

@@ -4,18 +4,11 @@ import fs from "node:fs";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import Fastify from "fastify";
-import cors from "@fastify/cors";
-import websocket from "@fastify/websocket";
-import fastifyStatic from "@fastify/static";
-import { ZodError } from "zod";
 import { detectVpn } from "@palserver/shared";
-import { DATA_DIR, HOST, PORT, AGENT_VERSION, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER, IS_PORTABLE_EXE } from "./env.js";
+import { DATA_DIR, HOST, PORT, AGENT_VERSION, REQUIRE_TOKEN, TLS_ENABLED, OPEN_BROWSER, IS_PORTABLE_EXE } from "./env.js";
 import {
   loadOrCreateToken,
   loadOrCreatePairingCode,
-  makeAuthHook,
-  isLoopback,
   type AuthContext,
 } from "./auth.js";
 import { loadOrCreateTlsCert } from "./tls.js";
@@ -29,6 +22,7 @@ import { isInstalling, nativeDriver } from "./native.js";
 import { dockerDriver } from "./docker.js";
 import { k8sDriver } from "./k8s.js";
 import { registerRoutes } from "./routes.js";
+import { createApp } from "./app.js";
 import { startAutoScanLoop } from "./save-tools.js";
 import { activeWorldGuidAsync } from "./saves.js";
 import { announceBoot, trackPlayers } from "./telemetry.js";
@@ -68,13 +62,6 @@ if (
 
 const tls = TLS_ENABLED ? await loadOrCreateTlsCert() : null;
 const scheme = tls ? "https" : "http";
-const app = Fastify({
-  // 只留警告與錯誤 —— 一般啟動與每次 API 請求的 JSON log 對雙擊使用的玩家是雜訊,
-  // 乾淨的啟動說明改由 printStartupBanner() 印出。出問題時 warn/error 仍會顯示。
-  logger: { level: "warn" },
-  bodyLimit: 1024 * 1024 * 1024,
-  ...(tls ? { https: { key: tls.key, cert: tls.cert } } : {}),
-});
 const token = loadOrCreateToken();
 const pairingCode = loadOrCreatePairingCode();
 const auth: AuthContext = { token, pairingCode, requireToken: REQUIRE_TOKEN };
@@ -83,70 +70,20 @@ const store = new InstanceStore();
 // 上次自我更新換下來的舊執行檔(Windows 當下刪不掉)現在可以清了。
 cleanupOldBinaries();
 
-// File uploads stream straight to disk (see PUT /files/upload), so hand the
-// raw request through instead of buffering it into a body.
-app.addContentTypeParser("application/octet-stream", (_req, _payload, done) => done(null, undefined));
-
-// CORS 白名單:同源(合一版,通常不送 Origin)、本機各埠(含 dev server)、以及
-// 設定允許的公開 web 站。跨源資料仍受 token/loopback 保護,收緊再擋一層。
-await app.register(cors, {
-  origin(origin, cb) {
-    if (!origin) return cb(null, true); // same-origin / 非瀏覽器 / 原生 app
-    let host = "";
-    try {
-      host = new URL(origin).hostname;
-    } catch {
-      return cb(null, false);
-    }
-    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return cb(null, true);
-    if (WEB_ORIGINS.includes(origin)) return cb(null, true);
-    cb(null, false);
-  },
-});
-await app.register(websocket);
-
-// Serve the built web UI when present.
 const webDist = resolveWebDist();
-if (webDist) {
-  await app.register(fastifyStatic, {
-    root: webDist,
-    // index.html 不可快取,agent 更新後玩家瀏覽器才會立刻拿到新前端;
-    // vite 產出的 JS/CSS 檔名帶雜湊,可交給瀏覽器長快取(靠 etag 重新驗證)。
-    setHeaders: (res, filePath) => {
-      if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache");
-    },
-  });
-  // SPA fallback:前端有自己的路由(例如 /map 全螢幕地圖),直接打這種網址時
-  // 靜態檔找不到 —— 回 index.html 讓前端接手,不要 404。API 與非 GET 照舊 404。
-  app.setNotFoundHandler((req, reply) => {
-    if (req.method !== "GET" || req.url.startsWith("/api/")) {
-      reply.code(404).send({ error: "Not found" });
-      return;
-    }
-    reply.header("Cache-Control", "no-cache");
-    return reply.sendFile("index.html");
-  });
-}
 
-app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
-  if (err instanceof ZodError) {
-    reply.code(400).send({ error: err.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; ") });
-    return;
-  }
-  const status = err.statusCode ?? 500;
-  if (status >= 500) app.log.error(err);
-  reply.code(status).send({ error: err.message });
-});
-
-app.addHook("onRequest", async (req, reply) => {
-  if (!req.url.startsWith("/api/")) return;
-  const routePath = req.url.split("?")[0];
-  // 公開端點:偵測 agent(/api/info)與配對換發 token(/api/pair)本身不需授權。
-  if (routePath === "/api/info" || routePath === "/api/pair") return;
-  // 本機(loopback)免驗證,單機自用零摩擦;PALSERVER_REQUIRE_TOKEN=1 可關閉。
-  if (!REQUIRE_TOKEN && isLoopback(req.ip)) return;
-  await makeAuthHook(token)(req, reply);
-});
+// 自我更新會整個換掉執行檔並重啟行程。遊戲伺服器是 detached 生成的、不受影響,
+// 但 DepotDownloader 是 agent 的子行程 —— 安裝到一半重啟會把它砍掉。
+// (updateOps 需 app.close,但 app 還沒建好;先建殼,app 建構後補上。)
+let app: Awaited<ReturnType<typeof createApp>>;
+const updateOps: UpdateOps = {
+  canApply: () =>
+    store.list().some((rec) => isInstalling(rec.id))
+      ? "有伺服器正在安裝檔案,請等安裝完成再更新"
+      : null,
+  onRestart: () => app.close(),
+  log: (msg) => app.log.info(`[update] ${msg}`),
+};
 
 // Warm the Steam version cache so the first instance listing already knows
 // whether an update is available (it only ever reads the cache).
@@ -191,16 +128,17 @@ startAutoScanLoop({
 
 // 自我更新會整個換掉執行檔並重啟行程。遊戲伺服器是 detached 生成的、不受影響,
 // 但 DepotDownloader 是 agent 的子行程 —— 安裝到一半重啟會把它砍掉。
-const updateOps: UpdateOps = {
-  canApply: () =>
-    store.list().some((rec) => isInstalling(rec.id))
-      ? "有伺服器正在安裝檔案,請等安裝完成再更新"
-      : null,
-  onRestart: () => app.close(),
-  log: (msg) => app.log.info(`[update] ${msg}`),
-};
-
-registerRoutes(app, store, presence, scheduler, supervisor, publicMap, auth, updateOps);
+app = await createApp({
+  store,
+  presence,
+  scheduler,
+  supervisor,
+  publicMap,
+  auth,
+  updateOps,
+  tls,
+  webDist,
+});
 
 await app.listen({ host: HOST, port: PORT });
 

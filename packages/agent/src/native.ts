@@ -11,6 +11,7 @@ import { renderPalWorldSettingsIni, diffIniAgainstSnapshot } from "./settings-in
 import { mergeEnginePatch } from "./engine-ini-merge.js";
 import { rest } from "./restapi.js";
 import { DATA_DIR } from "./env.js";
+import { serverPlatform } from "./platform.js";
 
 const execFileP = promisify(execFile);
 
@@ -342,7 +343,9 @@ function runDepotDownloader(
   onLine: (line: string) => void,
   onProgress?: (percent: number) => void,
 ): Promise<void> {
-  const osFlag = IS_WIN ? "windows" : "linux";
+  // native 反映真實 host OS(006 回歸):既有 Linux native 實例仍抓 Linux depot。
+  // 新建 Linux native 由 routes.ts create instance gate 擋住,不在此處。
+  const osFlag = process.platform === "win32" ? "windows" : "linux";
   return new Promise<void>((resolve, reject) => {
     let sawDiskFull = false;
     let sawLocked = false;
@@ -791,7 +794,10 @@ async function autoEnhance(
   ctx: DriverContext,
   log: (line: string) => void,
 ): Promise<void> {
-  if (rec.flavor !== "modded" || !IS_WIN) return;
+  // modded 強化(UE4SS/PalDefender)只在 Windows server binary 上做。
+  // serverPlatform(native) 反映真實 host OS(006 回歸);既有 Linux native 實例
+  // 回 linux → 不嘗試裝 Windows DLL。新建 Linux native 由 routes.ts create gate 擋。
+  if (rec.flavor !== "modded" || serverPlatform(rec) !== "windows") return;
   const mods = await import("./mods.js");
   for (const component of ["ue4ss", "paldefender"] as const) {
     try {
@@ -1037,9 +1043,10 @@ export const nativeDriver: ServerDriver = {
 const gameLogFile = (ctx: DriverContext) => path.join(ctx.instanceDir, "game.log");
 
 /** 真正的遊戲執行檔(不是 launcher)。它的 stdout 才是遊戲日誌;PalServer.exe 只是
- *  轉手再開一個帶自己 console 的子行程,那個 console 的輸出我們接不到。 */
+ *  轉手再開一個帶自己 console 的子行程,那個 console 的輸出我們接不到。
+ *  006 回歸:既有 Linux native 實例需 Linux shipping 路徑。 */
 const shippingExe = (root: string): string =>
-  IS_WIN
+  process.platform === "win32"
     ? path.join(root, "Pal", "Binaries", "Win64", "PalServer-Win64-Shipping-Cmd.exe")
     : path.join(root, "Pal", "Binaries", "Linux", "PalServer-Linux-Shipping");
 

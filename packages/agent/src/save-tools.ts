@@ -60,6 +60,7 @@ export function palsavAssetName(rec: InstanceRecord): string | null {
   // 容器後端:轉換器在容器內執行(amd64 映像),與 agent 主機的架構無關。
   if (rec.backend !== "native") return rec.runtime === "wine" ? "palsav-win-x64.exe" : "palsav-linux-x64";
   // native:二進位直接跑在主機上,才需要看主機架構/平台。
+  // 006 回歸:既有 Linux native 實例仍需 Linux palsav。
   if (process.arch !== "x64") return null;
   if (process.platform === "win32") return "palsav-win-x64.exe";
   if (process.platform === "linux") return "palsav-linux-x64";
@@ -72,7 +73,7 @@ export function saveHealthSupport(rec: InstanceRecord): { supported: boolean; re
     return {
       supported: false,
       reason: rec.backend === "native"
-        ? `存檔健檢需要 Windows 或 Linux x64 主機(目前:${process.platform}/${process.arch})`
+        ? `存檔健檢需要 x64 主機(目前:${process.platform}/${process.arch})`
         : `容器健檢需要 x64 容器工具(目前:${process.arch},runtime:${rec.runtime ?? "native"})`,
     };
   }
@@ -588,7 +589,15 @@ async function runJob(rec: InstanceRecord, ctx: DriverContext, worldGuid: string
       // backup/world is maintained independently by the backup scheduler and
       // is not part of the world-health input; excluding it also prevents a
       // concurrent backup write from invalidating the read-only snapshot.
-      fs.writeFileSync(archive, await tarDirInPod(rec, `Pal/Saved/SaveGames/0/${worldGuid}`, ["./backup"]));
+      const buf = await tarDirInPod(rec, `Pal/Saved/SaveGames/0/${worldGuid}`, ["./backup"]).catch(
+        (e: unknown) => {
+          throw fail(
+            `健檢下載世界失敗:${e instanceof Error ? e.message : String(e)}`,
+            500,
+          );
+        },
+      );
+      fs.writeFileSync(archive, buf);
       await execFileP("tar", ["-xzf", archive, "-C", worldDir], { windowsHide: true });
     } else {
       worldDir = worldDirOf(rec, ctx, worldGuid);

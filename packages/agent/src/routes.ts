@@ -54,6 +54,7 @@ import { k8sDriver } from "./k8s.js";
 import { SERVER_LAUNCHER, classifyServerDir, detectManualIniEdits, installProgressOf, isInstalling, lastInstallError, moveServerFiles, nativeDriver, serverRoot, updateServer, writeWorldIni } from "./native.js";
 import { cachedVersionSummary, getVersionStatus } from "./version.js";
 import { getConnectionInfo } from "./connectivity.js";
+import { computeAvailableBackends, DockerDetector } from "./backend-availability.js";
 import { getModsStatus, installComponent, latestModVersions, setModEnabled, installedEnhancements, removeComponent, setLuaModEnabled } from "./mods.js";
 import { checkPorts, udpPortFree } from "./port-check.js";
 import { runtimePortFree } from "./runtime-port-check.js";
@@ -306,13 +307,17 @@ export function registerRoutes(
   };
 
   app.get("/api/info", async (req): Promise<AgentInfo> => {
-    const dockerVersion = await dockerOps.docker
-      .version()
-      .then((v) => v.Version)
-      .catch(() => "unavailable");
+    // 共用 DockerDetector 探測 — dockerVersion 欄位與 availableBackends 內 docker 偵測
+    // 用同一個 docker.version() 呼叫,避免同一請求內兩次往返(review HIGH-1)。
+    const dockerDetector = new DockerDetector();
+    const dockerVersion = (await dockerDetector.detectVersion()) ?? "unavailable";
     // 公開端點,但一併回報此請求的授權狀態,讓前端判斷要直接進還是引導配對。
     const authenticated =
       (!auth.requireToken && isLoopback(req.ip)) || tokenMatches(extractToken(req), auth.token);
+    // availableBackends 改用 backend-availability 的偵測(單 method 介面 + Windows k8s 政策
+    // gate + k8s cheap-only:kubeconfig 存在即可,連通留給 driver)。
+    // 注入已探測過 docker 的 detector,避免重複 docker.version() 往返。
+    const availableBackends = await computeAvailableBackends({ docker: dockerDetector });
     return {
       name: "palserver-agent",
       version: AGENT_VERSION,
@@ -320,12 +325,7 @@ export function registerRoutes(
       instanceCount: store.list().length,
       authenticated,
       platform: process.platform,
-      // docker 在 Unix 系統（Linux/macOS）提供；Windows WSL2 的 UDP 不可靠，
-      // 不能跑遊戲伺服器。所有平台都可管理遠端 k8s 實例。
-      availableBackends:
-        process.platform !== "win32" && dockerVersion !== "unavailable"
-          ? ["native", "docker", "k8s"]
-          : ["native", "k8s"],
+      availableBackends,
     };
   });
 
@@ -541,6 +541,12 @@ export function registerRoutes(
     const input = CreateInstanceSchema.parse(req.body);
     if (store.findByName(input.name)) {
       return reply.code(409).send({ error: `instance "${input.name}" already exists` });
+    }
+    // backend 須在 availableBackends 內(與 /api/info 同來源;backend-availability 偵測 +
+    // Windows k8s 政策 gate + k8s cheap-only)。
+    const available = await computeAvailableBackends();
+    if (!available.includes(input.backend)) {
+      return reply.code(400).send({ error: `backend "${input.backend}" 在這台 agent 不可用;可選:${available.join(", ") || "(無)"}` });
     }
     // 所有 backend 統一 port 衝突檢測：外部連線需 1:1 映射正確，每實例 port 唯一。
     // 跨欄位檢查:遊戲埠與各實例查詢埠同為 UDP,撞到一樣 bind 不起來。

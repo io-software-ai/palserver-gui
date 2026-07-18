@@ -492,6 +492,9 @@ export async function createBackup(
   rec: InstanceRecord,
   ctx: DriverContext,
   worldGuid: string,
+  /** 測試注入點:覆寫 tarDirInPod(ESM live-binding 不可 mock,見 saves.test.ts)。
+   *  生產呼叫端不傳,走模組 import 的預設實作。 */
+  tarOverride?: (rec: InstanceRecord, relPath: string, excludes?: string[]) => Promise<Buffer>,
 ): Promise<BackupInfo> {
   assertWorldGuid(worldGuid);
   requireFileCapable(rec);
@@ -506,8 +509,14 @@ export async function createBackup(
     // must be running for exec to reach a Pod — the caller (scheduler / route)
     // already ensures that, and flushWorld best-effort asks it to save first.
     const worldRel = `${K8S_SAVEGAMES_REL}/${worldGuid}`;
-    const buf = await tarDirInPod(rec, worldRel).catch(() => {
-      throw fail(`找不到世界存檔 ${worldGuid}`, 404);
+    const tar = tarOverride ?? tarDirInPod;
+    const buf = await tar(rec, worldRel).catch((e: unknown) => {
+      // 訊息不加「備份失敗:」前綴;讓 backup-scheduler.ts 的「失敗:」前綴獨占,
+      // 避免「失敗:備份失敗:...」冗餘。
+      throw fail(
+        e instanceof Error ? e.message : String(e),
+        500,
+      );
     });
     fs.writeFileSync(archive, buf);
   } else {
@@ -663,7 +672,14 @@ export async function mirrorWorld(
     // k8s↔k8s：透過 exec tar pipe（src Pod → stdout → dst Pod stdin）
     const srcSavePath = `/palworld/${K8S_SAVEGAMES_REL}`;
     const dstSavePath = `/palworld/${K8S_SAVEGAMES_REL}`;
-    const archive = await tarDirInPod(srcRec, `${K8S_SAVEGAMES_REL}/0/${srcGuid}`);
+    const archive = await tarDirInPod(srcRec, `${K8S_SAVEGAMES_REL}/0/${srcGuid}`).catch(
+      (e: unknown) => {
+        throw fail(
+          `鏡像來源世界打包失敗:${e instanceof Error ? e.message : String(e)}`,
+          500,
+        );
+      },
+    );
     await untarIntoPod(dstRec, K8S_SAVEGAMES_REL, archive);
 
     // INI 也複製

@@ -142,7 +142,13 @@ async function execBuffer(rec: InstanceRecord, command: string[], input?: Uint8A
         false,
         (status) => {
           const error = Buffer.concat(stderrChunks).toString("utf8");
-          if (status.status === "Failure" || error) {
+          // TD-2(004 反方限縮版):只在 status 物件存在且明確 Failure 才以此為由 reject。
+          // stderr 非空但 status=Success 時不再 reject(tar 等 warning 不該誤判失敗)。
+          // 但 status 為 null/undefined(串流中斷、Pod 無工具等異常)時仍走原保守後備
+          // (|| error),避免 silent return 空 buffer 的回歸風險。
+          const statusFailure = status?.status === "Failure";
+          const statusUnknown = !status || status.status === undefined;
+          if (statusFailure || (statusUnknown && error)) {
             let statusText = "unknown";
             try {
               statusText = JSON.stringify(status);

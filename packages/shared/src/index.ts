@@ -1116,8 +1116,17 @@ export interface AgentInfo {
   /** agent 所在主機平台(process.platform:darwin / win32 / linux)。前端用來提示 macOS 限制。 */
   platform: string;
   /** 此平台可用的 backend 清單。前端依此動態顯示/隱藏 backend 選項。
-   * Windows 只支援 native（Docker Desktop UDP 不可靠）；
-   * Linux 支援 native/docker/k8s；macOS 只支援 native（無 Palworld server binary）。 */
+   *
+   * 目標方向(實作見後續工作,非當前 code 行為):
+   *   - availableBackends 應描述伺服器端能力(每個 backend 需要的資源是否可用),
+   *     不依賴 agent OS。
+   *   - Windows:只提供 native(WSL2 UDP 失效,不支援 docker/k8s)。
+   *   - Linux:提供 docker(Wine 模組容器)+ k8s(叢集);不提供 native
+   *     (Linux 伺服器直接套 Wine 在 native 上部署不在 GUI 範圍)。
+   *   - macOS:docker/k8s 可能提供但不保證可用(Docker Desktop UDP 限制、
+   *     無原生 Palworld server binary)。
+   *
+   * 當前 code 仍以 process.platform 決定,重整見後續工作。 */
   availableBackends: Backend[];
 }
 

@@ -11,6 +11,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/*.test.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {

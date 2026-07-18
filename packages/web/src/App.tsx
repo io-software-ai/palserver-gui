@@ -577,7 +577,9 @@ function CreateDialog({
 }) {
   const { t } = useI18n();
   const [name, setName] = useState("");
-  const [backend, setBackend] = useState<"native" | "docker" | "k8s">("native");
+  // TD-7(004):initial 用 null,避免 Linux/macOS 上首次 paint 顯示 native(微閃)。
+  // availableBackends 載入後 useEffect 會 setBackend(availableBackends[0])。
+  const [backend, setBackend] = useState<"native" | "docker" | "k8s" | null>(null);
   const [serverDir, setServerDir] = useState("");
   const [gamePort, setGamePort] = useState(""); // 空 = 自動分配
   const [maxPlayers, setMaxPlayers] = useState(32);
@@ -590,7 +592,7 @@ function CreateDialog({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [platform, setPlatform] = useState<string | null>(null);
-  const [availableBackends, setAvailableBackends] = useState<Backend[]>(["native"]);
+  const [availableBackends, setAvailableBackends] = useState<Backend[]>([]);
   const [advancedMode, setAdvancedMode] = useState(false);
   // 精靈三步:0 基本資料 → 1 玩法 → 2 模組;新手不需要理解埠/後端,進階都收在摺疊裡
   const [step, setStep] = useState(0);
@@ -607,8 +609,11 @@ function CreateDialog({
       setPlatform(i.platform);
       if (i.availableBackends && i.availableBackends.length > 0) {
         setAvailableBackends(i.availableBackends);
-        if (!i.availableBackends.includes(backend)) {
-          setBackend("native");
+        // 現有 backend 不在新清單內 → 改選清單第一個可用 backend(不再硬寫 "native" —
+        // native 已是 Windows 專屬,Linux/macOS agent 不提供,Linux 用戶開 dialog 不改
+        // 選項會被舊邏輯錯誤地推到 native 然後送出 400)。
+        if (!i.availableBackends.includes(backend as "native" | "docker" | "k8s")) {
+          setBackend(i.availableBackends[0]);
         }
       }
     }).catch(() => {});
@@ -621,7 +626,7 @@ function CreateDialog({
       const presetValues = WORLD_PRESETS.find((x) => x.id === preset)?.values ?? {};
       const created = await client.createInstance({
         name,
-        backend,
+        backend: backend ?? availableBackends[0] ?? "native",
         // 強化 = 啟動安裝完伺服器檔案後,自動裝 UE4SS + PalDefender(agent 端 autoEnhance)
         flavor: enhanced ? "modded" : "vanilla",
         gamePort: gamePort.trim() === "" ? undefined : Number(gamePort),
@@ -747,7 +752,9 @@ function CreateDialog({
               <div className="mt-2 flex flex-col gap-3">
                 <label className={labelCls}>
                   {t("運行方式")}
-                  <Select value={backend} onChange={(e) => setBackend(e.target.value as "native" | "docker" | "k8s")}>
+                  <Select value={backend ?? ""} onChange={(e) => setBackend(e.target.value as "native" | "docker" | "k8s")}>
+                    {/* TD-7(004):backend=null 時 placeholder option;availableBackends 載入後 useEffect 切到實際值 */}
+                    {!backend && <option value="" disabled>{t("載入中…")}</option>}
                     <option value="native" disabled={!availableBackends.includes("native")}>{t("原生(直接在這台主機上運行,推薦)")}</option>
                     <option
                       value="docker"
@@ -1004,7 +1011,7 @@ function CreateDialog({
               {t("下一步")}
             </button>
           ) : (
-            <button type="button" className={btn} onClick={() => void submit()} disabled={busy || k8sIncomplete || !name.trim()}>
+            <button type="button" className={btn} onClick={() => void submit()} disabled={busy || k8sIncomplete || !name.trim() || !backend}>
               {busy ? t(importWorld ? "建立並匯入中…" : "建立中…") : t(importWorld ? "建立並匯入" : "建立")}
             </button>
           )}
