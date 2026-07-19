@@ -223,6 +223,8 @@ export interface MessageBridgeConfig {
     channelId: string;
     adminIds: string[];
     language: MessageBridgeLanguage;
+    proxyEnabled: boolean;
+    proxyUrlSet: boolean;
     tokenSet: boolean;
   };
   telegram: MessageBridgeRules & {
@@ -246,7 +248,7 @@ export interface MessageBridgeConfig {
 /** Secrets are write-only. Omit or send an empty string to preserve the saved value. */
 export interface MessageBridgePatch {
   onebot?: Partial<MessageBridgeRules> & { added?: boolean; enabled?: boolean; wsUrl?: string; groupId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; accessToken?: string };
-  discord?: Partial<MessageBridgeRules> & { added?: boolean; enabled?: boolean; channelId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; token?: string };
+  discord?: Partial<MessageBridgeRules> & { added?: boolean; enabled?: boolean; channelId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; proxyEnabled?: boolean; proxyUrl?: string; token?: string };
   telegram?: Partial<MessageBridgeRules> & { added?: boolean; enabled?: boolean; chatId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; token?: string };
   webhook?: Partial<MessageBridgeRules> & { added?: boolean; enabled?: boolean; url?: string; adminIds?: string[]; language?: MessageBridgeLanguage; secret?: string };
 }

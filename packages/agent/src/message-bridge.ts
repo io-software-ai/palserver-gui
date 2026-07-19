@@ -1,6 +1,10 @@
 import fs from "node:fs";
+import https from "node:https";
+import type { Agent as HttpAgent } from "node:http";
 import path from "node:path";
 import WebSocket from "ws";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { SocksProxyAgent } from "socks-proxy-agent";
 import { localizePalName } from "@palserver/shared";
 import type { MessageBridgeConfig, MessageBridgeLanguage, MessageBridgePatch, MessageBridgePlatform, MessageBridgeRules, MessageBridgeStatus } from "@palserver/shared";
 import type { ServerDriver } from "./driver.js";
@@ -15,7 +19,7 @@ const RECONNECT_MS = 5_000;
 
 interface StoredBridgeConfig {
   onebot: MessageBridgeRules & { added: boolean; enabled: boolean; wsUrl: string; groupId: string; adminIds: string[]; language: MessageBridgeLanguage; accessToken: string };
-  discord: MessageBridgeRules & { added: boolean; enabled: boolean; channelId: string; adminIds: string[]; language: MessageBridgeLanguage; token: string };
+  discord: MessageBridgeRules & { added: boolean; enabled: boolean; channelId: string; adminIds: string[]; language: MessageBridgeLanguage; proxyEnabled: boolean; proxyUrl: string; token: string };
   telegram: MessageBridgeRules & { added: boolean; enabled: boolean; chatId: string; adminIds: string[]; language: MessageBridgeLanguage; token: string };
   webhook: MessageBridgeRules & { added: boolean; enabled: boolean; url: string; adminIds: string[]; language: MessageBridgeLanguage; secret: string };
 }
@@ -51,7 +55,7 @@ const defaultRules = (): MessageBridgeRules => ({
 
 const defaults = (): StoredBridgeConfig => ({
   onebot: { ...defaultRules(), added: false, enabled: false, wsUrl: "ws://127.0.0.1:3001", groupId: "", adminIds: [], language: "zh-CN", accessToken: "" },
-  discord: { ...defaultRules(), added: false, enabled: false, channelId: "", adminIds: [], language: "zh-CN", token: "" },
+  discord: { ...defaultRules(), added: false, enabled: false, channelId: "", adminIds: [], language: "zh-CN", proxyEnabled: false, proxyUrl: "", token: "" },
   telegram: { ...defaultRules(), added: false, enabled: false, chatId: "", adminIds: [], language: "zh-CN", token: "" },
   webhook: { ...defaultRules(), added: false, enabled: false, url: "", adminIds: [], language: "zh-CN", secret: "" },
 });
@@ -99,6 +103,8 @@ function mergeStored(raw: LegacyBridgeConfig | null): StoredBridgeConfig {
       enabled: legacyDisabled ? false : raw.discord?.enabled ?? d.discord.enabled,
       adminIds: cleanAdminIds(raw.discord?.adminIds),
       language: cleanLanguage(raw.discord?.language),
+      proxyEnabled: raw.discord?.proxyEnabled === true,
+      proxyUrl: raw.discord?.proxyEnabled === true ? normalizeDiscordProxyUrl(raw.discord?.proxyUrl ?? "") : cleanText(raw.discord?.proxyUrl, 1000),
     },
     telegram: {
       ...d.telegram, ...raw.telegram, ...resolveMessageBridgeRules(raw.telegram, raw),
@@ -293,6 +299,23 @@ class OneBotAdapter extends ReconnectingAdapter {
   }
 }
 
+export function normalizeDiscordProxyUrl(value: string): string {
+  const raw = cleanText(value, 1000);
+  if (!raw) throw new Error("请填写 Discord 代理地址");
+  let url: URL;
+  try { url = new URL(raw.includes("://") ? raw : `http://${raw}`); }
+  catch { throw new Error("Discord 代理地址格式无效"); }
+  if (!["http:", "https:", "socks:", "socks4:", "socks4a:", "socks5:", "socks5h:"].includes(url.protocol) || !url.hostname || !url.port) {
+    throw new Error("Discord 代理需使用 HTTP、HTTPS、SOCKS4 或 SOCKS5 地址并包含端口");
+  }
+  return url.toString();
+}
+
+function discordProxyAgent(proxyUrl: string): HttpAgent {
+  const normalized = normalizeDiscordProxyUrl(proxyUrl);
+  return normalized.startsWith("socks") ? new SocksProxyAgent(normalized) : new HttpsProxyAgent(normalized);
+}
+
 class DiscordAdapter extends ReconnectingAdapter {
   platform = "discord" as const;
   get language(): MessageBridgeLanguage { return this.config.language; }
@@ -300,10 +323,14 @@ class DiscordAdapter extends ReconnectingAdapter {
   private heartbeat: NodeJS.Timeout | null = null;
   private sequence: number | null = null;
   private botId = "";
-  constructor(private config: StoredBridgeConfig["discord"], onMessage: (m: IncomingMessage) => void, onState: (c: boolean, e?: string) => void) { super(onMessage, onState); }
+  private readonly networkAgent: HttpAgent | undefined;
+  constructor(private config: StoredBridgeConfig["discord"], onMessage: (m: IncomingMessage) => void, onState: (c: boolean, e?: string) => void) {
+    super(onMessage, onState);
+    this.networkAgent = config.proxyEnabled ? discordProxyAgent(config.proxyUrl) : undefined;
+  }
   protected async connect(): Promise<void> {
     try {
-      const socket = new WebSocket("wss://gateway.discord.gg/?v=10&encoding=json");
+      const socket = new WebSocket("wss://gateway.discord.gg/?v=10&encoding=json", { agent: this.networkAgent });
       this.socket = socket;
       socket.on("message", (data) => this.handleFrame(data.toString()));
       socket.on("close", () => {
@@ -339,11 +366,21 @@ class DiscordAdapter extends ReconnectingAdapter {
     this.socket = null;
   }
   async send(text: string): Promise<void> {
-    const response = await fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(this.config.channelId)}/messages`, {
-      method: "POST", headers: { Authorization: `Bot ${this.config.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ content: text.slice(0, 2000), allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    const body = JSON.stringify({ content: text.slice(0, 2000), allowed_mentions: { parse: [] } });
+    const status = await new Promise<number>((resolve, reject) => {
+      const request = https.request(`https://discord.com/api/v10/channels/${encodeURIComponent(this.config.channelId)}/messages`, {
+        method: "POST",
+        agent: this.networkAgent,
+        headers: { Authorization: `Bot ${this.config.token}`, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      }, (response) => {
+        response.resume();
+        response.on("end", () => resolve(response.statusCode ?? 0));
+      });
+      request.on("error", reject);
+      request.end(body);
     });
-    if (!response.ok) throw new Error(`Discord HTTP ${response.status}`);
+    if (status < 200 || status >= 300) throw new Error(`Discord HTTP ${status}`);
   }
 }
 
@@ -433,7 +470,7 @@ export class MessageBridgeService {
     const c = this.read(id);
     return {
       onebot: { ...this.publicRules(c.onebot), added: c.onebot.added, enabled: c.onebot.enabled, wsUrl: c.onebot.wsUrl, groupId: c.onebot.groupId, adminIds: c.onebot.adminIds, language: c.onebot.language, accessTokenSet: !!c.onebot.accessToken },
-      discord: { ...this.publicRules(c.discord), added: c.discord.added, enabled: c.discord.enabled, channelId: c.discord.channelId, adminIds: c.discord.adminIds, language: c.discord.language, tokenSet: !!c.discord.token },
+      discord: { ...this.publicRules(c.discord), added: c.discord.added, enabled: c.discord.enabled, channelId: c.discord.channelId, adminIds: c.discord.adminIds, language: c.discord.language, proxyEnabled: c.discord.proxyEnabled, proxyUrlSet: !!c.discord.proxyUrl, tokenSet: !!c.discord.token },
       telegram: { ...this.publicRules(c.telegram), added: c.telegram.added, enabled: c.telegram.enabled, chatId: c.telegram.chatId, adminIds: c.telegram.adminIds, language: c.telegram.language, tokenSet: !!c.telegram.token },
       webhook: { ...this.publicRules(c.webhook), added: c.webhook.added, enabled: c.webhook.enabled, url: c.webhook.url, adminIds: c.webhook.adminIds, language: c.webhook.language, secretSet: !!c.webhook.secret },
     };
@@ -454,7 +491,7 @@ export class MessageBridgeService {
     const next = mergeStored({
       ...current, ...patch,
       onebot: { ...current.onebot, ...(patch.onebot ?? {}), accessToken: secret(patch.onebot?.accessToken, current.onebot.accessToken) },
-      discord: { ...current.discord, ...(patch.discord ?? {}), token: secret(patch.discord?.token, current.discord.token) },
+      discord: { ...current.discord, ...(patch.discord ?? {}), proxyUrl: secret(patch.discord?.proxyUrl, current.discord.proxyUrl), token: secret(patch.discord?.token, current.discord.token) },
       telegram: { ...current.telegram, ...(patch.telegram ?? {}), token: secret(patch.telegram?.token, current.telegram.token) },
       webhook: { ...current.webhook, ...(patch.webhook ?? {}), secret: secret(patch.webhook?.secret, current.webhook.secret) },
     });

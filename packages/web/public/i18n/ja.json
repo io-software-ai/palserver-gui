@@ -1720,5 +1720,9 @@
   "通用 Webhook": "汎用 Webhook",
   "遊戲聊天轉發到群": "ゲームチャットをグループへ転送",
   "飞书、企业微信或自建中转": "Lark、WeCom、または独自リレー",
-  "消息語言": "メッセージ言語"
+  "消息語言": "メッセージ言語",
+  "使用代理连接 Discord": "Discord にプロキシを使用",
+  "代理地址": "プロキシ URL",
+  "同时用于 Discord Gateway 和消息 API。支持 HTTP、HTTPS、SOCKS4、SOCKS5，例如 http://127.0.0.1:7890。": "Discord Gateway とメッセージ API の両方に使用します。HTTP、HTTPS、SOCKS4、SOCKS5 に対応しています（例: http://127.0.0.1:7890）。",
+  "如果状态持续显示“Discord Gateway 已断开”，请启用代理并确认本机代理软件允许 Agent 访问。": "「Discord Gateway が切断されました」が続く場合は、プロキシを有効にし、ローカルのプロキシが Agent からの接続を許可していることを確認してください。"
 }

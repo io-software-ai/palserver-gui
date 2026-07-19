@@ -1720,5 +1720,9 @@
   "通用 Webhook": "Generic webhook",
   "遊戲聊天轉發到群": "Relay game chat to groups",
   "飞书、企业微信或自建中转": "Lark, WeCom, or a custom relay",
-  "消息語言": "Message language"
+  "消息語言": "Message language",
+  "使用代理连接 Discord": "Use a proxy for Discord",
+  "代理地址": "Proxy URL",
+  "同时用于 Discord Gateway 和消息 API。支持 HTTP、HTTPS、SOCKS4、SOCKS5，例如 http://127.0.0.1:7890。": "Used for both Discord Gateway and the message API. Supports HTTP, HTTPS, SOCKS4, and SOCKS5, for example http://127.0.0.1:7890.",
+  "如果状态持续显示“Discord Gateway 已断开”，请启用代理并确认本机代理软件允许 Agent 访问。": "If the status keeps showing 'Discord Gateway disconnected', enable the proxy and ensure your local proxy allows Agent connections."
 }

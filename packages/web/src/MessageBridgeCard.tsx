@@ -22,7 +22,7 @@ import { t, useI18n } from "./i18n";
 
 type Draft = MessageBridgeConfig & {
   onebot: MessageBridgeConfig["onebot"] & { accessToken: string };
-  discord: MessageBridgeConfig["discord"] & { token: string };
+  discord: MessageBridgeConfig["discord"] & { proxyUrl: string; token: string };
   telegram: MessageBridgeConfig["telegram"] & { token: string };
   webhook: MessageBridgeConfig["webhook"] & { secret: string };
 };
@@ -44,7 +44,7 @@ const PLATFORMS: Array<{
 const toDraft = (config: MessageBridgeConfig): Draft => ({
   ...config,
   onebot: { ...config.onebot, accessToken: "" },
-  discord: { ...config.discord, token: "" },
+  discord: { ...config.discord, proxyUrl: "", token: "" },
   telegram: { ...config.telegram, token: "" },
   webhook: { ...config.webhook, secret: "" },
 });
@@ -111,7 +111,9 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
   const isReady = (platform: Platform): boolean => {
     if (!draft[platform].enabled) return true;
     if (platform === "onebot") return !!draft.onebot.wsUrl.trim() && !!draft.onebot.groupId.trim();
-    if (platform === "discord") return !!draft.discord.channelId.trim() && (draft.discord.tokenSet || !!draft.discord.token.trim());
+    if (platform === "discord") return !!draft.discord.channelId.trim()
+      && (draft.discord.tokenSet || !!draft.discord.token.trim())
+      && (!draft.discord.proxyEnabled || draft.discord.proxyUrlSet || !!draft.discord.proxyUrl.trim());
     if (platform === "telegram") return !!draft.telegram.chatId.trim() && (draft.telegram.tokenSet || !!draft.telegram.token.trim());
     return !!draft.webhook.url.trim() && (draft.webhook.secretSet || !!draft.webhook.secret.trim());
   };
@@ -128,7 +130,7 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
     setNotice(null);
     const patch: MessageBridgePatch = {
       onebot: { ...rulePatch(draft.onebot), added: draft.onebot.added, enabled: draft.onebot.enabled, wsUrl: draft.onebot.wsUrl, groupId: draft.onebot.groupId, adminIds: draft.onebot.adminIds, language: draft.onebot.language, accessToken: draft.onebot.accessToken },
-      discord: { ...rulePatch(draft.discord), added: draft.discord.added, enabled: draft.discord.enabled, channelId: draft.discord.channelId, adminIds: draft.discord.adminIds, language: draft.discord.language, token: draft.discord.token },
+      discord: { ...rulePatch(draft.discord), added: draft.discord.added, enabled: draft.discord.enabled, channelId: draft.discord.channelId, adminIds: draft.discord.adminIds, language: draft.discord.language, proxyEnabled: draft.discord.proxyEnabled, proxyUrl: draft.discord.proxyUrl, token: draft.discord.token },
       telegram: { ...rulePatch(draft.telegram), added: draft.telegram.added, enabled: draft.telegram.enabled, chatId: draft.telegram.chatId, adminIds: draft.telegram.adminIds, language: draft.telegram.language, token: draft.telegram.token },
       webhook: { ...rulePatch(draft.webhook), added: draft.webhook.added, enabled: draft.webhook.enabled, url: draft.webhook.url, adminIds: draft.webhook.adminIds, language: draft.webhook.language, secret: draft.webhook.secret },
     };
@@ -226,6 +228,14 @@ function ChannelForm({ platform, draft, client, instanceId, setPlatform }: {
     <Field label="Channel ID"><input className={inputCls} value={draft.discord.channelId} onChange={(e) => setPlatform("discord", { channelId: e.target.value })} /></Field>
     <SecretField label="Bot Token" value={draft.discord.token} saved={draft.discord.tokenSet} onChange={(token) => setPlatform("discord", { token })} />
     <p className="text-xs text-ink-muted sm:col-span-2">{t("在 Discord Developer Portal 啟用 Message Content Intent，並授予機器人查看頻道與發送消息權限。")}</p>
+    <div className="flex flex-col gap-3 border-y-2 border-line py-3 sm:col-span-2">
+      <Check checked={draft.discord.proxyEnabled} onChange={(proxyEnabled) => setPlatform("discord", { proxyEnabled })} label={t("使用代理连接 Discord")} />
+      {draft.discord.proxyEnabled && <div className="grid gap-3 sm:grid-cols-2">
+        <SecretField label={t("代理地址")} value={draft.discord.proxyUrl} saved={draft.discord.proxyUrlSet} onChange={(proxyUrl) => setPlatform("discord", { proxyUrl })} />
+        <p className="self-end text-xs text-ink-muted">{t("同时用于 Discord Gateway 和消息 API。支持 HTTP、HTTPS、SOCKS4、SOCKS5，例如 http://127.0.0.1:7890。")}</p>
+      </div>}
+      <p className="text-xs text-ink-muted">{t("如果状态持续显示“Discord Gateway 已断开”，请启用代理并确认本机代理软件允许 Agent 访问。")}</p>
+    </div>
     <AdminField value={draft.discord.adminIds} onChange={(adminIds) => setPlatform("discord", { adminIds })} />
   </div>;
   if (platform === "telegram") return <div className="grid gap-3 sm:grid-cols-2">

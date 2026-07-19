@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { localizePalName } from "@palserver/shared";
-import { buildAdminGrantCommand, formatGameEvent, parseBridgeCommand, parseGameLogLine, resolveMessageBridgeRules } from "./message-bridge.js";
+import { buildAdminGrantCommand, formatGameEvent, normalizeDiscordProxyUrl, parseBridgeCommand, parseGameLogLine, resolveMessageBridgeRules } from "./message-bridge.js";
 
 test("parses PalDefender chat", () => {
   assert.deepEqual(
@@ -54,6 +54,13 @@ test("migrates global bridge rules while preserving channel overrides", () => {
     ),
     { relayGroupToGame: false, relayGameToGroup: true, notifyJoinLeave: false, notifyCapture: true, notifyDeath: false, commandPrefix: "!" },
   );
+});
+
+test("normalizes supported Discord proxy URLs", () => {
+  assert.equal(normalizeDiscordProxyUrl("127.0.0.1:7890"), "http://127.0.0.1:7890/");
+  assert.equal(normalizeDiscordProxyUrl("socks5://user:pass@127.0.0.1:1080"), "socks5://user:pass@127.0.0.1:1080");
+  assert.throws(() => normalizeDiscordProxyUrl("ftp://127.0.0.1:21"), /HTTP、HTTPS、SOCKS4/);
+  assert.throws(() => normalizeDiscordProxyUrl("http://127.0.0.1"), /包含端口/);
 });
 
 test("builds constrained admin grant commands", () => {
