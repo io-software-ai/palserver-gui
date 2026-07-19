@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import {
   COMMANDS,
   COOP_HOST_UID,
@@ -32,6 +32,7 @@ import type { PresenceTracker } from "./presence.js";
 import type { BackupScheduler } from "./backup-scheduler.js";
 import type { RestartSupervisor } from "./supervisor.js";
 import type { PublicMapPublisher } from "./public-map.js";
+import type { WebhooksService } from "./webhooks.js";
 import { AGENT_VERSION, PORT, HOST, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER, ENV_LOCKED, IS_PORTABLE_EXE } from "./env.js";
 import { saveSettings } from "./settings.js";
 import { collectSpecs, reviewSpecs } from "./system-review.js";
@@ -248,6 +249,7 @@ export function registerRoutes(
   scheduler: BackupScheduler,
   supervisor: RestartSupervisor,
   publicMap: PublicMapPublisher,
+  webhooks: WebhooksService,
   auth: AuthContext,
   updateOps: UpdateOps,
 ): void {
@@ -1951,6 +1953,76 @@ export function registerRoutes(
     }
     const rec = getOr404((req.params as { id: string }).id);
     return publicMap.rotate(rec);
+  });
+
+  // ── Webhook / Discord 機器人整合(贊助限定,整組閘門)。事件推送、簽章、重試都在
+  // webhooks.ts;這裡是薄薄一層 CRUD。secret 只在建立/換發時回傳一次,list 只回 secretSet。
+  const webhookGate = (reply: FastifyReply): boolean => {
+    if (featureEnabled("webhooks")) return true;
+    void reply.code(403).send({ error: "此功能為贊助者先行版,請在設定頁輸入贊助者識別碼解鎖。" });
+    return false;
+  };
+  const webhookInput = z.object({
+    url: z.string().url(),
+    events: z.array(z.string().min(1)).min(1),
+    format: z.enum(["generic", "discord"]).optional(),
+    label: z.string().max(80).optional(),
+    enabled: z.boolean().optional(),
+  });
+  const whParams = (req: { params: unknown }) => req.params as { id: string; whId: string };
+
+  app.get("/api/instances/:id/webhooks", async (req, reply) => {
+    if (!webhookGate(reply)) return reply;
+    const rec = getOr404((req.params as { id: string }).id);
+    return webhooks.list(rec.id);
+  });
+
+  app.post("/api/instances/:id/webhooks", async (req, reply) => {
+    if (!webhookGate(reply)) return reply;
+    const rec = getOr404((req.params as { id: string }).id);
+    const input = webhookInput.parse(req.body);
+    reply.code(201);
+    return webhooks.create(rec.id, input);
+  });
+
+  app.put("/api/instances/:id/webhooks/:whId", async (req, reply) => {
+    if (!webhookGate(reply)) return reply;
+    const { id, whId } = whParams(req);
+    getOr404(id);
+    const patch = webhookInput.partial().parse(req.body);
+    const updated = await webhooks.update(id, whId, patch);
+    return updated ?? reply.code(404).send({ error: "webhook 不存在" });
+  });
+
+  app.delete("/api/instances/:id/webhooks/:whId", async (req, reply) => {
+    if (!webhookGate(reply)) return reply;
+    const { id, whId } = whParams(req);
+    getOr404(id);
+    const ok = await webhooks.remove(id, whId);
+    return ok ? { ok: true } : reply.code(404).send({ error: "webhook 不存在" });
+  });
+
+  app.post("/api/instances/:id/webhooks/:whId/rotate-secret", async (req, reply) => {
+    if (!webhookGate(reply)) return reply;
+    const { id, whId } = whParams(req);
+    getOr404(id);
+    const rotated = await webhooks.rotateSecret(id, whId);
+    return rotated ?? reply.code(404).send({ error: "webhook 不存在" });
+  });
+
+  app.post("/api/instances/:id/webhooks/:whId/test", async (req, reply) => {
+    if (!webhookGate(reply)) return reply;
+    const { id, whId } = whParams(req);
+    getOr404(id);
+    const result = await webhooks.testSend(id, whId);
+    return result ? { result } : reply.code(404).send({ error: "webhook 不存在" });
+  });
+
+  app.get("/api/instances/:id/webhooks/:whId/deliveries", async (req, reply) => {
+    if (!webhookGate(reply)) return reply;
+    const { id, whId } = whParams(req);
+    getOr404(id);
+    return webhooks.deliveries(id, whId);
   });
 
   app.get("/api/instances/:id/version", async (req) => {
