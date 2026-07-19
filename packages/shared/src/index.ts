@@ -295,6 +295,24 @@ export type ModComponent = "ue4ss" | "paldefender";
 
 /* ── PalDefender REST API: player detail (pals & inventory) ── */
 
+export interface PdPalIvs {
+  /** 生命 / HP */
+  hp?: number;
+  /** 攻击(含近战与射击,具体维度看 PalDefender 返回) */
+  attack?: number;
+  /** 防御 */
+  defense?: number;
+  /** 工作速度(部分 PD 版本) */
+  workSpeed?: number;
+}
+
+export interface PdPalSouls {
+  hp?: number;
+  attack?: number;
+  defense?: number;
+  workSpeed?: number;
+}
+
 export interface PdPal {
   instanceId: string;
   palId: string;
@@ -304,6 +322,23 @@ export interface PdPal {
   shiny: boolean;
   /** which group it's in */
   location: "team" | "palbox" | "basecamp";
+  /** PalDefender 较新版本才会返回的字段;老版本可能缺失。 */
+  /** 个体值(IV / Talent)。 */
+  ivs?: PdPalIvs;
+  /** 词条 / 被动技能 ID 列表(顺序按重要度)。 */
+  passives?: string[];
+  /** 主动技能 ID 列表。 */
+  activeSkills?: string[];
+  /** 浓缩星数(0=未浓缩,1-4=对应星星数)。 */
+  rank?: number;
+  /** 浓缩已消耗的帕鲁数(PalDefender CondensedPals)。 */
+  condensedPals?: number;
+  /** 灵魂强化等级。 */
+  souls?: PdPalSouls;
+  /** 头目 / 塔主标记:从 palId 前缀或 PD 字段推断。 */
+  isBoss?: boolean;
+  /** 是否塔主 boss(与 isBoss 区分,部分版本单独标记)。 */
+  isTower?: boolean;
 }
 
 export interface PdItemSlot {
