@@ -6,13 +6,14 @@ import WebSocket from "ws";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { SocksProxyAgent } from "socks-proxy-agent";
 import { localizePalName } from "@palserver/shared";
-import type { MessageBridgeConfig, MessageBridgeLanguage, MessageBridgePatch, MessageBridgePlatform, MessageBridgeRules, MessageBridgeStatus } from "@palserver/shared";
+import type { MessageBridgeConfig, MessageBridgeLanguage, MessageBridgePatch, MessageBridgePlatform, MessageBridgeRules, MessageBridgeStatus, PdPal, PdPalIvs } from "@palserver/shared";
 import type { ServerDriver } from "./driver.js";
 import type { InstanceRecord, InstanceStore } from "./store.js";
 import type { PresenceTracker } from "./presence.js";
 import { getLiveStatus, rest } from "./restapi.js";
 import { getPlayerDetail } from "./paldefender-rest.js";
 import { rconExec } from "./rcon.js";
+import { localizePassive, t } from "./i18n.js";
 
 const API_TIMEOUT_MS = 10_000;
 const RECONNECT_MS = 5_000;
@@ -145,62 +146,14 @@ export function parseGameLogLine(raw: string): ParsedGameEvent {
   return null;
 }
 
-const WORDS = {
-  "zh-TW": { game: "遊戲", killed: "被野生 {pal} 擊殺", died: "死亡", captured: "捕捉了 {pal}", joined: "加入伺服器", left: "離開伺服器" },
-  "zh-CN": { game: "游戏", killed: "被野生 {pal} 击杀", died: "死亡", captured: "捕捉了 {pal}", joined: "加入服务器", left: "离开服务器" },
-  en: { game: "Game", killed: "was killed by a wild {pal}", died: "died", captured: "captured {pal}", joined: "joined the server", left: "left the server" },
-  ja: { game: "ゲーム", killed: "野生の{pal}に倒されました", died: "死亡しました", captured: "{pal}を捕まえました", joined: "サーバーに参加しました", left: "サーバーから退出しました" },
-} satisfies Record<MessageBridgeLanguage, Record<string, string>>;
-
-const COMMAND_WORDS = {
-  "zh-TW": {
-    failed: "指令執行失敗", userId: "玩家 UserId", itemId: "道具 ID", palId: "帕魯 ID", amount: "數量", level: "等級",
-    whoami: "身分資訊", idUnavailable: "無法取得", commands: "可用指令", adminCommands: "管理員指令", denied: "權限不足",
-    deniedHint: "傳送 {prefix}whoami 取得使用者 ID，並請服主將其加入此渠道的管理員名單。", unknown: "未知指令: {command}\n傳送 {prefix}help 查看可用指令。",
-    offline: "{name} 目前離線，或 REST API 無法使用。", server: "伺服器狀態", name: "名稱", players: "玩家", fps: "FPS", uptime: "運行時間", minutes: "{value} 分鐘",
-    onlinePlayers: "線上玩家", noPlayers: "目前沒有玩家在線。", inventory: "背包", itemTypes: "道具種類", emptyInventory: "背包為空。", unavailableInventory: "無法查詢背包", offlineInventory: "背包目前無法查詢（玩家可能離線）。", moreTypes: "另有 {value} 種未顯示",
-    pals: "帕魯", team: "隊伍", palbox: "帕魯盒", noPals: "目前沒有可查詢的帕魯。", unavailablePals: "無法查詢帕魯", offlinePals: "帕魯目前無法查詢（玩家可能離線）。", basecamp: "據點", morePals: "另有 {value} 隻未顯示",
-    grantedItem: "已發送道具", grantedPal: "已發送帕魯", target: "玩家", item: "道具", pal: "帕魯",
-  },
-  "zh-CN": {
-    failed: "指令执行失败", userId: "玩家 UserId", itemId: "道具 ID", palId: "帕鲁 ID", amount: "数量", level: "等级",
-    whoami: "身份信息", idUnavailable: "无法获取", commands: "可用指令", adminCommands: "管理员指令", denied: "权限不足",
-    deniedHint: "发送 {prefix}whoami 获取用户 ID，并请服主将其加入此渠道的管理员名单。", unknown: "未知指令: {command}\n发送 {prefix}help 查看可用指令。",
-    offline: "{name} 当前离线，或 REST API 不可用。", server: "服务器状态", name: "名称", players: "玩家", fps: "FPS", uptime: "运行时间", minutes: "{value} 分钟",
-    onlinePlayers: "在线玩家", noPlayers: "当前没有玩家在线。", inventory: "背包", itemTypes: "道具种类", emptyInventory: "背包为空。", unavailableInventory: "无法查询背包", offlineInventory: "背包当前无法查询（玩家可能离线）。", moreTypes: "另有 {value} 种未显示",
-    pals: "帕鲁", team: "队伍", palbox: "帕鲁盒", noPals: "当前没有可查询的帕鲁。", unavailablePals: "无法查询帕鲁", offlinePals: "帕鲁当前无法查询（玩家可能离线）。", basecamp: "据点", morePals: "另有 {value} 只未显示",
-    grantedItem: "已发送道具", grantedPal: "已发送帕鲁", target: "玩家", item: "道具", pal: "帕鲁",
-  },
-  en: {
-    failed: "Command failed", userId: "player UserId", itemId: "item ID", palId: "Pal ID", amount: "amount", level: "level",
-    whoami: "Identity", idUnavailable: "unavailable", commands: "Available Commands", adminCommands: "Admin Commands", denied: "Permission Denied",
-    deniedHint: "Send {prefix}whoami to get your user ID, then ask the server owner to add it as an admin for this channel.", unknown: "Unknown command: {command}\nSend {prefix}help to list available commands.",
-    offline: "{name} is offline, or the REST API is unavailable.", server: "Server Status", name: "Name", players: "Players", fps: "FPS", uptime: "Uptime", minutes: "{value} min",
-    onlinePlayers: "Online Players", noPlayers: "No players are online.", inventory: "Inventory", itemTypes: "Item types", emptyInventory: "The inventory is empty.", unavailableInventory: "Inventory unavailable", offlineInventory: "The inventory cannot be queried right now (the player may be offline).", moreTypes: "+{value} more item types",
-    pals: "Pals", team: "Team", palbox: "Palbox", noPals: "No Pals are available to query.", unavailablePals: "Pals unavailable", offlinePals: "Pals cannot be queried right now (the player may be offline).", basecamp: "Base", morePals: "+{value} more Pals",
-    grantedItem: "Item Granted", grantedPal: "Pal Granted", target: "Player", item: "Item", pal: "Pal",
-  },
-  ja: {
-    failed: "コマンドの実行に失敗しました", userId: "プレイヤー UserId", itemId: "アイテム ID", palId: "パル ID", amount: "数量", level: "レベル",
-    whoami: "ユーザー情報", idUnavailable: "取得できません", commands: "利用可能なコマンド", adminCommands: "管理者コマンド", denied: "権限がありません",
-    deniedHint: "{prefix}whoami でユーザー ID を取得し、サーバー管理者にこのチャンネルの管理者として追加を依頼してください。", unknown: "不明なコマンド: {command}\n{prefix}help で利用可能なコマンドを確認できます。",
-    offline: "{name} はオフライン、または REST API を利用できません。", server: "サーバー状態", name: "名前", players: "プレイヤー", fps: "FPS", uptime: "稼働時間", minutes: "{value} 分",
-    onlinePlayers: "オンラインプレイヤー", noPlayers: "オンラインのプレイヤーはいません。", inventory: "インベントリ", itemTypes: "アイテム種類", emptyInventory: "インベントリは空です。", unavailableInventory: "インベントリを取得できません", offlineInventory: "現在インベントリを取得できません（プレイヤーがオフラインの可能性があります）。", moreTypes: "ほか {value} 種類",
-    pals: "パル", team: "手持ち", palbox: "パルボックス", noPals: "取得できるパルはいません。", unavailablePals: "パルを取得できません", offlinePals: "現在パルを取得できません（プレイヤーがオフラインの可能性があります）。", basecamp: "拠点", morePals: "ほか {value} 体",
-    grantedItem: "アイテムを付与しました", grantedPal: "パルを付与しました", target: "プレイヤー", item: "アイテム", pal: "パル",
-  },
-} satisfies Record<MessageBridgeLanguage, Record<string, string>>;
-
-function fill(template: string, values: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
-}
+/** 所有 4 语言文案统一走 web/public/i18n/{lang}.json —— 单一来源,
+ *  通过 ./i18n.ts 提供的 t(lang, key, vars?) 查询。key 一律是繁中(zh-TW)原文。 */
 
 export function formatGameEvent(event: NonNullable<ParsedGameEvent>, language: MessageBridgeLanguage): string {
-  const words = WORDS[language];
-  if (event.type === "chat") return `[${words.game}/${event.channel}] ${event.author}: ${event.text}`;
-  if (event.type === "capture") return `● ${event.player} ${fill(words.captured, { pal: localizePalName(event.pal, language) })}`;
-  if (event.killerPal) return `☠ ${event.player} ${fill(words.killed, { pal: localizePalName(event.killerPal, language) })}`;
-  return `☠ ${event.player} ${words.died}${event.cause ? `: ${event.cause}` : ""}`;
+  if (event.type === "chat") return `[${t(language, "遊戲")}/${event.channel}] ${event.author}: ${event.text}`;
+  if (event.type === "capture") return `● ${event.player} ${t(language, "捕捉了 {pal}", { pal: localizePalName(event.pal, language) })}`;
+  if (event.killerPal) return `☠ ${event.player} ${t(language, "被野生 {pal} 擊殺", { pal: localizePalName(event.killerPal, language) })}`;
+  return `☠ ${event.player} ${t(language, "死亡")}${event.cause ? `: ${event.cause}` : ""}`;
 }
 
 export function parseBridgeCommand(text: string, prefix: string): { name: string; args: string[] } | null {
@@ -230,14 +183,64 @@ function commandNumber(value: string | undefined, label: string, min: number, ma
   return n;
 }
 
+// ── 群服互通对外可见的纯渲染函数(给单测直接调用)──────────────────────────
+
+/** 玩家进出服播报:[+] 玩家 [Alice] 加入了服务器 / [-] 玩家 [Alice] 离开了服务器。
+ *  前缀 [+]/[-] 故意不本地化(参考 SSH / Discord 习惯),4 语言用户都能秒懂。 */
+export function formatJoinLeave(isJoin: boolean, name: string, language: MessageBridgeLanguage): string {
+  const sign = isJoin ? "[+]" : "[-]";
+  const key = isJoin ? "玩家 [{name}] 加入了伺服器" : "玩家 [{name}] 離開了伺服器";
+  return `${sign} ${t(language, key, { name })}`;
+}
+
+/** /players 列表的单行:`1. Alice - Lv.30 - 42ms`。4 语言共用同一模板。 */
+export function formatPlayerItem(index: number, name: string, level: number, ping: number, language: MessageBridgeLanguage): string {
+  return t(language, "{n}. {name} - Lv.{level} - {ping}ms", { n: index, name, level, ping });
+}
+
+/** /pal 单只帕鲁的多行(可能带 IVs 那行缩进 2 格的词条行)。 */
+export function formatPalLine(pal: PdPal, language: MessageBridgeLanguage): string {
+  const species = localizePalName(pal.palId, language);
+  const hasNick = !!pal.nickname && pal.nickname.trim() !== "" && pal.nickname !== pal.palId;
+  const star = pal.rank && pal.rank > 0 ? "★".repeat(pal.rank) : "";
+  const isBoss = pal.isBoss === true || /^BOSS_/i.test(pal.palId);
+  const bossTag = isBoss ? "(BOSS)" : "";
+  const nameCore = hasNick ? `${pal.nickname} · ${species}` : species;
+  const name = `${star}${nameCore}${bossTag}`;
+
+  const gender = pal.gender === "Male" ? "♂" : pal.gender === "Female" ? "♀" : "";
+  const head = `- ${name} Lv.${pal.level}${gender ? ` (${gender})` : ""}`;
+
+  const ivsText = formatIvs(pal.ivs, language);
+  const traitHeader = t(language, "詞條");
+  const noPassives = t(language, "無詞條");
+  const passivesText = pal.passives?.length
+    ? t(language, "[{passives}]", { passives: pal.passives.map((id) => localizePassive(id, language)).join(t(language, " | ")) })
+    : `[${noPassives}]`;
+
+  if (ivsText) return `${head} - ${ivsText}\n  ${traitHeader}:${passivesText}`;
+  return `${head} - ${passivesText}`;
+}
+
+/** IVs 段:`IVs(心67|攻0|防90)`。只展示 > 0 的维度,避免 0 噪音。空/全 0 返回空串(让调用方降级到无 IVs 行)。 */
+export function formatIvs(ivs: PdPalIvs | undefined, language: MessageBridgeLanguage): string {
+  if (!ivs) return "";
+  const segs: string[] = [];
+  if (ivs.hp != null && ivs.hp > 0) segs.push(`${t(language, "心")}${ivs.hp}`);
+  if (ivs.attack != null && ivs.attack > 0) segs.push(`${t(language, "攻")}${ivs.attack}`);
+  if (ivs.defense != null && ivs.defense > 0) segs.push(`${t(language, "防")}${ivs.defense}`);
+  if (ivs.workSpeed != null && ivs.workSpeed > 0) segs.push(`${t(language, "工速")}${ivs.workSpeed}`);
+  if (segs.length === 0) return "";
+  return `IVs(${segs.join("|")})`;
+}
+
 export function buildAdminGrantCommand(command: "give" | "givepal", args: string[], language: MessageBridgeLanguage = "zh-CN"): { rcon: string; confirmation: string } {
-  const words = COMMAND_WORDS[language];
-  const userId = commandId(args[0], words.userId, 128, language);
-  const entityId = commandId(args[1], command === "give" ? words.itemId : words.palId, 64, language);
-  const amount = commandNumber(args[2], command === "give" ? words.amount : words.level, 1, command === "give" ? 99_999 : 255, 1, language);
+  const userId = commandId(args[0], t(language, "玩家 UserId"), 128, language);
+  const entityId = commandId(args[1], t(language, command === "give" ? "道具 ID" : "帕魯 ID"), 64, language);
+  const amount = commandNumber(args[2], t(language, command === "give" ? "數量" : "等級"), 1, command === "give" ? 99_999 : 255, 1, language);
   return command === "give"
-    ? { rcon: `give ${userId} ${entityId} ${amount}`, confirmation: `${words.grantedItem}\n${words.target}: ${userId}\n${words.item}: ${entityId} ×${amount}` }
-    : { rcon: `givepal ${userId} ${entityId} ${amount}`, confirmation: `${words.grantedPal}\n${words.target}: ${userId}\n${words.pal}: ${localizePalName(entityId, language)} (${entityId}) · Lv.${amount}` };
+    ? { rcon: `give ${userId} ${entityId} ${amount}`, confirmation: t(language, "已發送道具", { user: userId, item: entityId, amount }) }
+    : { rcon: `givepal ${userId} ${entityId} ${amount}`, confirmation: t(language, "已發送帕魯", { user: userId, name: localizePalName(entityId, language), id: entityId, level: amount }) };
 }
 
 function platformLabel(platform: MessageBridgePlatform): string {
@@ -598,7 +601,7 @@ export class MessageBridgeService {
         : previousIndex < 0 ? [] : newestFirst.slice(0, previousIndex).reverse();
       for (const event of pending) {
         runtime.lastPresenceKey = this.presenceKey(event);
-        await this.broadcast(id, (language) => `${event.type === "join" ? "→" : "←"} ${event.name} ${WORDS[language][event.type === "join" ? "joined" : "left"]}`, undefined, "notifyJoinLeave");
+        await this.broadcast(id, (language) => formatJoinLeave(event.type === "join", event.name, language), undefined, "notifyJoinLeave");
       }
       if (!runtime.lastPresenceKey && newestFirst[0]) runtime.lastPresenceKey = this.presenceKey(newestFirst[0]);
     }
@@ -620,7 +623,7 @@ export class MessageBridgeService {
         reply = await this.commandReply(rec, message, command.name, command.args, channel.commandPrefix, isAdmin, language);
         if (isAdmin && this.isAdminCommand(command.name)) this.auditAdminCommand(id, message, command.name, true);
       } catch (err) {
-        reply = `${COMMAND_WORDS[language].failed}\n${err instanceof Error ? err.message : String(err)}`;
+        reply = `${t(language, "指令執行失敗")}\n${err instanceof Error ? err.message : String(err)}`;
         if (this.isAdminCommand(command.name)) this.auditAdminCommand(id, message, command.name, false, reply);
       }
       await this.reply(id, message.platform, reply);
@@ -642,26 +645,25 @@ export class MessageBridgeService {
     isAdmin: boolean,
     language: MessageBridgeLanguage,
   ): Promise<string> {
-    const words = COMMAND_WORDS[language];
     if (["whoami", "我的id", "id"].includes(command)) {
-      return `${words.whoami}\n${platformLabel(message.platform)} User ID: ${message.userId || words.idUnavailable}`;
+      return `${t(language, "身分資訊")}\n${platformLabel(message.platform)} User ID: ${message.userId || t(language, "無法取得")}`;
     }
     if (["help", "帮助", "指令"].includes(command)) {
-      const normal = `${words.commands}\n${prefix}server · ${prefix}players · ${prefix}whoami · ${prefix}help`;
-      return isAdmin ? `${normal}\n\n${words.adminCommands}\n${prefix}inventory · ${prefix}pals · ${prefix}give · ${prefix}givepal · ${prefix}adminhelp` : normal;
+      const normal = `${t(language, "可用指令")}\n${prefix}server · ${prefix}players · ${prefix}whoami · ${prefix}help`;
+      return isAdmin ? `${normal}\n\n${t(language, "管理員指令")}\n${prefix}inventory · ${prefix}pals · ${prefix}give · ${prefix}givepal · ${prefix}adminhelp` : normal;
     }
     if (this.isAdminCommand(command)) {
-      if (!isAdmin) return `${words.denied}\n${fill(words.deniedHint, { prefix })}`;
+      if (!isAdmin) return `${t(language, "權限不足")}\n${t(language, "傳送 {prefix}whoami 取得使用者 ID，並請服主將其加入此渠道的管理員名單。", { prefix })}`;
       if (command === "adminhelp") {
         return [
-          words.adminCommands,
+          t(language, "管理員指令"),
           `${prefix}inventory <UserId>`,
           `${prefix}pals <UserId>`,
-          `${prefix}give <UserId> <ItemID> [${words.amount}]`,
-          `${prefix}givepal <UserId> <PalID> [${words.level}]`,
+          `${prefix}give <UserId> <ItemID> [${t(language, "數量")}]`,
+          `${prefix}givepal <UserId> <PalID> [${t(language, "等級")}]`,
         ].join("\n");
       }
-      const userId = this.safeId(args[0], words.userId, language);
+      const userId = this.safeId(args[0], t(language, "玩家 UserId"), language);
       if (["inventory", "bag", "背包"].includes(command)) return this.inventoryReply(rec, userId, language);
       if (["pals", "pal", "帕鲁", "帕魯"].includes(command)) return this.palsReply(rec, userId, language);
       if (["give", "给", "給"].includes(command)) {
@@ -673,19 +675,24 @@ export class MessageBridgeService {
       await rconExec(rec, grant.rcon);
       return grant.confirmation;
     }
-    if (!["server", "status", "players", "服务器", "玩家"].includes(command)) return fill(words.unknown, { command, prefix });
+    if (!["server", "status", "players", "服务器", "玩家"].includes(command))
+      return t(language, "未知指令: {command}\n傳送 {prefix}help 查看可用指令。", { command, prefix });
     const live = await getLiveStatus(rec);
-    if (!live.available || !live.metrics || !live.info) return fill(words.offline, { name: rec.name });
-    const names = live.players.map((p) => p.name).filter(Boolean);
+    if (!live.available || !live.metrics || !live.info) return t(language, "{name} 目前離線，或 REST API 無法使用。", { name: rec.name });
     if (command === "players" || command === "玩家") {
-      return names.length ? `${words.onlinePlayers} · ${names.length}\n${names.map((name, index) => `${index + 1}. ${name}`).join("\n")}` : `${words.onlinePlayers}\n${words.noPlayers}`;
+      const online = live.players.filter((p) => p.name);
+      const title = t(language, "[ 線上玩家 ({n}人) ]", { n: online.length });
+      if (!online.length) return `${title}\n\n${t(language, "目前沒有玩家在線。")}`;
+      // [ 在线玩家 (3人) ]\n\n1. xxx - Lv.x - xms\n\n2. ...
+      const lines = online.map((p, i) => formatPlayerItem(i + 1, p.name, p.level, p.ping, language));
+      return [title, "", ...lines].join("\n");
     }
     return [
-      words.server,
-      `${words.name}: ${live.info.servername || rec.name}`,
-      `${words.players}: ${live.metrics.currentplayernum} / ${live.metrics.maxplayernum}`,
-      `${words.fps}: ${live.metrics.serverfps.toFixed(1)}`,
-      `${words.uptime}: ${fill(words.minutes, { value: Math.floor(live.metrics.uptime / 60) })}`,
+      t(language, "伺服器狀態"),
+      `${t(language, "名稱")}: ${live.info.servername || rec.name}`,
+      `${t(language, "玩家")}: ${live.metrics.currentplayernum} / ${live.metrics.maxplayernum}`,
+      `FPS: ${live.metrics.serverfps.toFixed(1)}`,
+      `${t(language, "運行時間")}: ${t(language, "{value} 分鐘", { value: Math.floor(live.metrics.uptime / 60) })}`,
     ].join("\n");
   }
   private safeId(value: string | undefined, label: string, language: MessageBridgeLanguage): string {
@@ -694,31 +701,36 @@ export class MessageBridgeService {
     return clean;
   }
   private async inventoryReply(rec: InstanceRecord, identifier: string, language: MessageBridgeLanguage): Promise<string> {
-    const words = COMMAND_WORDS[language];
     const detail = await getPlayerDetail(rec, { instanceDir: this.store.instanceDir(rec.id) }, identifier);
-    if (!detail.available) return `${words.unavailableInventory}\n${fill(words.offline, { name: identifier })}`;
-    if (detail.itemsUnavailable) return `${words.inventory} · ${detail.name || identifier}\n${words.offlineInventory}`;
+    if (!detail.available) return `${t(language, "無法查詢背包")}\n${t(language, "{name} 目前離線，或 REST API 無法使用。", { name: identifier })}`;
+    if (detail.itemsUnavailable) return `${t(language, "背包")} · ${detail.name || identifier}\n${t(language, "背包目前無法查詢（玩家可能離線）。")}`;
     const totals = new Map<string, number>();
     for (const item of detail.items) totals.set(item.itemId, (totals.get(item.itemId) ?? 0) + item.count);
     const items = [...totals].sort((a, b) => b[1] - a[1]);
-    if (!items.length) return `${words.inventory} · ${detail.name || identifier}\n${words.emptyInventory}`;
+    if (!items.length) return `${t(language, "背包")} · ${detail.name || identifier}\n${t(language, "背包為空。")}`;
     const shown = items.slice(0, 20).map(([item, count], index) => `${index + 1}. ${item} ×${count}`).join("\n");
-    return `${words.inventory} · ${detail.name || identifier}\n${words.itemTypes}: ${items.length}\n\n${shown}${items.length > 20 ? `\n${fill(words.moreTypes, { value: items.length - 20 })}` : ""}`;
+    return `${t(language, "背包")} · ${detail.name || identifier}\n${t(language, "道具種類")}: ${items.length}\n\n${shown}${items.length > 20 ? `\n${t(language, "另有 {value} 種未顯示", { value: items.length - 20 })}` : ""}`;
   }
   private async palsReply(rec: InstanceRecord, identifier: string, language: MessageBridgeLanguage): Promise<string> {
-    const words = COMMAND_WORDS[language];
     const detail = await getPlayerDetail(rec, { instanceDir: this.store.instanceDir(rec.id) }, identifier);
-    if (!detail.available) return `${words.unavailablePals}\n${fill(words.offline, { name: identifier })}`;
-    if (detail.palsUnavailable) return `${words.pals} · ${detail.name || identifier}\n${words.offlinePals}`;
-    if (!detail.pals.length) return `${words.pals} · ${detail.name || identifier}\n${words.noPals}`;
-    const shown = detail.pals.slice(0, 20).map((pal, index) => {
-      const where = pal.location === "team" ? words.team : pal.location === "basecamp" ? words.basecamp : words.palbox;
-      const species = localizePalName(pal.palId, language);
-      const display = pal.nickname && pal.nickname !== pal.palId ? `${pal.nickname} · ${species}` : species;
-      return `${index + 1}. ${display} · Lv.${pal.level} · ${where}`;
-    }).join("\n");
-    return `${words.pals} · ${detail.name || identifier}\n${words.team}: ${detail.teamCount} · ${words.palbox}: ${detail.palboxCount}\n\n${shown}${detail.pals.length > 20 ? `\n${fill(words.morePals, { value: detail.pals.length - 20 })}` : ""}`;
+    if (!detail.available) return `${t(language, "無法查詢帕魯")}\n${t(language, "{name} 目前離線，或 REST API 無法使用。", { name: identifier })}`;
+    if (detail.palsUnavailable) return `${t(language, "帕魯")} · ${detail.name || identifier}\n${t(language, "帕魯目前無法查詢（玩家可能離線）。")}`;
+
+    const title = t(language, "[ 玩家 {name} 的帕魯陣容 ]", { name: detail.name || identifier });
+    const teamPals = detail.pals.filter((p) => p.location === "team");
+    // 终端 (palbox) + 据点 (basecamp) 都算"非队伍"——一并展示,符合用户预期。
+    const boxPals = detail.pals.filter((p) => p.location === "palbox" || p.location === "basecamp");
+
+    const teamBlock = teamPals.length === 0
+      ? `${t(language, "【 隊伍帕魯 】")}\n\n${t(language, "此玩家暫無帕魯資料。")}`
+      : `${t(language, "【 隊伍帕魯 】")}\n\n${teamPals.map((p) => formatPalLine(p, language)).join("\n\n")}`;
+    const boxBlock = boxPals.length === 0
+      ? `${t(language, "【 終端帕魯 (共 {n} 隻) 】", { n: 0 })}\n\n${t(language, "終端目前沒有存放任何帕魯。")}`
+      : `${t(language, "【 終端帕魯 (共 {n} 隻) 】", { n: boxPals.length })}\n\n${boxPals.map((p) => formatPalLine(p, language)).join("\n\n")}`;
+
+    return [title, teamBlock, boxBlock].join("\n\n");
   }
+
   private auditAdminCommand(id: string, message: IncomingMessage, command: string, ok: boolean, detail = ""): void {
     const record = { at: new Date().toISOString(), platform: message.platform, userId: message.userId, author: message.author, command, ok, detail: cleanText(detail, 300) };
     try {
