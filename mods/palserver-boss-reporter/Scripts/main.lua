@@ -1,4 +1,6 @@
--- PalserverBossReporter v1.2
+-- PalserverBossReporter v1.3
+-- v1.3:野外頭目狀態改「黏著」——看過活的就一直記活、擊殺後倒數持續,玩家離開(spawner 卸載)
+--       不再退回未知(寫入所有曾觀測過的頭目,不只本 tick 載入的);座標一併記憶。
 -- 純伺服器端 UE4SS Lua 模組:每 15 秒輪詢頭目,輸出狀態到
 --   Pal/Saved/palserver-boss-state.json 供 palserver-gui agent 讀取。
 -- 原理(2026-07-19 實機驗證的遊戲內建 API):
@@ -45,6 +47,9 @@ local function loadPrevState()
       local diedAt = obj:match('"diedAt":(-?%d+)')
       local respawnedAt = obj:match('"respawnedAt":(-?%d+)')
       local respawnInterval = obj:match('"respawnInterval":(-?%d+)')  -- 舊格式沒有 → nil
+      local x = obj:match('"x":(-?[%d%.]+)')
+      local y = obj:match('"y":(-?[%d%.]+)')
+      local z = obj:match('"z":(-?[%d%.]+)')
       -- 三態還原:"null" → nil(未知),不可誤標為 false(已擊殺)。
       local av
       if alive == "true" then av = true elseif alive == "false" then av = false end
@@ -53,6 +58,9 @@ local function loadPrevState()
         diedAt = tonumber(diedAt) or -1,
         respawnedAt = tonumber(respawnedAt) or -1,
         respawnInterval = tonumber(respawnInterval) or -1,
+        x = tonumber(x) or 0,
+        y = tonumber(y) or 0,
+        z = tonumber(z) or 0,
         lastSeen = 0,
       }
       n = n + 1
@@ -129,9 +137,10 @@ local function scanOnce()
   local ok, spawners = pcall(function() return FindAllOf("BP_PalSpawner_Standard_C") end)
   if not ok or not spawners then spawners = {} end  -- 沒野外 spawner 也照樣寫地城狀態
 
-  local entries = {}
-  local bossCount, aliveCount = 0, 0
+  local loadedBosses = 0
 
+  -- Phase 1:用本 tick 載入到的 spawner 更新記憶(track)。detectAlive 只在載入(玩家在附近)時
+  -- 有真值;沒載入到的頭目這輪不動它的記憶。
   for _, sp in ipairs(spawners) do
     -- 官方頭目判定;失敗時退回名稱啟發式
     local isBoss = false
@@ -146,7 +155,7 @@ local function scanOnce()
     end
 
     if isBoss then
-      bossCount = bossCount + 1
+      loadedBosses = loadedBosses + 1
       local name = "?"
       pcall(function() name = sp:GetSpawnerName():ToString() end)
       local alive = detectAlive(sp)
@@ -158,7 +167,7 @@ local function scanOnce()
 
       local t = track[name]
       if not t then
-        t = { alive = alive, diedAt = -1, respawnedAt = -1, respawnInterval = -1, lastSeen = now }
+        t = { alive = nil, diedAt = -1, respawnedAt = -1, respawnInterval = -1, x = 0, y = 0, z = 0, lastSeen = 0 }
         track[name] = t
       end
       if alive ~= nil then
@@ -179,15 +188,24 @@ local function scanOnce()
         end
         t.alive = alive
       end
+      if x ~= 0 or y ~= 0 or z ~= 0 then t.x, t.y, t.z = x, y, z end  -- 有載入才更新座標
       t.lastSeen = now
-
-      local aliveStr = alive == nil and "null" or tostring(alive)
-      entries[#entries + 1] = string.format(
-        '{"name":"%s","alive":%s,"diedAt":%d,"respawnedAt":%d,"respawnInterval":%d,"x":%.1f,"y":%.1f,"z":%.1f}',
-        jsonEscape(name), aliveStr, t.diedAt or -1, t.respawnedAt or -1, t.respawnInterval or -1, x, y, z)
-      if alive then aliveCount = aliveCount + 1 end
     end
   end
+
+  -- Phase 2:寫入「所有曾觀測過」的頭目(不只本 tick 載入的),用記憶裡的最後狀態:
+  -- 看過活的就一直記活、擊殺後 diedAt 持續(倒數不停),玩家離開(spawner 卸載)不再退回未知;
+  -- 從沒看過的頭目不在 track、仍維持未知(不在清單裡)。
+  local entries = {}
+  local aliveCount = 0
+  for name, t in pairs(track) do
+    local aliveStr = t.alive == nil and "null" or tostring(t.alive)
+    if t.alive == true then aliveCount = aliveCount + 1 end
+    entries[#entries + 1] = string.format(
+      '{"name":"%s","alive":%s,"diedAt":%d,"respawnedAt":%d,"respawnInterval":%d,"x":%.1f,"y":%.1f,"z":%.1f}',
+      jsonEscape(name), aliveStr, t.diedAt or -1, t.respawnedAt or -1, t.respawnInterval or -1, t.x or 0, t.y or 0, t.z or 0)
+  end
+  local bossCount = #entries
 
   local dungeons = {}
   pcall(function() dungeons = scanDungeons() end)
@@ -203,11 +221,11 @@ local function scanOnce()
     os.rename(tmp, STATE_PATH)
   end
   if tickCount <= 3 or tickCount % 40 == 0 then
-    log(string.format("tick %d: spawners=%d bosses=%d alive=%d", tickCount, #spawners, bossCount, aliveCount))
+    log(string.format("tick %d: spawners=%d loaded=%d tracked=%d alive=%d", tickCount, #spawners, loadedBosses, bossCount, aliveCount))
   end
 end
 
-log("v1.2 loaded; interval " .. INTERVAL_MS .. "ms")
+log("v1.3 loaded; interval " .. INTERVAL_MS .. "ms")
 pcall(loadPrevState)
 LoopAsync(INTERVAL_MS, function()
   ExecuteInGameThread(function()
