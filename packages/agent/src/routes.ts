@@ -26,6 +26,7 @@ import {
   type InstanceSummary,
   type KnownPlayer,
   type RconCommandsResponse,
+  type DirEntry,
 } from "@palserver/shared";
 import { fetchServerCommands, rconExec, requireRcon } from "./rcon.js";
 import type { PresenceTracker } from "./presence.js";
@@ -43,6 +44,7 @@ import {
   type AuthContext,
   extractToken,
   isLoopback,
+  isPrivateNetwork,
   pairingCodeMatches,
   rotatePairingCode,
   tokenMatches,
@@ -2418,6 +2420,105 @@ export function registerRoutes(
     if (srcRec.id === dstRec.id) throw Object.assign(new Error("不能鏡像到自己"), { statusCode: 409 });
     const result = await saves.mirrorWorld(srcRec, ctxOf(srcRec), dstRec, ctxOf(dstRec));
     return { mirrored: true, worldGuid: result.worldGuid, targetId: dstRec.id };
+  });
+
+  // ── host directory browser (for server path picker in create dialog) ──
+  const HostDirQuery = z.object({ path: z.string().max(1000).default("") });
+
+  /** 非同步列出 Windows 上所有可用的磁碟機代號。 */
+  async function listDrives(): Promise<DirEntry[]> {
+    const letters = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
+    const results = await Promise.allSettled(
+      letters.map(async (letter) => {
+        const root = `${letter}:\\`;
+        await fs.promises.access(root, fs.constants.F_OK);
+        return root;
+      }),
+    );
+    return results
+      .filter((r) => r.status === "fulfilled")
+      .map((r) => ({
+        name: (r as PromiseFulfilledResult<string>).value,
+        isDir: true,
+        size: 0,
+        modifiedAt: "",
+        editable: false,
+      } satisfies DirEntry));
+  }
+
+  app.get("/api/host/list-dir", async (req) => {
+    // 目錄瀏覽僅限區域網路使用，防止外網持有 token 者瀏覽主機檔案系統
+    if (!isPrivateNetwork(req.ip)) {
+      throw Object.assign(new Error("目錄瀏覽僅限區域網路使用"), { statusCode: 403 });
+    }
+    const { path: dirPath } = HostDirQuery.parse(req.query);
+    const target = dirPath.trim();
+
+    // Windows: 空路徑 → 列出所有可用磁碟機
+    if (!target && process.platform === "win32") {
+      return { path: "", entries: await listDrives() };
+    }
+
+    const resolved = target ? path.resolve(target) : "/";
+    if (target && !path.isAbsolute(target)) {
+      throw Object.assign(new Error("請輸入絕對路徑"), { statusCode: 400 });
+    }
+    let stat: fs.Stats | undefined;
+    try {
+      stat = await fs.promises.stat(resolved);
+    } catch {
+      // 路徑不存在
+    }
+    if (!stat?.isDirectory()) {
+      throw stat
+        ? Object.assign(new Error("不是資料夾"), { statusCode: 400 })
+        : Object.assign(new Error("路徑不存在"), { statusCode: 404 });
+    }
+    const dirents = await fs.promises.readdir(resolved, { withFileTypes: true });
+    const results = await Promise.allSettled(
+      dirents.map(async (entry): Promise<DirEntry | null> => {
+        try {
+          const full = path.join(resolved, entry.name);
+          const s = await fs.promises.stat(full);
+          return {
+            name: entry.name,
+            isDir: entry.isDirectory(),
+            size: s.size,
+            modifiedAt: new Date(s.mtimeMs).toISOString(),
+            editable: false,
+          } satisfies DirEntry;
+        } catch {
+          return null; // 跳過權限不足或無法存取的項目 (如 DumpStack.log.tmp)
+        }
+      }),
+    );
+    const entries: DirEntry[] = results
+      .filter((r): r is PromiseFulfilledResult<DirEntry> => r.status === "fulfilled" && r.value !== null)
+      .map((r) => r.value)
+      .sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
+    return { path: resolved, entries };
+  });
+
+  app.post("/api/host/mkdir", async (req, reply) => {
+    if (!isPrivateNetwork(req.ip)) {
+      throw Object.assign(new Error("目錄瀏覽僅限區域網路使用"), { statusCode: 403 });
+    }
+    const { path: dirPath } = z.object({ path: z.string().min(1).max(1000) }).parse(req.body);
+    if (!path.isAbsolute(dirPath)) {
+      throw Object.assign(new Error("請輸入絕對路徑"), { statusCode: 400 });
+    }
+    const resolved = path.resolve(dirPath);
+    try {
+      await fs.promises.access(resolved);
+      throw Object.assign(new Error("路徑已存在"), { statusCode: 409 });
+    } catch (err: any) {
+      if (err.statusCode === 409) throw err; // 路徑已存在
+      // 只放行 ENOENT（不存在），其他錯誤如 EACCES/EPERM 直接拋出
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    }
+    await fs.promises.mkdir(resolved, { recursive: true });
+    reply.code(201);
+    return { created: resolved };
   });
 
   // ── file browser (native server root or k8s /palworld root) ──

@@ -1054,6 +1054,17 @@ export class AgentClient {
     return this.request(`/api/instances/${id}/logs/sources`);
   }
 
+  hostListDir(path: string): Promise<{ path: string; entries: DirEntry[] }> {
+    return this.request(`/api/host/list-dir?path=${encodeURIComponent(path)}`);
+  }
+
+  hostMkdir(path: string): Promise<{ created: string }> {
+    return this.request("/api/host/mkdir", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    });
+  }
+
   logsSocket(id: string, source: LogSourceId = "agent"): WebSocket {
     const wsUrl = this.conn.url.replace(/^http/, "ws");
     return new WebSocket(
