@@ -1781,5 +1781,11 @@
   "讓 bot 在指定頻道維護一則「每分鐘自動更新」的伺服器狀態訊息(在線玩家、FPS、運行時間…),不會洗版。": "Have the bot keep a single auto-updating (every minute) server status message in a channel — online players, FPS, uptime… without flooding the channel.",
   "狀態面板頻道 ID": "Status panel channel ID",
   "貼上頻道 ID(留空 = 不顯示狀態面板)": "Paste a channel ID (empty = no status panel)",
-  "建議用獨立的 #status 頻道。bot 需要該頻道的發言與讀取訊息歷史權限;更改頻道後 bot 會自動重啟套用。": "A dedicated #status channel is recommended. The bot needs Send Messages and Read Message History permissions there; changing the channel restarts the bot automatically."
+  "建議用獨立的 #status 頻道。bot 需要該頻道的發言與讀取訊息歷史權限;更改頻道後 bot 會自動重啟套用。": "A dedicated #status channel is recommended. The bot needs Send Messages and Read Message History permissions there; changing the channel restarts the bot automatically.",
+  "已發送": "Sent",
+  "按星等快速填入累積濃縮數量，也可直接手動輸入。": "Quick-fill accumulated condensation count by star level, or enter manually.",
+  "廣播訊息(支援中文)": "Broadcast (supports Chinese)",
+  "廣播失敗：請確認伺服器已啟用 REST API（預設埠 8212）": "Broadcast failed: please make sure the server has REST API enabled (default port 8212)",
+  "此帕魯不在圖鑑中，為推估名稱": "This Pal is not in the catalog; name is estimated",
+  "不在圖鑑中": "Not in catalog"
 }

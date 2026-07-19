@@ -1632,6 +1632,37 @@ export function registerRoutes(
         target: z.string().trim().min(1).max(128).regex(/^[A-Za-z0-9_.\- ]+$/),
       })
       .parse(req.body);
+
+    // 若 target 只有 X Y 兩軸（不含 Z），判斷是否為遠距離傳送。
+    // 直線距離 >= 250 時做兩次 tp，讓地形串流載入後第二次 tp 才正確著地。
+    const coord2d = target.match(/^(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)$/);
+    if (coord2d) {
+      const tx = parseFloat(coord2d[1]);
+      const ty = parseFloat(coord2d[2]);
+
+      // 找出要重傳幾次：讀取目前位置計算距離
+      let attempts = 2; // 預設兩次（遠距離）
+      try {
+        const posOut = await rconExec(rec, `getpos ${source}`);
+        const xm = posOut.match(/X\s*[:=]\s*(-?\d+(?:\.\d+)?)/i);
+        const ym = posOut.match(/Y\s*[:=]\s*(-?\d+(?:\.\d+)?)/i);
+        if (xm && ym) {
+          const dx = tx - parseFloat(xm[1]);
+          const dy = ty - parseFloat(ym[1]);
+          if (Math.sqrt(dx * dx + dy * dy) < 250) attempts = 1;
+        }
+      } catch {
+        // getpos 失敗則保守用兩次 tp
+      }
+
+      await rconExec(rec, `tp ${source} ${tx} ${ty}`);
+      for (let i = 1; i < attempts; i++) {
+        await sleep(500);
+        await rconExec(rec, `tp ${source} ${tx} ${ty}`);
+      }
+      return { output: "OK" };
+    }
+
     const output = await rconExec(rec, `tp ${source} ${target}`);
     return { output };
   });
