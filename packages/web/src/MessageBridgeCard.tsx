@@ -15,7 +15,7 @@ import {
   FiTrash2,
   FiX,
 } from "react-icons/fi";
-import type { MessageBridgeConfig, MessageBridgePatch, MessageBridgePlatform, MessageBridgeStatus } from "@palserver/shared";
+import type { MessageBridgeConfig, MessageBridgePatch, MessageBridgePlatform, MessageBridgeRules, MessageBridgeStatus } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { btn, btnGhost, card, errorCls, inputCls, labelCls } from "./ui";
 import { t, useI18n } from "./i18n";
@@ -47,6 +47,15 @@ const toDraft = (config: MessageBridgeConfig): Draft => ({
   discord: { ...config.discord, token: "" },
   telegram: { ...config.telegram, token: "" },
   webhook: { ...config.webhook, secret: "" },
+});
+
+const rulePatch = (channel: MessageBridgeRules): MessageBridgeRules => ({
+  relayGroupToGame: channel.relayGroupToGame,
+  relayGameToGroup: channel.relayGameToGroup,
+  notifyJoinLeave: channel.notifyJoinLeave,
+  notifyCapture: channel.notifyCapture,
+  notifyDeath: channel.notifyDeath,
+  commandPrefix: channel.commandPrefix,
 });
 
 export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
@@ -83,11 +92,6 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
     return <div className="max-w-3xl">{error ? <p className={errorCls}>{error}</p> : <p className="text-sm text-ink-muted">{t("載入中…")}</p>}</div>;
   }
 
-  const setTop = <K extends keyof Draft>(key: K, value: Draft[K]) => {
-    setDraft({ ...draft, [key]: value });
-    setError(null);
-    setNotice(null);
-  };
   const setPlatform = <P extends Platform>(platform: P, patch: Partial<Draft[P]>) => {
     setDraft({ ...draft, [platform]: { ...draft[platform], ...patch } });
     setError(null);
@@ -123,17 +127,10 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
     setError(null);
     setNotice(null);
     const patch: MessageBridgePatch = {
-      enabled: draft.enabled,
-      relayGroupToGame: draft.relayGroupToGame,
-      relayGameToGroup: draft.relayGameToGroup,
-      notifyJoinLeave: draft.notifyJoinLeave,
-      notifyCapture: draft.notifyCapture,
-      notifyDeath: draft.notifyDeath,
-      commandPrefix: draft.commandPrefix,
-      onebot: { added: draft.onebot.added, enabled: draft.onebot.enabled, wsUrl: draft.onebot.wsUrl, groupId: draft.onebot.groupId, adminIds: draft.onebot.adminIds, language: draft.onebot.language, accessToken: draft.onebot.accessToken },
-      discord: { added: draft.discord.added, enabled: draft.discord.enabled, channelId: draft.discord.channelId, adminIds: draft.discord.adminIds, language: draft.discord.language, token: draft.discord.token },
-      telegram: { added: draft.telegram.added, enabled: draft.telegram.enabled, chatId: draft.telegram.chatId, adminIds: draft.telegram.adminIds, language: draft.telegram.language, token: draft.telegram.token },
-      webhook: { added: draft.webhook.added, enabled: draft.webhook.enabled, url: draft.webhook.url, adminIds: draft.webhook.adminIds, language: draft.webhook.language, secret: draft.webhook.secret },
+      onebot: { ...rulePatch(draft.onebot), added: draft.onebot.added, enabled: draft.onebot.enabled, wsUrl: draft.onebot.wsUrl, groupId: draft.onebot.groupId, adminIds: draft.onebot.adminIds, language: draft.onebot.language, accessToken: draft.onebot.accessToken },
+      discord: { ...rulePatch(draft.discord), added: draft.discord.added, enabled: draft.discord.enabled, channelId: draft.discord.channelId, adminIds: draft.discord.adminIds, language: draft.discord.language, token: draft.discord.token },
+      telegram: { ...rulePatch(draft.telegram), added: draft.telegram.added, enabled: draft.telegram.enabled, chatId: draft.telegram.chatId, adminIds: draft.telegram.adminIds, language: draft.telegram.language, token: draft.telegram.token },
+      webhook: { ...rulePatch(draft.webhook), added: draft.webhook.added, enabled: draft.webhook.enabled, url: draft.webhook.url, adminIds: draft.webhook.adminIds, language: draft.webhook.language, secret: draft.webhook.secret },
     };
     try {
       const result = await client.updateMessageBridge(instanceId, patch);
@@ -154,32 +151,10 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
           <h2 className="inline-flex items-center gap-2 text-lg font-extrabold"><FiMessageCircle className="text-pal" /> {t("群服互通")}</h2>
           <p className="mt-1 text-[13px] text-ink-muted">{t("连接群聊与游戏服务器，并在多个消息平台之间同步聊天和事件。")}</p>
         </div>
-        <button className={`${btn} inline-flex items-center gap-1.5`} disabled={busy || !draft.commandPrefix} onClick={() => void save()}>
+        <button className={`${btn} inline-flex items-center gap-1.5`} disabled={busy || added.some(({ id }) => !draft[id].commandPrefix)} onClick={() => void save()}>
           <FiSave className="size-4" /> {busy ? t("儲存中…") : t("儲存變更")}
         </button>
       </div>
-
-      <section className={`${card} flex flex-col gap-4`}>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-extrabold">{t("互通规则")}</h3>
-            <p className="mt-1 text-xs text-ink-muted">{t("总开关关闭时保留所有渠道配置，但停止收发消息。")}</p>
-          </div>
-          <Toggle checked={draft.enabled} onChange={(enabled) => setTop("enabled", enabled)} label={draft.enabled ? t("运行中") : t("已暂停")} />
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Check checked={draft.relayGroupToGame} onChange={(v) => setTop("relayGroupToGame", v)} label={t("群消息轉發到遊戲")} />
-          <Check checked={draft.relayGameToGroup} onChange={(v) => setTop("relayGameToGroup", v)} label={t("遊戲聊天轉發到群")} />
-          <Check checked={draft.notifyJoinLeave} onChange={(v) => setTop("notifyJoinLeave", v)} label={t("玩家進出提示")} />
-          <Check checked={draft.notifyCapture} onChange={(v) => setTop("notifyCapture", v)} label={t("抓捕帕魯提示")} />
-          <Check checked={draft.notifyDeath} onChange={(v) => setTop("notifyDeath", v)} label={t("玩家死亡提示")} />
-          <label className="flex items-center gap-2 text-[13px] font-bold">
-            {t("指令前綴")}
-            <input className={`${inputCls} w-16 py-1.5`} value={draft.commandPrefix} maxLength={3} onChange={(e) => setTop("commandPrefix", e.target.value)} />
-          </label>
-        </div>
-        <p className="text-xs text-ink-muted">{t("群內可使用 /server、/players、/help、/whoami；管理員可使用 /adminhelp 查看管理指令。群消息也會同步到其他已連接平台。死亡與抓捕事件需要 PalDefender 日誌。")}</p>
-      </section>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
@@ -209,7 +184,7 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-card-soft text-pal">{meta.icon}</span>
                 <button className="min-w-0 flex-1 text-left" onClick={() => setExpanded(open ? null : platform)}>
                   <span className="block text-sm font-extrabold">{t(meta.name)}</span>
-                  <ChannelStatus globalEnabled={draft.enabled} channelEnabled={channel.enabled} connected={state?.connected ?? false} error={state?.error ?? null} />
+                  <ChannelStatus channelEnabled={channel.enabled} connected={state?.connected ?? false} error={state?.error ?? null} />
                 </button>
                 <Toggle checked={channel.enabled} onChange={(enabled) => setPlatform(platform, { enabled })} label={channel.enabled ? t("啟用") : t("停用")} compact />
                 <button className="grid size-8 shrink-0 place-items-center text-ink-muted transition hover:text-danger" onClick={() => removePlatform(platform)} title={t("移除渠道")} aria-label={t("移除渠道")}><FiTrash2 /></button>
@@ -237,6 +212,7 @@ function ChannelForm({ platform, draft, client, instanceId, setPlatform }: {
   setPlatform: <P extends Platform>(platform: P, patch: Partial<Draft[P]>) => void;
 }) {
   if (platform === "onebot") return <div className="grid gap-3 sm:grid-cols-2">
+    <ChannelRulesForm value={draft.onebot} onChange={(patch) => setPlatform("onebot", patch)} />
     <LanguageField value={draft.onebot.language} onChange={(language) => setPlatform("onebot", { language })} />
     <Field label="WebSocket URL"><input className={inputCls} value={draft.onebot.wsUrl} onChange={(e) => setPlatform("onebot", { wsUrl: e.target.value })} placeholder="ws://127.0.0.1:3001" /></Field>
     <Field label={t("群號")}><input className={inputCls} value={draft.onebot.groupId} onChange={(e) => setPlatform("onebot", { groupId: e.target.value })} /></Field>
@@ -245,6 +221,7 @@ function ChannelForm({ platform, draft, client, instanceId, setPlatform }: {
     <AdminField value={draft.onebot.adminIds} onChange={(adminIds) => setPlatform("onebot", { adminIds })} />
   </div>;
   if (platform === "discord") return <div className="grid gap-3 sm:grid-cols-2">
+    <ChannelRulesForm value={draft.discord} onChange={(patch) => setPlatform("discord", patch)} />
     <LanguageField value={draft.discord.language} onChange={(language) => setPlatform("discord", { language })} />
     <Field label="Channel ID"><input className={inputCls} value={draft.discord.channelId} onChange={(e) => setPlatform("discord", { channelId: e.target.value })} /></Field>
     <SecretField label="Bot Token" value={draft.discord.token} saved={draft.discord.tokenSet} onChange={(token) => setPlatform("discord", { token })} />
@@ -252,6 +229,7 @@ function ChannelForm({ platform, draft, client, instanceId, setPlatform }: {
     <AdminField value={draft.discord.adminIds} onChange={(adminIds) => setPlatform("discord", { adminIds })} />
   </div>;
   if (platform === "telegram") return <div className="grid gap-3 sm:grid-cols-2">
+    <ChannelRulesForm value={draft.telegram} onChange={(patch) => setPlatform("telegram", patch)} />
     <LanguageField value={draft.telegram.language} onChange={(language) => setPlatform("telegram", { language })} />
     <Field label="Chat ID"><input className={inputCls} value={draft.telegram.chatId} onChange={(e) => setPlatform("telegram", { chatId: e.target.value })} placeholder="-100..." /></Field>
     <SecretField label="Bot Token" value={draft.telegram.token} saved={draft.telegram.tokenSet} onChange={(token) => setPlatform("telegram", { token })} />
@@ -259,6 +237,7 @@ function ChannelForm({ platform, draft, client, instanceId, setPlatform }: {
     <AdminField value={draft.telegram.adminIds} onChange={(adminIds) => setPlatform("telegram", { adminIds })} />
   </div>;
   return <div className="grid gap-3 sm:grid-cols-2">
+    <ChannelRulesForm value={draft.webhook} onChange={(patch) => setPlatform("webhook", patch)} />
     <LanguageField value={draft.webhook.language} onChange={(language) => setPlatform("webhook", { language })} />
     <Field label={t("出站 URL")}><input className={inputCls} value={draft.webhook.url} onChange={(e) => setPlatform("webhook", { url: e.target.value })} placeholder="https://..." /></Field>
     <SecretField label={t("共享密鑰")} value={draft.webhook.secret} saved={draft.webhook.secretSet} onChange={(secret) => setPlatform("webhook", { secret })} />
@@ -288,10 +267,28 @@ function AddChannelDialog({ available, onAdd, onClose }: { available: typeof PLA
   </div>;
 }
 
-function ChannelStatus({ globalEnabled, channelEnabled, connected, error }: { globalEnabled: boolean; channelEnabled: boolean; connected: boolean; error: string | null }) {
-  const label = !globalEnabled ? t("总开关已暂停") : !channelEnabled ? t("渠道已停用") : connected ? t("已連接") : error || t("等待連接");
-  const color = globalEnabled && channelEnabled && connected ? "bg-ok" : error && channelEnabled ? "bg-danger" : "bg-ink-muted";
+function ChannelStatus({ channelEnabled, connected, error }: { channelEnabled: boolean; connected: boolean; error: string | null }) {
+  const label = !channelEnabled ? t("渠道已停用") : connected ? t("已連接") : error || t("等待連接");
+  const color = channelEnabled && connected ? "bg-ok" : error && channelEnabled ? "bg-danger" : "bg-ink-muted";
   return <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-ink-muted"><span className={`size-1.5 shrink-0 rounded-full ${color}`} /><span className="truncate" title={error ?? undefined}>{label}</span></span>;
+}
+
+function ChannelRulesForm({ value, onChange }: { value: MessageBridgeRules; onChange: (patch: Partial<MessageBridgeRules>) => void }) {
+  return <section className="flex flex-col gap-3 border-b-2 border-line pb-4 sm:col-span-2">
+    <h4 className="text-sm font-extrabold">{t("互通规则")}</h4>
+    <div className="grid gap-2 sm:grid-cols-2">
+      <Check checked={value.relayGroupToGame} onChange={(relayGroupToGame) => onChange({ relayGroupToGame })} label={t("群消息轉發到遊戲")} />
+      <Check checked={value.relayGameToGroup} onChange={(relayGameToGroup) => onChange({ relayGameToGroup })} label={t("遊戲聊天轉發到群")} />
+      <Check checked={value.notifyJoinLeave} onChange={(notifyJoinLeave) => onChange({ notifyJoinLeave })} label={t("玩家進出提示")} />
+      <Check checked={value.notifyCapture} onChange={(notifyCapture) => onChange({ notifyCapture })} label={t("抓捕帕魯提示")} />
+      <Check checked={value.notifyDeath} onChange={(notifyDeath) => onChange({ notifyDeath })} label={t("玩家死亡提示")} />
+      <label className="flex items-center gap-2 text-[13px] font-bold">
+        {t("指令前綴")}
+        <input className={`${inputCls} w-16 py-1.5`} value={value.commandPrefix} maxLength={3} onChange={(event) => onChange({ commandPrefix: event.target.value })} />
+      </label>
+    </div>
+    <p className="text-xs text-ink-muted">{t("群內可使用 /server、/players、/help、/whoami；管理員可使用 /adminhelp 查看管理指令。群消息也會同步到其他已連接平台。死亡與抓捕事件需要 PalDefender 日誌。")}</p>
+  </section>;
 }
 
 function Toggle({ checked, onChange, label, compact = false }: { checked: boolean; onChange: (value: boolean) => void; label: string; compact?: boolean }) {

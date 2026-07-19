@@ -2415,18 +2415,20 @@ export function registerRoutes(
     return { config: messageBridge.getConfig(rec.id), status: messageBridge.getStatus(rec.id) };
   });
 
-  const MessageBridgePatchSchema = z.object({
-    enabled: z.boolean().optional(),
+  const MessageBridgeRulePatchShape = {
     relayGroupToGame: z.boolean().optional(),
     relayGameToGroup: z.boolean().optional(),
     notifyJoinLeave: z.boolean().optional(),
     notifyCapture: z.boolean().optional(),
     notifyDeath: z.boolean().optional(),
     commandPrefix: z.string().trim().min(1).max(3).optional(),
-    onebot: z.object({ added: z.boolean().optional(), enabled: z.boolean().optional(), wsUrl: z.string().trim().max(500).optional(), groupId: z.string().trim().max(100).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), accessToken: z.string().max(2000).optional() }).optional(),
-    discord: z.object({ added: z.boolean().optional(), enabled: z.boolean().optional(), channelId: z.string().trim().max(100).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), token: z.string().max(2000).optional() }).optional(),
-    telegram: z.object({ added: z.boolean().optional(), enabled: z.boolean().optional(), chatId: z.string().trim().max(100).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), token: z.string().max(2000).optional() }).optional(),
-    webhook: z.object({ added: z.boolean().optional(), enabled: z.boolean().optional(), url: z.string().trim().max(1000).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), secret: z.string().max(2000).optional() }).optional(),
+  };
+  const MessageBridgeLanguageSchema = z.enum(["zh-TW", "zh-CN", "en", "ja"]);
+  const MessageBridgePatchSchema = z.object({
+    onebot: z.object({ ...MessageBridgeRulePatchShape, added: z.boolean().optional(), enabled: z.boolean().optional(), wsUrl: z.string().trim().max(500).optional(), groupId: z.string().trim().max(100).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), language: MessageBridgeLanguageSchema.optional(), accessToken: z.string().max(2000).optional() }).optional(),
+    discord: z.object({ ...MessageBridgeRulePatchShape, added: z.boolean().optional(), enabled: z.boolean().optional(), channelId: z.string().trim().max(100).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), language: MessageBridgeLanguageSchema.optional(), token: z.string().max(2000).optional() }).optional(),
+    telegram: z.object({ ...MessageBridgeRulePatchShape, added: z.boolean().optional(), enabled: z.boolean().optional(), chatId: z.string().trim().max(100).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), language: MessageBridgeLanguageSchema.optional(), token: z.string().max(2000).optional() }).optional(),
+    webhook: z.object({ ...MessageBridgeRulePatchShape, added: z.boolean().optional(), enabled: z.boolean().optional(), url: z.string().trim().max(1000).optional(), adminIds: z.array(z.string().trim().min(1).max(128)).max(50).optional(), language: MessageBridgeLanguageSchema.optional(), secret: z.string().max(2000).optional() }).optional(),
   }).strict();
 
   app.put("/api/instances/:id/message-bridge", async (req) => {

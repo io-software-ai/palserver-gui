@@ -198,15 +198,17 @@ export type MessageBridgePlatform = "onebot" | "discord" | "telegram" | "webhook
 export type MessageBridgeLanguage = "zh-TW" | "zh-CN" | "en" | "ja";
 export { localizePalName } from "./pal-names.generated.js";
 
-export interface MessageBridgeConfig {
-  enabled: boolean;
+export interface MessageBridgeRules {
   relayGroupToGame: boolean;
   relayGameToGroup: boolean;
   notifyJoinLeave: boolean;
   notifyCapture: boolean;
   notifyDeath: boolean;
   commandPrefix: string;
-  onebot: {
+}
+
+export interface MessageBridgeConfig {
+  onebot: MessageBridgeRules & {
     added: boolean;
     enabled: boolean;
     wsUrl: string;
@@ -215,7 +217,7 @@ export interface MessageBridgeConfig {
     language: MessageBridgeLanguage;
     accessTokenSet: boolean;
   };
-  discord: {
+  discord: MessageBridgeRules & {
     added: boolean;
     enabled: boolean;
     channelId: string;
@@ -223,7 +225,7 @@ export interface MessageBridgeConfig {
     language: MessageBridgeLanguage;
     tokenSet: boolean;
   };
-  telegram: {
+  telegram: MessageBridgeRules & {
     added: boolean;
     enabled: boolean;
     chatId: string;
@@ -231,7 +233,7 @@ export interface MessageBridgeConfig {
     language: MessageBridgeLanguage;
     tokenSet: boolean;
   };
-  webhook: {
+  webhook: MessageBridgeRules & {
     added: boolean;
     enabled: boolean;
     url: string;
@@ -243,17 +245,10 @@ export interface MessageBridgeConfig {
 
 /** Secrets are write-only. Omit or send an empty string to preserve the saved value. */
 export interface MessageBridgePatch {
-  enabled?: boolean;
-  relayGroupToGame?: boolean;
-  relayGameToGroup?: boolean;
-  notifyJoinLeave?: boolean;
-  notifyCapture?: boolean;
-  notifyDeath?: boolean;
-  commandPrefix?: string;
-  onebot?: { added?: boolean; enabled?: boolean; wsUrl?: string; groupId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; accessToken?: string };
-  discord?: { added?: boolean; enabled?: boolean; channelId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; token?: string };
-  telegram?: { added?: boolean; enabled?: boolean; chatId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; token?: string };
-  webhook?: { added?: boolean; enabled?: boolean; url?: string; adminIds?: string[]; language?: MessageBridgeLanguage; secret?: string };
+  onebot?: Partial<MessageBridgeRules> & { added?: boolean; enabled?: boolean; wsUrl?: string; groupId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; accessToken?: string };
+  discord?: Partial<MessageBridgeRules> & { added?: boolean; enabled?: boolean; channelId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; token?: string };
+  telegram?: Partial<MessageBridgeRules> & { added?: boolean; enabled?: boolean; chatId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; token?: string };
+  webhook?: Partial<MessageBridgeRules> & { added?: boolean; enabled?: boolean; url?: string; adminIds?: string[]; language?: MessageBridgeLanguage; secret?: string };
 }
 
 export interface MessageBridgeStatus {

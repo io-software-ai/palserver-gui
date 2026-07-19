@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import WebSocket from "ws";
 import { localizePalName } from "@palserver/shared";
-import type { MessageBridgeConfig, MessageBridgeLanguage, MessageBridgePatch, MessageBridgePlatform, MessageBridgeStatus } from "@palserver/shared";
+import type { MessageBridgeConfig, MessageBridgeLanguage, MessageBridgePatch, MessageBridgePlatform, MessageBridgeRules, MessageBridgeStatus } from "@palserver/shared";
 import type { ServerDriver } from "./driver.js";
 import type { InstanceRecord, InstanceStore } from "./store.js";
 import type { PresenceTracker } from "./presence.js";
@@ -14,18 +14,13 @@ const API_TIMEOUT_MS = 10_000;
 const RECONNECT_MS = 5_000;
 
 interface StoredBridgeConfig {
-  enabled: boolean;
-  relayGroupToGame: boolean;
-  relayGameToGroup: boolean;
-  notifyJoinLeave: boolean;
-  notifyCapture: boolean;
-  notifyDeath: boolean;
-  commandPrefix: string;
-  onebot: { added: boolean; enabled: boolean; wsUrl: string; groupId: string; adminIds: string[]; language: MessageBridgeLanguage; accessToken: string };
-  discord: { added: boolean; enabled: boolean; channelId: string; adminIds: string[]; language: MessageBridgeLanguage; token: string };
-  telegram: { added: boolean; enabled: boolean; chatId: string; adminIds: string[]; language: MessageBridgeLanguage; token: string };
-  webhook: { added: boolean; enabled: boolean; url: string; adminIds: string[]; language: MessageBridgeLanguage; secret: string };
+  onebot: MessageBridgeRules & { added: boolean; enabled: boolean; wsUrl: string; groupId: string; adminIds: string[]; language: MessageBridgeLanguage; accessToken: string };
+  discord: MessageBridgeRules & { added: boolean; enabled: boolean; channelId: string; adminIds: string[]; language: MessageBridgeLanguage; token: string };
+  telegram: MessageBridgeRules & { added: boolean; enabled: boolean; chatId: string; adminIds: string[]; language: MessageBridgeLanguage; token: string };
+  webhook: MessageBridgeRules & { added: boolean; enabled: boolean; url: string; adminIds: string[]; language: MessageBridgeLanguage; secret: string };
 }
+
+type LegacyBridgeConfig = Partial<StoredBridgeConfig> & Partial<MessageBridgeRules> & { enabled?: boolean };
 
 interface IncomingMessage { platform: MessageBridgePlatform; userId: string; author: string; text: string }
 interface Adapter {
@@ -45,18 +40,20 @@ interface Runtime {
   lastPresenceKey: string;
 }
 
-const defaults = (): StoredBridgeConfig => ({
-  enabled: false,
+const defaultRules = (): MessageBridgeRules => ({
   relayGroupToGame: true,
   relayGameToGroup: true,
   notifyJoinLeave: true,
   notifyCapture: true,
   notifyDeath: true,
   commandPrefix: "/",
-  onebot: { added: false, enabled: false, wsUrl: "ws://127.0.0.1:3001", groupId: "", adminIds: [], language: "zh-CN", accessToken: "" },
-  discord: { added: false, enabled: false, channelId: "", adminIds: [], language: "zh-CN", token: "" },
-  telegram: { added: false, enabled: false, chatId: "", adminIds: [], language: "zh-CN", token: "" },
-  webhook: { added: false, enabled: false, url: "", adminIds: [], language: "zh-CN", secret: "" },
+});
+
+const defaults = (): StoredBridgeConfig => ({
+  onebot: { ...defaultRules(), added: false, enabled: false, wsUrl: "ws://127.0.0.1:3001", groupId: "", adminIds: [], language: "zh-CN", accessToken: "" },
+  discord: { ...defaultRules(), added: false, enabled: false, channelId: "", adminIds: [], language: "zh-CN", token: "" },
+  telegram: { ...defaultRules(), added: false, enabled: false, chatId: "", adminIds: [], language: "zh-CN", token: "" },
+  webhook: { ...defaultRules(), added: false, enabled: false, url: "", adminIds: [], language: "zh-CN", secret: "" },
 });
 
 function cleanText(value: unknown, max = 500): string {
@@ -72,34 +69,48 @@ function cleanLanguage(value: unknown): MessageBridgeLanguage {
   return value === "zh-TW" || value === "en" || value === "ja" ? value : "zh-CN";
 }
 
-function mergeStored(raw: Partial<StoredBridgeConfig> | null): StoredBridgeConfig {
+export function resolveMessageBridgeRules(channel: Partial<MessageBridgeRules> | undefined, legacy: Partial<MessageBridgeRules> | undefined): MessageBridgeRules {
+  const fallback = defaultRules();
+  return {
+    relayGroupToGame: channel?.relayGroupToGame ?? legacy?.relayGroupToGame ?? fallback.relayGroupToGame,
+    relayGameToGroup: channel?.relayGameToGroup ?? legacy?.relayGameToGroup ?? fallback.relayGameToGroup,
+    notifyJoinLeave: channel?.notifyJoinLeave ?? legacy?.notifyJoinLeave ?? fallback.notifyJoinLeave,
+    notifyCapture: channel?.notifyCapture ?? legacy?.notifyCapture ?? fallback.notifyCapture,
+    notifyDeath: channel?.notifyDeath ?? legacy?.notifyDeath ?? fallback.notifyDeath,
+    commandPrefix: cleanText(channel?.commandPrefix ?? legacy?.commandPrefix ?? fallback.commandPrefix, 3) || "/",
+  };
+}
+
+function mergeStored(raw: LegacyBridgeConfig | null): StoredBridgeConfig {
   const d = defaults();
   if (!raw || typeof raw !== "object") return d;
+  const legacyDisabled = raw.enabled === false;
   return {
-    ...d,
-    ...raw,
-    commandPrefix: cleanText(raw.commandPrefix ?? d.commandPrefix, 3) || "/",
     onebot: {
-      ...d.onebot, ...(raw.onebot ?? {}),
+      ...d.onebot, ...raw.onebot, ...resolveMessageBridgeRules(raw.onebot, raw),
       added: raw.onebot?.added ?? !!(raw.onebot?.enabled || raw.onebot?.groupId || raw.onebot?.accessToken),
+      enabled: legacyDisabled ? false : raw.onebot?.enabled ?? d.onebot.enabled,
       adminIds: cleanAdminIds(raw.onebot?.adminIds),
       language: cleanLanguage(raw.onebot?.language),
     },
     discord: {
-      ...d.discord, ...(raw.discord ?? {}),
+      ...d.discord, ...raw.discord, ...resolveMessageBridgeRules(raw.discord, raw),
       added: raw.discord?.added ?? !!(raw.discord?.enabled || raw.discord?.channelId || raw.discord?.token),
+      enabled: legacyDisabled ? false : raw.discord?.enabled ?? d.discord.enabled,
       adminIds: cleanAdminIds(raw.discord?.adminIds),
       language: cleanLanguage(raw.discord?.language),
     },
     telegram: {
-      ...d.telegram, ...(raw.telegram ?? {}),
+      ...d.telegram, ...raw.telegram, ...resolveMessageBridgeRules(raw.telegram, raw),
       added: raw.telegram?.added ?? !!(raw.telegram?.enabled || raw.telegram?.chatId || raw.telegram?.token),
+      enabled: legacyDisabled ? false : raw.telegram?.enabled ?? d.telegram.enabled,
       adminIds: cleanAdminIds(raw.telegram?.adminIds),
       language: cleanLanguage(raw.telegram?.language),
     },
     webhook: {
-      ...d.webhook, ...(raw.webhook ?? {}),
+      ...d.webhook, ...raw.webhook, ...resolveMessageBridgeRules(raw.webhook, raw),
       added: raw.webhook?.added ?? !!(raw.webhook?.enabled || raw.webhook?.url || raw.webhook?.secret),
+      enabled: legacyDisabled ? false : raw.webhook?.enabled ?? d.webhook.enabled,
       adminIds: cleanAdminIds(raw.webhook?.adminIds),
       language: cleanLanguage(raw.webhook?.language),
     },
@@ -421,12 +432,20 @@ export class MessageBridgeService {
   getConfig(id: string): MessageBridgeConfig {
     const c = this.read(id);
     return {
-      enabled: c.enabled, relayGroupToGame: c.relayGroupToGame, relayGameToGroup: c.relayGameToGroup,
-      notifyJoinLeave: c.notifyJoinLeave, notifyCapture: c.notifyCapture, notifyDeath: c.notifyDeath, commandPrefix: c.commandPrefix,
-      onebot: { added: c.onebot.added, enabled: c.onebot.enabled, wsUrl: c.onebot.wsUrl, groupId: c.onebot.groupId, adminIds: c.onebot.adminIds, language: c.onebot.language, accessTokenSet: !!c.onebot.accessToken },
-      discord: { added: c.discord.added, enabled: c.discord.enabled, channelId: c.discord.channelId, adminIds: c.discord.adminIds, language: c.discord.language, tokenSet: !!c.discord.token },
-      telegram: { added: c.telegram.added, enabled: c.telegram.enabled, chatId: c.telegram.chatId, adminIds: c.telegram.adminIds, language: c.telegram.language, tokenSet: !!c.telegram.token },
-      webhook: { added: c.webhook.added, enabled: c.webhook.enabled, url: c.webhook.url, adminIds: c.webhook.adminIds, language: c.webhook.language, secretSet: !!c.webhook.secret },
+      onebot: { ...this.publicRules(c.onebot), added: c.onebot.added, enabled: c.onebot.enabled, wsUrl: c.onebot.wsUrl, groupId: c.onebot.groupId, adminIds: c.onebot.adminIds, language: c.onebot.language, accessTokenSet: !!c.onebot.accessToken },
+      discord: { ...this.publicRules(c.discord), added: c.discord.added, enabled: c.discord.enabled, channelId: c.discord.channelId, adminIds: c.discord.adminIds, language: c.discord.language, tokenSet: !!c.discord.token },
+      telegram: { ...this.publicRules(c.telegram), added: c.telegram.added, enabled: c.telegram.enabled, chatId: c.telegram.chatId, adminIds: c.telegram.adminIds, language: c.telegram.language, tokenSet: !!c.telegram.token },
+      webhook: { ...this.publicRules(c.webhook), added: c.webhook.added, enabled: c.webhook.enabled, url: c.webhook.url, adminIds: c.webhook.adminIds, language: c.webhook.language, secretSet: !!c.webhook.secret },
+    };
+  }
+  private publicRules(channel: MessageBridgeRules): MessageBridgeRules {
+    return {
+      relayGroupToGame: channel.relayGroupToGame,
+      relayGameToGroup: channel.relayGameToGroup,
+      notifyJoinLeave: channel.notifyJoinLeave,
+      notifyCapture: channel.notifyCapture,
+      notifyDeath: channel.notifyDeath,
+      commandPrefix: channel.commandPrefix,
     };
   }
   async updateConfig(id: string, patch: MessageBridgePatch): Promise<MessageBridgeConfig> {
@@ -464,8 +483,9 @@ export class MessageBridgeService {
     const rec = this.store.get(id);
     if (!rec) return;
     const config = this.read(id);
-    this.states.set(id, this.emptyStatus(config.enabled));
-    if (!config.enabled) return;
+    const running = (["onebot", "discord", "telegram", "webhook"] as const).some((platform) => config[platform].added && config[platform].enabled);
+    this.states.set(id, this.emptyStatus(running));
+    if (!running) return;
     const onMessage = (message: IncomingMessage) => void this.handleIncoming(id, message);
     const state = (platform: MessageBridgePlatform) => (connected: boolean, error?: string) => this.setState(id, platform, connected, error);
     const adapters: Adapter[] = [];
@@ -511,9 +531,9 @@ export class MessageBridgeService {
         if (runtime.seenLines.size > 500) runtime.seenLines.delete(runtime.seenLines.values().next().value!);
         const event = parseGameLogLine(line);
         if (!event) return;
-        if (event.type === "chat" && runtime.config.relayGameToGroup) void this.broadcast(rec.id, (language) => formatGameEvent(event, language));
-        if (event.type === "death" && runtime.config.notifyDeath) void this.broadcast(rec.id, (language) => formatGameEvent(event, language));
-        if (event.type === "capture" && runtime.config.notifyCapture) void this.broadcast(rec.id, (language) => formatGameEvent(event, language));
+        if (event.type === "chat") void this.broadcast(rec.id, (language) => formatGameEvent(event, language), undefined, "relayGameToGroup");
+        if (event.type === "death") void this.broadcast(rec.id, (language) => formatGameEvent(event, language), undefined, "notifyDeath");
+        if (event.type === "capture") void this.broadcast(rec.id, (language) => formatGameEvent(event, language), undefined, "notifyCapture");
       }, () => this.scheduleLogRetry(rec.id, runtime), source);
     } catch {
       this.scheduleLogRetry(rec.id, runtime);
@@ -534,7 +554,6 @@ export class MessageBridgeService {
   }
   private async pollPresence(): Promise<void> {
     for (const [id, runtime] of this.runtimes) {
-      if (!runtime.config.notifyJoinLeave) continue;
       const newestFirst = this.presence.events(id, 50);
       const previousIndex = newestFirst.findIndex((event) => this.presenceKey(event) === runtime.lastPresenceKey);
       const pending = !runtime.lastPresenceKey
@@ -542,7 +561,7 @@ export class MessageBridgeService {
         : previousIndex < 0 ? [] : newestFirst.slice(0, previousIndex).reverse();
       for (const event of pending) {
         runtime.lastPresenceKey = this.presenceKey(event);
-        await this.broadcast(id, (language) => `${event.type === "join" ? "→" : "←"} ${event.name} ${WORDS[language][event.type === "join" ? "joined" : "left"]}`);
+        await this.broadcast(id, (language) => `${event.type === "join" ? "→" : "←"} ${event.name} ${WORDS[language][event.type === "join" ? "joined" : "left"]}`, undefined, "notifyJoinLeave");
       }
       if (!runtime.lastPresenceKey && newestFirst[0]) runtime.lastPresenceKey = this.presenceKey(newestFirst[0]);
     }
@@ -554,13 +573,14 @@ export class MessageBridgeService {
     const runtime = this.runtimes.get(id);
     const rec = this.store.get(id);
     if (!runtime || !rec || !message.text) return;
-    const command = parseBridgeCommand(message.text, runtime.config.commandPrefix);
+    const channel = runtime.config[message.platform];
+    const command = parseBridgeCommand(message.text, channel.commandPrefix);
     if (command) {
       const isAdmin = runtime.config[message.platform].adminIds.includes(message.userId);
       const language = runtime.config[message.platform].language;
       let reply: string;
       try {
-        reply = await this.commandReply(rec, message, command.name, command.args, runtime.config.commandPrefix, isAdmin, language);
+        reply = await this.commandReply(rec, message, command.name, command.args, channel.commandPrefix, isAdmin, language);
         if (isAdmin && this.isAdminCommand(command.name)) this.auditAdminCommand(id, message, command.name, true);
       } catch (err) {
         reply = `${COMMAND_WORDS[language].failed}\n${err instanceof Error ? err.message : String(err)}`;
@@ -570,7 +590,7 @@ export class MessageBridgeService {
       return;
     }
     const relayed = `[${platformLabel(message.platform)}] ${message.author}: ${message.text}`;
-    if (runtime.config.relayGroupToGame) await rest.announce(rec, relayed.slice(0, 500)).catch(() => {});
+    if (channel.relayGroupToGame) await rest.announce(rec, relayed.slice(0, 500)).catch(() => {});
     await this.broadcast(id, relayed, message.platform);
   }
   private isAdminCommand(command: string): boolean {
@@ -676,10 +696,15 @@ export class MessageBridgeService {
     try { await adapter.send(text); this.setState(id, platform, true); }
     catch (err) { this.setState(id, platform, false, err instanceof Error ? err.message : String(err)); }
   }
-  private async broadcast(id: string, content: string | ((language: MessageBridgeLanguage) => string), exclude?: MessageBridgePlatform): Promise<void> {
+  private async broadcast(
+    id: string,
+    content: string | ((language: MessageBridgeLanguage) => string),
+    exclude?: MessageBridgePlatform,
+    rule?: keyof MessageBridgeRules,
+  ): Promise<void> {
     const runtime = this.runtimes.get(id);
     if (!runtime) return;
-    await Promise.allSettled(runtime.adapters.filter((a) => a.platform !== exclude).map(async (adapter) => {
+    await Promise.allSettled(runtime.adapters.filter((adapter) => adapter.platform !== exclude && (!rule || runtime.config[adapter.platform][rule] === true)).map(async (adapter) => {
       try { await adapter.send(typeof content === "function" ? content(adapter.language) : content); this.setState(id, adapter.platform, true); }
       catch (err) { this.setState(id, adapter.platform, false, err instanceof Error ? err.message : String(err)); }
     }));

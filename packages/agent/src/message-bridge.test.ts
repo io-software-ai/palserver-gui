@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { localizePalName } from "@palserver/shared";
-import { buildAdminGrantCommand, formatGameEvent, parseBridgeCommand, parseGameLogLine } from "./message-bridge.js";
+import { buildAdminGrantCommand, formatGameEvent, parseBridgeCommand, parseGameLogLine, resolveMessageBridgeRules } from "./message-bridge.js";
 
 test("parses PalDefender chat", () => {
   assert.deepEqual(
@@ -44,6 +44,16 @@ test("parses bridge commands with a custom prefix", () => {
     args: ["steam_1", "Wood", "20"],
   });
   assert.equal(parseBridgeCommand("hello", "!"), null);
+});
+
+test("migrates global bridge rules while preserving channel overrides", () => {
+  assert.deepEqual(
+    resolveMessageBridgeRules(
+      { relayGameToGroup: true, commandPrefix: "!" },
+      { relayGroupToGame: false, relayGameToGroup: false, notifyJoinLeave: false, notifyCapture: true, notifyDeath: false, commandPrefix: "/" },
+    ),
+    { relayGroupToGame: false, relayGameToGroup: true, notifyJoinLeave: false, notifyCapture: true, notifyDeath: false, commandPrefix: "!" },
+  );
 });
 
 test("builds constrained admin grant commands", () => {
