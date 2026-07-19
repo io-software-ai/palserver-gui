@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "gen:avatars": "node scripts/gen-pal-avatars.mjs"
+    "gen:avatars": "node scripts/gen-pal-avatars.mjs",
+    "gen:pal-names": "node scripts/gen-pal-names.mjs"
   },
   "dependencies": {
     "zod": "^3.24.0"

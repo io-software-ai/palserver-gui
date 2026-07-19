@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import WebSocket from "ws";
-import type { MessageBridgeConfig, MessageBridgePatch, MessageBridgePlatform, MessageBridgeStatus } from "@palserver/shared";
+import { localizePalName } from "@palserver/shared";
+import type { MessageBridgeConfig, MessageBridgeLanguage, MessageBridgePatch, MessageBridgePlatform, MessageBridgeStatus } from "@palserver/shared";
 import type { ServerDriver } from "./driver.js";
 import type { InstanceRecord, InstanceStore } from "./store.js";
 import type { PresenceTracker } from "./presence.js";
@@ -20,15 +21,16 @@ interface StoredBridgeConfig {
   notifyCapture: boolean;
   notifyDeath: boolean;
   commandPrefix: string;
-  onebot: { added: boolean; enabled: boolean; wsUrl: string; groupId: string; adminIds: string[]; accessToken: string };
-  discord: { added: boolean; enabled: boolean; channelId: string; adminIds: string[]; token: string };
-  telegram: { added: boolean; enabled: boolean; chatId: string; adminIds: string[]; token: string };
-  webhook: { added: boolean; enabled: boolean; url: string; adminIds: string[]; secret: string };
+  onebot: { added: boolean; enabled: boolean; wsUrl: string; groupId: string; adminIds: string[]; language: MessageBridgeLanguage; accessToken: string };
+  discord: { added: boolean; enabled: boolean; channelId: string; adminIds: string[]; language: MessageBridgeLanguage; token: string };
+  telegram: { added: boolean; enabled: boolean; chatId: string; adminIds: string[]; language: MessageBridgeLanguage; token: string };
+  webhook: { added: boolean; enabled: boolean; url: string; adminIds: string[]; language: MessageBridgeLanguage; secret: string };
 }
 
 interface IncomingMessage { platform: MessageBridgePlatform; userId: string; author: string; text: string }
 interface Adapter {
   platform: MessageBridgePlatform;
+  language: MessageBridgeLanguage;
   start(): void;
   stop(): void;
   send(text: string): Promise<void>;
@@ -51,10 +53,10 @@ const defaults = (): StoredBridgeConfig => ({
   notifyCapture: true,
   notifyDeath: true,
   commandPrefix: "/",
-  onebot: { added: false, enabled: false, wsUrl: "ws://127.0.0.1:3001", groupId: "", adminIds: [], accessToken: "" },
-  discord: { added: false, enabled: false, channelId: "", adminIds: [], token: "" },
-  telegram: { added: false, enabled: false, chatId: "", adminIds: [], token: "" },
-  webhook: { added: false, enabled: false, url: "", adminIds: [], secret: "" },
+  onebot: { added: false, enabled: false, wsUrl: "ws://127.0.0.1:3001", groupId: "", adminIds: [], language: "zh-CN", accessToken: "" },
+  discord: { added: false, enabled: false, channelId: "", adminIds: [], language: "zh-CN", token: "" },
+  telegram: { added: false, enabled: false, chatId: "", adminIds: [], language: "zh-CN", token: "" },
+  webhook: { added: false, enabled: false, url: "", adminIds: [], language: "zh-CN", secret: "" },
 });
 
 function cleanText(value: unknown, max = 500): string {
@@ -64,6 +66,10 @@ function cleanText(value: unknown, max = 500): string {
 function cleanAdminIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((id) => cleanText(id, 128)).filter(Boolean))].slice(0, 50);
+}
+
+function cleanLanguage(value: unknown): MessageBridgeLanguage {
+  return value === "zh-TW" || value === "en" || value === "ja" ? value : "zh-CN";
 }
 
 function mergeStored(raw: Partial<StoredBridgeConfig> | null): StoredBridgeConfig {
@@ -77,45 +83,107 @@ function mergeStored(raw: Partial<StoredBridgeConfig> | null): StoredBridgeConfi
       ...d.onebot, ...(raw.onebot ?? {}),
       added: raw.onebot?.added ?? !!(raw.onebot?.enabled || raw.onebot?.groupId || raw.onebot?.accessToken),
       adminIds: cleanAdminIds(raw.onebot?.adminIds),
+      language: cleanLanguage(raw.onebot?.language),
     },
     discord: {
       ...d.discord, ...(raw.discord ?? {}),
       added: raw.discord?.added ?? !!(raw.discord?.enabled || raw.discord?.channelId || raw.discord?.token),
       adminIds: cleanAdminIds(raw.discord?.adminIds),
+      language: cleanLanguage(raw.discord?.language),
     },
     telegram: {
       ...d.telegram, ...(raw.telegram ?? {}),
       added: raw.telegram?.added ?? !!(raw.telegram?.enabled || raw.telegram?.chatId || raw.telegram?.token),
       adminIds: cleanAdminIds(raw.telegram?.adminIds),
+      language: cleanLanguage(raw.telegram?.language),
     },
     webhook: {
       ...d.webhook, ...(raw.webhook ?? {}),
       added: raw.webhook?.added ?? !!(raw.webhook?.enabled || raw.webhook?.url || raw.webhook?.secret),
       adminIds: cleanAdminIds(raw.webhook?.adminIds),
+      language: cleanLanguage(raw.webhook?.language),
     },
   };
 }
 
 export type ParsedGameEvent =
-  | { type: "chat"; text: string }
-  | { type: "death"; text: string }
-  | { type: "capture"; text: string }
+  | { type: "chat"; channel: string; author: string; text: string }
+  | { type: "death"; player: string; cause?: string; killerPal?: string }
+  | { type: "capture"; player: string; pal: string }
   | null;
 
 export function parseGameLogLine(raw: string): ParsedGameEvent {
   const line = raw.replace(/[\r\n]+$/, "");
   let m: RegExpMatchArray | null;
   if ((m = line.match(/\[Chat::(\w+)\]\['([^']+)'[^\]]*\]:\s?(.*)$/)))
-    return { type: "chat", text: `[游戏/${m[1]}] ${m[2]}: ${cleanText(m[3])}` };
+    return { type: "chat", channel: m[1], author: m[2], text: cleanText(m[3]) };
   if ((m = line.match(/'([^']+)'[^)]*\) was attacked by a wild '([^']+)'.*died/i)))
-    return { type: "death", text: `☠ ${m[1]} 被野生 ${m[2]} 击杀` };
+    return { type: "death", player: m[1], killerPal: m[2] };
   if ((m = line.match(/'([^']+)'[^)]*\) died to (.+?)\.?$/i)))
-    return { type: "death", text: `☠ ${m[1]} 死亡: ${cleanText(m[2])}` };
+    return { type: "death", player: m[1], cause: cleanText(m[2]) };
   if ((m = line.match(/'([^']+)'[^)]*\) (?:was killed|and died\.)/i)))
-    return { type: "death", text: `☠ ${m[1]} 死亡` };
+    return { type: "death", player: m[1] };
   if ((m = line.match(/'([^']+)'[^)]*\) (?:has captured Pal|picked up Pal) '([^']+)'/i)))
-    return { type: "capture", text: `● ${m[1]} 捕捉了 ${m[2]}` };
+    return { type: "capture", player: m[1], pal: m[2] };
   return null;
+}
+
+const WORDS = {
+  "zh-TW": { game: "遊戲", killed: "被野生 {pal} 擊殺", died: "死亡", captured: "捕捉了 {pal}", joined: "加入伺服器", left: "離開伺服器" },
+  "zh-CN": { game: "游戏", killed: "被野生 {pal} 击杀", died: "死亡", captured: "捕捉了 {pal}", joined: "加入服务器", left: "离开服务器" },
+  en: { game: "Game", killed: "was killed by a wild {pal}", died: "died", captured: "captured {pal}", joined: "joined the server", left: "left the server" },
+  ja: { game: "ゲーム", killed: "野生の{pal}に倒されました", died: "死亡しました", captured: "{pal}を捕まえました", joined: "サーバーに参加しました", left: "サーバーから退出しました" },
+} satisfies Record<MessageBridgeLanguage, Record<string, string>>;
+
+const COMMAND_WORDS = {
+  "zh-TW": {
+    failed: "指令執行失敗", userId: "玩家 UserId", itemId: "道具 ID", palId: "帕魯 ID", amount: "數量", level: "等級",
+    whoami: "身分資訊", idUnavailable: "無法取得", commands: "可用指令", adminCommands: "管理員指令", denied: "權限不足",
+    deniedHint: "傳送 {prefix}whoami 取得使用者 ID，並請服主將其加入此渠道的管理員名單。", unknown: "未知指令: {command}\n傳送 {prefix}help 查看可用指令。",
+    offline: "{name} 目前離線，或 REST API 無法使用。", server: "伺服器狀態", name: "名稱", players: "玩家", fps: "FPS", uptime: "運行時間", minutes: "{value} 分鐘",
+    onlinePlayers: "線上玩家", noPlayers: "目前沒有玩家在線。", inventory: "背包", itemTypes: "道具種類", emptyInventory: "背包為空。", unavailableInventory: "無法查詢背包", offlineInventory: "背包目前無法查詢（玩家可能離線）。", moreTypes: "另有 {value} 種未顯示",
+    pals: "帕魯", team: "隊伍", palbox: "帕魯盒", noPals: "目前沒有可查詢的帕魯。", unavailablePals: "無法查詢帕魯", offlinePals: "帕魯目前無法查詢（玩家可能離線）。", basecamp: "據點", morePals: "另有 {value} 隻未顯示",
+    grantedItem: "已發送道具", grantedPal: "已發送帕魯", target: "玩家", item: "道具", pal: "帕魯",
+  },
+  "zh-CN": {
+    failed: "指令执行失败", userId: "玩家 UserId", itemId: "道具 ID", palId: "帕鲁 ID", amount: "数量", level: "等级",
+    whoami: "身份信息", idUnavailable: "无法获取", commands: "可用指令", adminCommands: "管理员指令", denied: "权限不足",
+    deniedHint: "发送 {prefix}whoami 获取用户 ID，并请服主将其加入此渠道的管理员名单。", unknown: "未知指令: {command}\n发送 {prefix}help 查看可用指令。",
+    offline: "{name} 当前离线，或 REST API 不可用。", server: "服务器状态", name: "名称", players: "玩家", fps: "FPS", uptime: "运行时间", minutes: "{value} 分钟",
+    onlinePlayers: "在线玩家", noPlayers: "当前没有玩家在线。", inventory: "背包", itemTypes: "道具种类", emptyInventory: "背包为空。", unavailableInventory: "无法查询背包", offlineInventory: "背包当前无法查询（玩家可能离线）。", moreTypes: "另有 {value} 种未显示",
+    pals: "帕鲁", team: "队伍", palbox: "帕鲁盒", noPals: "当前没有可查询的帕鲁。", unavailablePals: "无法查询帕鲁", offlinePals: "帕鲁当前无法查询（玩家可能离线）。", basecamp: "据点", morePals: "另有 {value} 只未显示",
+    grantedItem: "已发送道具", grantedPal: "已发送帕鲁", target: "玩家", item: "道具", pal: "帕鲁",
+  },
+  en: {
+    failed: "Command failed", userId: "player UserId", itemId: "item ID", palId: "Pal ID", amount: "amount", level: "level",
+    whoami: "Identity", idUnavailable: "unavailable", commands: "Available Commands", adminCommands: "Admin Commands", denied: "Permission Denied",
+    deniedHint: "Send {prefix}whoami to get your user ID, then ask the server owner to add it as an admin for this channel.", unknown: "Unknown command: {command}\nSend {prefix}help to list available commands.",
+    offline: "{name} is offline, or the REST API is unavailable.", server: "Server Status", name: "Name", players: "Players", fps: "FPS", uptime: "Uptime", minutes: "{value} min",
+    onlinePlayers: "Online Players", noPlayers: "No players are online.", inventory: "Inventory", itemTypes: "Item types", emptyInventory: "The inventory is empty.", unavailableInventory: "Inventory unavailable", offlineInventory: "The inventory cannot be queried right now (the player may be offline).", moreTypes: "+{value} more item types",
+    pals: "Pals", team: "Team", palbox: "Palbox", noPals: "No Pals are available to query.", unavailablePals: "Pals unavailable", offlinePals: "Pals cannot be queried right now (the player may be offline).", basecamp: "Base", morePals: "+{value} more Pals",
+    grantedItem: "Item Granted", grantedPal: "Pal Granted", target: "Player", item: "Item", pal: "Pal",
+  },
+  ja: {
+    failed: "コマンドの実行に失敗しました", userId: "プレイヤー UserId", itemId: "アイテム ID", palId: "パル ID", amount: "数量", level: "レベル",
+    whoami: "ユーザー情報", idUnavailable: "取得できません", commands: "利用可能なコマンド", adminCommands: "管理者コマンド", denied: "権限がありません",
+    deniedHint: "{prefix}whoami でユーザー ID を取得し、サーバー管理者にこのチャンネルの管理者として追加を依頼してください。", unknown: "不明なコマンド: {command}\n{prefix}help で利用可能なコマンドを確認できます。",
+    offline: "{name} はオフライン、または REST API を利用できません。", server: "サーバー状態", name: "名前", players: "プレイヤー", fps: "FPS", uptime: "稼働時間", minutes: "{value} 分",
+    onlinePlayers: "オンラインプレイヤー", noPlayers: "オンラインのプレイヤーはいません。", inventory: "インベントリ", itemTypes: "アイテム種類", emptyInventory: "インベントリは空です。", unavailableInventory: "インベントリを取得できません", offlineInventory: "現在インベントリを取得できません（プレイヤーがオフラインの可能性があります）。", moreTypes: "ほか {value} 種類",
+    pals: "パル", team: "手持ち", palbox: "パルボックス", noPals: "取得できるパルはいません。", unavailablePals: "パルを取得できません", offlinePals: "現在パルを取得できません（プレイヤーがオフラインの可能性があります）。", basecamp: "拠点", morePals: "ほか {value} 体",
+    grantedItem: "アイテムを付与しました", grantedPal: "パルを付与しました", target: "プレイヤー", item: "アイテム", pal: "パル",
+  },
+} satisfies Record<MessageBridgeLanguage, Record<string, string>>;
+
+function fill(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
+}
+
+export function formatGameEvent(event: NonNullable<ParsedGameEvent>, language: MessageBridgeLanguage): string {
+  const words = WORDS[language];
+  if (event.type === "chat") return `[${words.game}/${event.channel}] ${event.author}: ${event.text}`;
+  if (event.type === "capture") return `● ${event.player} ${fill(words.captured, { pal: localizePalName(event.pal, language) })}`;
+  if (event.killerPal) return `☠ ${event.player} ${fill(words.killed, { pal: localizePalName(event.killerPal, language) })}`;
+  return `☠ ${event.player} ${words.died}${event.cause ? `: ${event.cause}` : ""}`;
 }
 
 export function parseBridgeCommand(text: string, prefix: string): { name: string; args: string[] } | null {
@@ -124,26 +192,35 @@ export function parseBridgeCommand(text: string, prefix: string): { name: string
   return parts[0] ? { name: parts[0].toLowerCase(), args: parts.slice(1) } : null;
 }
 
-function commandId(value: string | undefined, label: string, max: number): string {
+function commandId(value: string | undefined, label: string, max: number, language: MessageBridgeLanguage): string {
   const clean = cleanText(value, max);
-  if (!/^[A-Za-z0-9_:\-]+$/.test(clean)) throw new Error(`需要有效的${label}`);
+  if (!/^[A-Za-z0-9_:\-]+$/.test(clean)) {
+    if (language === "en") throw new Error(`A valid ${label} is required.`);
+    if (language === "ja") throw new Error(`有効な${label}が必要です。`);
+    throw new Error(`需要有效的${label}`);
+  }
   return clean;
 }
 
-function commandNumber(value: string | undefined, label: string, min: number, max: number, fallback: number): number {
+function commandNumber(value: string | undefined, label: string, min: number, max: number, fallback: number, language: MessageBridgeLanguage): number {
   if (value === undefined) return fallback;
   const n = Number(value);
-  if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${label}必须是 ${min}-${max} 的整数`);
+  if (!Number.isInteger(n) || n < min || n > max) {
+    if (language === "en") throw new Error(`${label} must be an integer from ${min} to ${max}.`);
+    if (language === "ja") throw new Error(`${label}は ${min}〜${max} の整数で指定してください。`);
+    throw new Error(`${label}必须是 ${min}-${max} 的整数`);
+  }
   return n;
 }
 
-export function buildAdminGrantCommand(command: "give" | "givepal", args: string[]): { rcon: string; confirmation: string } {
-  const userId = commandId(args[0], "玩家 UserId", 128);
-  const entityId = commandId(args[1], command === "give" ? "道具 ID" : "帕鲁 ID", 64);
-  const amount = commandNumber(args[2], command === "give" ? "数量" : "等级", 1, command === "give" ? 99_999 : 255, 1);
+export function buildAdminGrantCommand(command: "give" | "givepal", args: string[], language: MessageBridgeLanguage = "zh-CN"): { rcon: string; confirmation: string } {
+  const words = COMMAND_WORDS[language];
+  const userId = commandId(args[0], words.userId, 128, language);
+  const entityId = commandId(args[1], command === "give" ? words.itemId : words.palId, 64, language);
+  const amount = commandNumber(args[2], command === "give" ? words.amount : words.level, 1, command === "give" ? 99_999 : 255, 1, language);
   return command === "give"
-    ? { rcon: `give ${userId} ${entityId} ${amount}`, confirmation: `已给 ${userId}: ${entityId} ×${amount}` }
-    : { rcon: `givepal ${userId} ${entityId} ${amount}`, confirmation: `已给 ${userId}: ${entityId} Lv.${amount}` };
+    ? { rcon: `give ${userId} ${entityId} ${amount}`, confirmation: `${words.grantedItem}\n${words.target}: ${userId}\n${words.item}: ${entityId} ×${amount}` }
+    : { rcon: `givepal ${userId} ${entityId} ${amount}`, confirmation: `${words.grantedPal}\n${words.target}: ${userId}\n${words.pal}: ${localizePalName(entityId, language)} (${entityId}) · Lv.${amount}` };
 }
 
 function platformLabel(platform: MessageBridgePlatform): string {
@@ -152,6 +229,7 @@ function platformLabel(platform: MessageBridgePlatform): string {
 
 abstract class ReconnectingAdapter implements Adapter {
   abstract platform: MessageBridgePlatform;
+  abstract language: MessageBridgeLanguage;
   protected stopped = true;
   protected reconnectTimer: NodeJS.Timeout | null = null;
   constructor(protected onMessage: (message: IncomingMessage) => void, protected onState: (connected: boolean, error?: string) => void) {}
@@ -175,6 +253,7 @@ abstract class ReconnectingAdapter implements Adapter {
 
 class OneBotAdapter extends ReconnectingAdapter {
   platform = "onebot" as const;
+  get language(): MessageBridgeLanguage { return this.config.language; }
   private socket: WebSocket | null = null;
   constructor(private config: StoredBridgeConfig["onebot"], onMessage: (m: IncomingMessage) => void, onState: (c: boolean, e?: string) => void) { super(onMessage, onState); }
   protected async connect(): Promise<void> {
@@ -205,6 +284,7 @@ class OneBotAdapter extends ReconnectingAdapter {
 
 class DiscordAdapter extends ReconnectingAdapter {
   platform = "discord" as const;
+  get language(): MessageBridgeLanguage { return this.config.language; }
   private socket: WebSocket | null = null;
   private heartbeat: NodeJS.Timeout | null = null;
   private sequence: number | null = null;
@@ -258,6 +338,7 @@ class DiscordAdapter extends ReconnectingAdapter {
 
 class TelegramAdapter extends ReconnectingAdapter {
   platform = "telegram" as const;
+  get language(): MessageBridgeLanguage { return this.config.language; }
   private abort: AbortController | null = null;
   private offset = 0;
   private initialized = false;
@@ -304,6 +385,7 @@ class TelegramAdapter extends ReconnectingAdapter {
 
 class WebhookAdapter implements Adapter {
   platform = "webhook" as const;
+  get language(): MessageBridgeLanguage { return this.config.language; }
   constructor(private config: StoredBridgeConfig["webhook"], private onState: (c: boolean, e?: string) => void) {}
   start(): void { this.onState(true); }
   stop(): void { this.onState(false); }
@@ -341,10 +423,10 @@ export class MessageBridgeService {
     return {
       enabled: c.enabled, relayGroupToGame: c.relayGroupToGame, relayGameToGroup: c.relayGameToGroup,
       notifyJoinLeave: c.notifyJoinLeave, notifyCapture: c.notifyCapture, notifyDeath: c.notifyDeath, commandPrefix: c.commandPrefix,
-      onebot: { added: c.onebot.added, enabled: c.onebot.enabled, wsUrl: c.onebot.wsUrl, groupId: c.onebot.groupId, adminIds: c.onebot.adminIds, accessTokenSet: !!c.onebot.accessToken },
-      discord: { added: c.discord.added, enabled: c.discord.enabled, channelId: c.discord.channelId, adminIds: c.discord.adminIds, tokenSet: !!c.discord.token },
-      telegram: { added: c.telegram.added, enabled: c.telegram.enabled, chatId: c.telegram.chatId, adminIds: c.telegram.adminIds, tokenSet: !!c.telegram.token },
-      webhook: { added: c.webhook.added, enabled: c.webhook.enabled, url: c.webhook.url, adminIds: c.webhook.adminIds, secretSet: !!c.webhook.secret },
+      onebot: { added: c.onebot.added, enabled: c.onebot.enabled, wsUrl: c.onebot.wsUrl, groupId: c.onebot.groupId, adminIds: c.onebot.adminIds, language: c.onebot.language, accessTokenSet: !!c.onebot.accessToken },
+      discord: { added: c.discord.added, enabled: c.discord.enabled, channelId: c.discord.channelId, adminIds: c.discord.adminIds, language: c.discord.language, tokenSet: !!c.discord.token },
+      telegram: { added: c.telegram.added, enabled: c.telegram.enabled, chatId: c.telegram.chatId, adminIds: c.telegram.adminIds, language: c.telegram.language, tokenSet: !!c.telegram.token },
+      webhook: { added: c.webhook.added, enabled: c.webhook.enabled, url: c.webhook.url, adminIds: c.webhook.adminIds, language: c.webhook.language, secretSet: !!c.webhook.secret },
     };
   }
   async updateConfig(id: string, patch: MessageBridgePatch): Promise<MessageBridgeConfig> {
@@ -429,9 +511,9 @@ export class MessageBridgeService {
         if (runtime.seenLines.size > 500) runtime.seenLines.delete(runtime.seenLines.values().next().value!);
         const event = parseGameLogLine(line);
         if (!event) return;
-        if (event.type === "chat" && runtime.config.relayGameToGroup) void this.broadcast(rec.id, event.text);
-        if (event.type === "death" && runtime.config.notifyDeath) void this.broadcast(rec.id, event.text);
-        if (event.type === "capture" && runtime.config.notifyCapture) void this.broadcast(rec.id, event.text);
+        if (event.type === "chat" && runtime.config.relayGameToGroup) void this.broadcast(rec.id, (language) => formatGameEvent(event, language));
+        if (event.type === "death" && runtime.config.notifyDeath) void this.broadcast(rec.id, (language) => formatGameEvent(event, language));
+        if (event.type === "capture" && runtime.config.notifyCapture) void this.broadcast(rec.id, (language) => formatGameEvent(event, language));
       }, () => this.scheduleLogRetry(rec.id, runtime), source);
     } catch {
       this.scheduleLogRetry(rec.id, runtime);
@@ -460,7 +542,7 @@ export class MessageBridgeService {
         : previousIndex < 0 ? [] : newestFirst.slice(0, previousIndex).reverse();
       for (const event of pending) {
         runtime.lastPresenceKey = this.presenceKey(event);
-        await this.broadcast(id, event.type === "join" ? `→ ${event.name} 加入服务器` : `← ${event.name} 离开服务器`);
+        await this.broadcast(id, (language) => `${event.type === "join" ? "→" : "←"} ${event.name} ${WORDS[language][event.type === "join" ? "joined" : "left"]}`);
       }
       if (!runtime.lastPresenceKey && newestFirst[0]) runtime.lastPresenceKey = this.presenceKey(newestFirst[0]);
     }
@@ -475,12 +557,13 @@ export class MessageBridgeService {
     const command = parseBridgeCommand(message.text, runtime.config.commandPrefix);
     if (command) {
       const isAdmin = runtime.config[message.platform].adminIds.includes(message.userId);
+      const language = runtime.config[message.platform].language;
       let reply: string;
       try {
-        reply = await this.commandReply(rec, message, command.name, command.args, runtime.config.commandPrefix, isAdmin);
+        reply = await this.commandReply(rec, message, command.name, command.args, runtime.config.commandPrefix, isAdmin, language);
         if (isAdmin && this.isAdminCommand(command.name)) this.auditAdminCommand(id, message, command.name, true);
       } catch (err) {
-        reply = `指令失败: ${err instanceof Error ? err.message : String(err)}`;
+        reply = `${COMMAND_WORDS[language].failed}\n${err instanceof Error ? err.message : String(err)}`;
         if (this.isAdminCommand(command.name)) this.auditAdminCommand(id, message, command.name, false, reply);
       }
       await this.reply(id, message.platform, reply);
@@ -500,70 +583,84 @@ export class MessageBridgeService {
     args: string[],
     prefix: string,
     isAdmin: boolean,
+    language: MessageBridgeLanguage,
   ): Promise<string> {
+    const words = COMMAND_WORDS[language];
     if (["whoami", "我的id", "id"].includes(command)) {
-      return `你的 ${platformLabel(message.platform)} 用户 ID: ${message.userId || "无法获取"}`;
+      return `${words.whoami}\n${platformLabel(message.platform)} User ID: ${message.userId || words.idUnavailable}`;
     }
     if (["help", "帮助", "指令"].includes(command)) {
-      const normal = `可用指令: ${prefix}server ${prefix}players ${prefix}whoami ${prefix}help`;
-      return isAdmin ? `${normal}\n管理员: ${prefix}inventory ${prefix}pals ${prefix}give ${prefix}givepal ${prefix}adminhelp` : normal;
+      const normal = `${words.commands}\n${prefix}server · ${prefix}players · ${prefix}whoami · ${prefix}help`;
+      return isAdmin ? `${normal}\n\n${words.adminCommands}\n${prefix}inventory · ${prefix}pals · ${prefix}give · ${prefix}givepal · ${prefix}adminhelp` : normal;
     }
     if (this.isAdminCommand(command)) {
-      if (!isAdmin) return `权限不足。发送 ${prefix}whoami 获取用户 ID，请服主将其加入渠道管理员。`;
+      if (!isAdmin) return `${words.denied}\n${fill(words.deniedHint, { prefix })}`;
       if (command === "adminhelp") {
         return [
-          "管理员指令:",
+          words.adminCommands,
           `${prefix}inventory <UserId>`,
           `${prefix}pals <UserId>`,
-          `${prefix}give <UserId> <ItemID> [数量]`,
-          `${prefix}givepal <UserId> <PalID> [等级]`,
+          `${prefix}give <UserId> <ItemID> [${words.amount}]`,
+          `${prefix}givepal <UserId> <PalID> [${words.level}]`,
         ].join("\n");
       }
-      const userId = this.safeId(args[0], "玩家 UserId");
-      if (["inventory", "bag", "背包"].includes(command)) return this.inventoryReply(rec, userId);
-      if (["pals", "pal", "帕鲁", "帕魯"].includes(command)) return this.palsReply(rec, userId);
+      const userId = this.safeId(args[0], words.userId, language);
+      if (["inventory", "bag", "背包"].includes(command)) return this.inventoryReply(rec, userId, language);
+      if (["pals", "pal", "帕鲁", "帕魯"].includes(command)) return this.palsReply(rec, userId, language);
       if (["give", "给", "給"].includes(command)) {
-        const grant = buildAdminGrantCommand("give", args);
+        const grant = buildAdminGrantCommand("give", args, language);
         await rconExec(rec, grant.rcon);
         return grant.confirmation;
       }
-      const grant = buildAdminGrantCommand("givepal", args);
+      const grant = buildAdminGrantCommand("givepal", args, language);
       await rconExec(rec, grant.rcon);
       return grant.confirmation;
     }
-    if (!["server", "status", "players", "服务器", "玩家"].includes(command)) return `未知指令: ${command}（发送 ${prefix}help 查看）`;
+    if (!["server", "status", "players", "服务器", "玩家"].includes(command)) return fill(words.unknown, { command, prefix });
     const live = await getLiveStatus(rec);
-    if (!live.available || !live.metrics || !live.info) return `${rec.name}: 当前离线或 REST API 不可用`;
+    if (!live.available || !live.metrics || !live.info) return fill(words.offline, { name: rec.name });
     const names = live.players.map((p) => p.name).filter(Boolean);
-    if (command === "players" || command === "玩家") return names.length ? `在线玩家 (${names.length}): ${names.join("、")}` : "当前没有玩家在线";
-    return `${live.info.servername || rec.name} | 在线 ${live.metrics.currentplayernum}/${live.metrics.maxplayernum} | FPS ${live.metrics.serverfps.toFixed(1)} | 运行 ${Math.floor(live.metrics.uptime / 60)} 分钟`;
+    if (command === "players" || command === "玩家") {
+      return names.length ? `${words.onlinePlayers} · ${names.length}\n${names.map((name, index) => `${index + 1}. ${name}`).join("\n")}` : `${words.onlinePlayers}\n${words.noPlayers}`;
+    }
+    return [
+      words.server,
+      `${words.name}: ${live.info.servername || rec.name}`,
+      `${words.players}: ${live.metrics.currentplayernum} / ${live.metrics.maxplayernum}`,
+      `${words.fps}: ${live.metrics.serverfps.toFixed(1)}`,
+      `${words.uptime}: ${fill(words.minutes, { value: Math.floor(live.metrics.uptime / 60) })}`,
+    ].join("\n");
   }
-  private safeId(value: string | undefined, label: string): string {
+  private safeId(value: string | undefined, label: string, language: MessageBridgeLanguage): string {
     const clean = cleanText(value, 128);
-    if (!/^[A-Za-z0-9_:\-]+$/.test(clean)) throw new Error(`需要有效的${label}`);
+    if (!/^[A-Za-z0-9_:\-]+$/.test(clean)) return commandId(value, label, 128, language);
     return clean;
   }
-  private async inventoryReply(rec: InstanceRecord, identifier: string): Promise<string> {
+  private async inventoryReply(rec: InstanceRecord, identifier: string, language: MessageBridgeLanguage): Promise<string> {
+    const words = COMMAND_WORDS[language];
     const detail = await getPlayerDetail(rec, { instanceDir: this.store.instanceDir(rec.id) }, identifier);
-    if (!detail.available) return `无法查询背包: ${detail.reason ?? "玩家不存在或 PalDefender REST 不可用"}`;
-    if (detail.itemsUnavailable) return `${detail.name || identifier} 的背包当前不可查询（玩家可能离线）`;
+    if (!detail.available) return `${words.unavailableInventory}\n${fill(words.offline, { name: identifier })}`;
+    if (detail.itemsUnavailable) return `${words.inventory} · ${detail.name || identifier}\n${words.offlineInventory}`;
     const totals = new Map<string, number>();
     for (const item of detail.items) totals.set(item.itemId, (totals.get(item.itemId) ?? 0) + item.count);
     const items = [...totals].sort((a, b) => b[1] - a[1]);
-    if (!items.length) return `${detail.name || identifier} 的背包为空`;
-    const shown = items.slice(0, 20).map(([item, count]) => `${item} ×${count}`).join("、");
-    return `背包 ${detail.name || identifier}（${items.length} 种）:\n${shown}${items.length > 20 ? `\n另有 ${items.length - 20} 种未显示` : ""}`;
+    if (!items.length) return `${words.inventory} · ${detail.name || identifier}\n${words.emptyInventory}`;
+    const shown = items.slice(0, 20).map(([item, count], index) => `${index + 1}. ${item} ×${count}`).join("\n");
+    return `${words.inventory} · ${detail.name || identifier}\n${words.itemTypes}: ${items.length}\n\n${shown}${items.length > 20 ? `\n${fill(words.moreTypes, { value: items.length - 20 })}` : ""}`;
   }
-  private async palsReply(rec: InstanceRecord, identifier: string): Promise<string> {
+  private async palsReply(rec: InstanceRecord, identifier: string, language: MessageBridgeLanguage): Promise<string> {
+    const words = COMMAND_WORDS[language];
     const detail = await getPlayerDetail(rec, { instanceDir: this.store.instanceDir(rec.id) }, identifier);
-    if (!detail.available) return `无法查询帕鲁: ${detail.reason ?? "玩家不存在或 PalDefender REST 不可用"}`;
-    if (detail.palsUnavailable) return `${detail.name || identifier} 的帕鲁当前不可查询（玩家可能离线）`;
-    if (!detail.pals.length) return `${detail.name || identifier} 当前没有可查询的帕鲁`;
-    const shown = detail.pals.slice(0, 20).map((pal) => {
-      const where = pal.location === "team" ? "队伍" : pal.location === "basecamp" ? "据点" : "盒子";
-      return `${pal.nickname || pal.palId}(${pal.palId}) Lv.${pal.level} [${where}]`;
-    }).join("、");
-    return `帕鲁 ${detail.name || identifier}（队伍 ${detail.teamCount} / 盒子 ${detail.palboxCount}）:\n${shown}${detail.pals.length > 20 ? `\n另有 ${detail.pals.length - 20} 只未显示` : ""}`;
+    if (!detail.available) return `${words.unavailablePals}\n${fill(words.offline, { name: identifier })}`;
+    if (detail.palsUnavailable) return `${words.pals} · ${detail.name || identifier}\n${words.offlinePals}`;
+    if (!detail.pals.length) return `${words.pals} · ${detail.name || identifier}\n${words.noPals}`;
+    const shown = detail.pals.slice(0, 20).map((pal, index) => {
+      const where = pal.location === "team" ? words.team : pal.location === "basecamp" ? words.basecamp : words.palbox;
+      const species = localizePalName(pal.palId, language);
+      const display = pal.nickname && pal.nickname !== pal.palId ? `${pal.nickname} · ${species}` : species;
+      return `${index + 1}. ${display} · Lv.${pal.level} · ${where}`;
+    }).join("\n");
+    return `${words.pals} · ${detail.name || identifier}\n${words.team}: ${detail.teamCount} · ${words.palbox}: ${detail.palboxCount}\n\n${shown}${detail.pals.length > 20 ? `\n${fill(words.morePals, { value: detail.pals.length - 20 })}` : ""}`;
   }
   private auditAdminCommand(id: string, message: IncomingMessage, command: string, ok: boolean, detail = ""): void {
     const record = { at: new Date().toISOString(), platform: message.platform, userId: message.userId, author: message.author, command, ok, detail: cleanText(detail, 300) };
@@ -579,11 +676,11 @@ export class MessageBridgeService {
     try { await adapter.send(text); this.setState(id, platform, true); }
     catch (err) { this.setState(id, platform, false, err instanceof Error ? err.message : String(err)); }
   }
-  private async broadcast(id: string, text: string, exclude?: MessageBridgePlatform): Promise<void> {
+  private async broadcast(id: string, content: string | ((language: MessageBridgeLanguage) => string), exclude?: MessageBridgePlatform): Promise<void> {
     const runtime = this.runtimes.get(id);
     if (!runtime) return;
     await Promise.allSettled(runtime.adapters.filter((a) => a.platform !== exclude).map(async (adapter) => {
-      try { await adapter.send(text); this.setState(id, adapter.platform, true); }
+      try { await adapter.send(typeof content === "function" ? content(adapter.language) : content); this.setState(id, adapter.platform, true); }
       catch (err) { this.setState(id, adapter.platform, false, err instanceof Error ? err.message : String(err)); }
     }));
   }

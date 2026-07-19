@@ -130,10 +130,10 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
       notifyCapture: draft.notifyCapture,
       notifyDeath: draft.notifyDeath,
       commandPrefix: draft.commandPrefix,
-      onebot: { added: draft.onebot.added, enabled: draft.onebot.enabled, wsUrl: draft.onebot.wsUrl, groupId: draft.onebot.groupId, adminIds: draft.onebot.adminIds, accessToken: draft.onebot.accessToken },
-      discord: { added: draft.discord.added, enabled: draft.discord.enabled, channelId: draft.discord.channelId, adminIds: draft.discord.adminIds, token: draft.discord.token },
-      telegram: { added: draft.telegram.added, enabled: draft.telegram.enabled, chatId: draft.telegram.chatId, adminIds: draft.telegram.adminIds, token: draft.telegram.token },
-      webhook: { added: draft.webhook.added, enabled: draft.webhook.enabled, url: draft.webhook.url, adminIds: draft.webhook.adminIds, secret: draft.webhook.secret },
+      onebot: { added: draft.onebot.added, enabled: draft.onebot.enabled, wsUrl: draft.onebot.wsUrl, groupId: draft.onebot.groupId, adminIds: draft.onebot.adminIds, language: draft.onebot.language, accessToken: draft.onebot.accessToken },
+      discord: { added: draft.discord.added, enabled: draft.discord.enabled, channelId: draft.discord.channelId, adminIds: draft.discord.adminIds, language: draft.discord.language, token: draft.discord.token },
+      telegram: { added: draft.telegram.added, enabled: draft.telegram.enabled, chatId: draft.telegram.chatId, adminIds: draft.telegram.adminIds, language: draft.telegram.language, token: draft.telegram.token },
+      webhook: { added: draft.webhook.added, enabled: draft.webhook.enabled, url: draft.webhook.url, adminIds: draft.webhook.adminIds, language: draft.webhook.language, secret: draft.webhook.secret },
     };
     try {
       const result = await client.updateMessageBridge(instanceId, patch);
@@ -237,6 +237,7 @@ function ChannelForm({ platform, draft, client, instanceId, setPlatform }: {
   setPlatform: <P extends Platform>(platform: P, patch: Partial<Draft[P]>) => void;
 }) {
   if (platform === "onebot") return <div className="grid gap-3 sm:grid-cols-2">
+    <LanguageField value={draft.onebot.language} onChange={(language) => setPlatform("onebot", { language })} />
     <Field label="WebSocket URL"><input className={inputCls} value={draft.onebot.wsUrl} onChange={(e) => setPlatform("onebot", { wsUrl: e.target.value })} placeholder="ws://127.0.0.1:3001" /></Field>
     <Field label={t("群號")}><input className={inputCls} value={draft.onebot.groupId} onChange={(e) => setPlatform("onebot", { groupId: e.target.value })} /></Field>
     <SecretField label="Access Token" value={draft.onebot.accessToken} saved={draft.onebot.accessTokenSet} onChange={(accessToken) => setPlatform("onebot", { accessToken })} />
@@ -244,18 +245,21 @@ function ChannelForm({ platform, draft, client, instanceId, setPlatform }: {
     <AdminField value={draft.onebot.adminIds} onChange={(adminIds) => setPlatform("onebot", { adminIds })} />
   </div>;
   if (platform === "discord") return <div className="grid gap-3 sm:grid-cols-2">
+    <LanguageField value={draft.discord.language} onChange={(language) => setPlatform("discord", { language })} />
     <Field label="Channel ID"><input className={inputCls} value={draft.discord.channelId} onChange={(e) => setPlatform("discord", { channelId: e.target.value })} /></Field>
     <SecretField label="Bot Token" value={draft.discord.token} saved={draft.discord.tokenSet} onChange={(token) => setPlatform("discord", { token })} />
     <p className="text-xs text-ink-muted sm:col-span-2">{t("在 Discord Developer Portal 啟用 Message Content Intent，並授予機器人查看頻道與發送消息權限。")}</p>
     <AdminField value={draft.discord.adminIds} onChange={(adminIds) => setPlatform("discord", { adminIds })} />
   </div>;
   if (platform === "telegram") return <div className="grid gap-3 sm:grid-cols-2">
+    <LanguageField value={draft.telegram.language} onChange={(language) => setPlatform("telegram", { language })} />
     <Field label="Chat ID"><input className={inputCls} value={draft.telegram.chatId} onChange={(e) => setPlatform("telegram", { chatId: e.target.value })} placeholder="-100..." /></Field>
     <SecretField label="Bot Token" value={draft.telegram.token} saved={draft.telegram.tokenSet} onChange={(token) => setPlatform("telegram", { token })} />
     <p className="text-xs text-ink-muted sm:col-span-2">{t("将机器人加入群组，关闭隐私模式后填写 Bot Token 和 Chat ID。")}</p>
     <AdminField value={draft.telegram.adminIds} onChange={(adminIds) => setPlatform("telegram", { adminIds })} />
   </div>;
   return <div className="grid gap-3 sm:grid-cols-2">
+    <LanguageField value={draft.webhook.language} onChange={(language) => setPlatform("webhook", { language })} />
     <Field label={t("出站 URL")}><input className={inputCls} value={draft.webhook.url} onChange={(e) => setPlatform("webhook", { url: e.target.value })} placeholder="https://..." /></Field>
     <SecretField label={t("共享密鑰")} value={draft.webhook.secret} saved={draft.webhook.secretSet} onChange={(secret) => setPlatform("webhook", { secret })} />
     <AdminField value={draft.webhook.adminIds} onChange={(adminIds) => setPlatform("webhook", { adminIds })} />
@@ -304,6 +308,15 @@ function Check({ checked, onChange, label }: { checked: boolean; onChange: (valu
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className={labelCls}><span>{label}</span>{children}</label>;
+}
+
+function LanguageField({ value, onChange }: { value: MessageBridgeConfig["onebot"]["language"]; onChange: (value: MessageBridgeConfig["onebot"]["language"]) => void }) {
+  return <Field label={t("消息語言")}><select className={inputCls} value={value} onChange={(event) => onChange(event.target.value as MessageBridgeConfig["onebot"]["language"])}>
+    <option value="zh-TW">繁體中文</option>
+    <option value="zh-CN">简体中文</option>
+    <option value="en">English</option>
+    <option value="ja">日本語</option>
+  </select></Field>;
 }
 
 function SecretField({ label, value, saved, onChange }: { label: string; value: string; saved: boolean; onChange: (value: string) => void }) {

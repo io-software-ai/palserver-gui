@@ -195,6 +195,8 @@ export interface InstanceDetail extends InstanceSummary {
 /* ── Group chat ↔ game message bridge ── */
 
 export type MessageBridgePlatform = "onebot" | "discord" | "telegram" | "webhook";
+export type MessageBridgeLanguage = "zh-TW" | "zh-CN" | "en" | "ja";
+export { localizePalName } from "./pal-names.generated.js";
 
 export interface MessageBridgeConfig {
   enabled: boolean;
@@ -210,6 +212,7 @@ export interface MessageBridgeConfig {
     wsUrl: string;
     groupId: string;
     adminIds: string[];
+    language: MessageBridgeLanguage;
     accessTokenSet: boolean;
   };
   discord: {
@@ -217,6 +220,7 @@ export interface MessageBridgeConfig {
     enabled: boolean;
     channelId: string;
     adminIds: string[];
+    language: MessageBridgeLanguage;
     tokenSet: boolean;
   };
   telegram: {
@@ -224,6 +228,7 @@ export interface MessageBridgeConfig {
     enabled: boolean;
     chatId: string;
     adminIds: string[];
+    language: MessageBridgeLanguage;
     tokenSet: boolean;
   };
   webhook: {
@@ -231,6 +236,7 @@ export interface MessageBridgeConfig {
     enabled: boolean;
     url: string;
     adminIds: string[];
+    language: MessageBridgeLanguage;
     secretSet: boolean;
   };
 }
@@ -244,10 +250,10 @@ export interface MessageBridgePatch {
   notifyCapture?: boolean;
   notifyDeath?: boolean;
   commandPrefix?: string;
-  onebot?: { added?: boolean; enabled?: boolean; wsUrl?: string; groupId?: string; adminIds?: string[]; accessToken?: string };
-  discord?: { added?: boolean; enabled?: boolean; channelId?: string; adminIds?: string[]; token?: string };
-  telegram?: { added?: boolean; enabled?: boolean; chatId?: string; adminIds?: string[]; token?: string };
-  webhook?: { added?: boolean; enabled?: boolean; url?: string; adminIds?: string[]; secret?: string };
+  onebot?: { added?: boolean; enabled?: boolean; wsUrl?: string; groupId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; accessToken?: string };
+  discord?: { added?: boolean; enabled?: boolean; channelId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; token?: string };
+  telegram?: { added?: boolean; enabled?: boolean; chatId?: string; adminIds?: string[]; language?: MessageBridgeLanguage; token?: string };
+  webhook?: { added?: boolean; enabled?: boolean; url?: string; adminIds?: string[]; language?: MessageBridgeLanguage; secret?: string };
 }
 
 export interface MessageBridgeStatus {

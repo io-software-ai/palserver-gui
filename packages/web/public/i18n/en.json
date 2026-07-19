@@ -1719,5 +1719,6 @@
   "选择连接方式，添加后再填写连接信息。": "Choose a connection type, then enter its connection details.",
   "通用 Webhook": "Generic webhook",
   "遊戲聊天轉發到群": "Relay game chat to groups",
-  "飞书、企业微信或自建中转": "Lark, WeCom, or a custom relay"
+  "飞书、企业微信或自建中转": "Lark, WeCom, or a custom relay",
+  "消息語言": "Message language"
 }
