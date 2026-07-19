@@ -1,9 +1,18 @@
 import Shot from './Shot';
 import DownloadLink from './DownloadLink';
+import DiscordPresence from './DiscordPresence';
 import type { Dictionary } from '@/i18n/dictionaries';
 import type { Locale } from '@/i18n/config';
 
-export default function Hero({ d, lang }: { d: Dictionary['hero']; lang: Locale }) {
+export default function Hero({
+  d,
+  lang,
+  discord,
+}: {
+  d: Dictionary['hero'];
+  lang: Locale;
+  discord: Dictionary['discord'];
+}) {
   return (
     <header id="top">
       <div className="wrap">
@@ -33,6 +42,9 @@ export default function Hero({ d, lang }: { d: Dictionary['hero']; lang: Locale 
               )}
             </span>
           ))}
+          <span className="chip">
+            <DiscordPresence d={discord} />
+          </span>
         </div>
         <div className="hero-shot">
           <Shot src={`/assets/${lang}/content.png`} alt={d.shotAlt} label={d.shotLabel} width={1320} height={848} priority />

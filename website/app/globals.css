@@ -41,6 +41,7 @@ nav .sp{flex:1}
 .btn-g{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
 .btn-sm{padding:8px 15px;font-size:13.5px}
 .btn svg{flex-shrink:0}
+.btn .live{font-size:11.5px;font-weight:700;color:var(--muted);padding:2px 8px;border-radius:999px;background:var(--card-2)}
 /* header 控制項統一高度:切換器與按鈕同高,border-box 讓有無邊框都吸進 38px */
 nav .lang,nav .in .btn{height:38px}
 nav .in .btn{padding:0 15px}

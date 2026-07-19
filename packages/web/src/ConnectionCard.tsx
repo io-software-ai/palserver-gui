@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { FiCopy, FiCheck, FiEye, FiEyeOff, FiGlobe, FiExternalLink, FiShield, FiMessageCircle, FiX, FiZap } from "react-icons/fi";
+import { FiCopy, FiCheck, FiEye, FiEyeOff, FiGlobe, FiExternalLink, FiShield, FiX, FiZap } from "react-icons/fi";
+import { SiDiscord } from "react-icons/si";
 import type { ConnectionInfo } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { copyText } from "./clipboard";
@@ -186,7 +187,7 @@ export function ConnectionCard({
                 target="_blank"
                 rel="noreferrer"
               >
-                <FiMessageCircle className="size-4" /> {t("Discord 詢問")}
+                <SiDiscord className="size-4" /> {t("Discord 詢問")}
               </a>
             </div>
           </div>

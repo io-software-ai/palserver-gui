@@ -105,7 +105,11 @@ export default async function LangLayout({
         url: 'https://iosoftware.ai',
         logo: `${SITE_URL}/assets/iosoftware-logo.svg`,
         email: 'contact@iosoftware.ai',
-        sameAs: ['https://github.com/io-software-ai', 'https://www.instagram.com/iosoftware.ai/'],
+        sameAs: [
+          'https://github.com/io-software-ai',
+          'https://www.instagram.com/iosoftware.ai/',
+          'https://discord.gg/w3YupCut',
+        ],
       },
       {
         '@type': 'WebSite',

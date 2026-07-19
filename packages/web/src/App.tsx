@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GiSheep, GiEggClutch } from "react-icons/gi";
 import { FiActivity, FiAlertTriangle, FiClock, FiCpu, FiDownload, FiHardDrive, FiHeart, FiHelpCircle, FiPlus, FiServer, FiSettings, FiStar, FiUsers, FiZap } from "react-icons/fi";
+import { SiDiscord } from "react-icons/si";
 import { hasFeature } from "@palserver/shared";
 import type { Backend, ExternalWorldCandidate, InstanceStats, InstanceSummary, LiveStatus } from "@palserver/shared";
 import {
@@ -22,6 +23,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { AgentClient, loadConnection, saveConnection, type Connection } from "./api";
 import { usePromoConfig } from "./promoConfig";
+import { useDiscordWidget } from "./discordWidget";
 import { MapTab } from "./MapTab";
 import { ConnectFlow } from "./ConnectFlow";
 import { SettingsModal } from "./SettingsModal";
@@ -95,7 +97,8 @@ function Shell({ conn, onDisconnect }: { conn: Connection; onDisconnect: () => v
   // 把 onDisconnect 當作 401 處理:token 失效(換過/重置)時自動清掉連線、退回
   // 連線畫面重新配對,而不是一直用壞掉的 token 重試。
   const { t } = useI18n();
-  const { faq } = usePromoConfig();
+  const { faq, company } = usePromoConfig();
+  const discordOnline = useDiscordWidget(company.discordGuildId);
   const client = useRef(new AgentClient(conn, onDisconnect)).current;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -119,6 +122,22 @@ function Shell({ conn, onDisconnect }: { conn: Connection; onDisconnect: () => v
         <div className="flex flex-wrap items-center gap-2.5">
           <LangSelect />
           <ThemeToggle />
+          <a
+            className={`${btnGhost} inline-flex items-center gap-1.5`}
+            href={company.discord}
+            target="_blank"
+            rel="noreferrer"
+            title={t("Discord 社群")}
+          >
+            <SiDiscord className="size-4" />
+            <span className="hidden sm:inline">Discord</span>
+            {discordOnline != null && (
+              <span className="inline-flex items-center gap-1 rounded-full border-[1.5px] border-grass/40 bg-grass/15 px-1.5 py-0.5 text-[11px] font-bold text-grass">
+                <span className="size-1.5 rounded-full bg-grass" />
+                {t("線上 {n} 人", { n: discordOnline })}
+              </span>
+            )}
+          </a>
           <a
             className={`${btnGhost} inline-flex items-center gap-1.5`}
             href={faq}

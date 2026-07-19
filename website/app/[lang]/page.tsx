@@ -43,7 +43,7 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
         <i className="b" />
       </div>
       <Nav d={d.nav} lang={lang} />
-      <Hero d={d.hero} lang={lang} />
+      <Hero d={d.hero} lang={lang} discord={d.discord} />
       <main>
         <Stats d={d.stats} />
         <Why d={d.why} />
@@ -55,7 +55,7 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
         <GetStarted d={d.getStarted} lang={lang} />
         <NiceDetails d={d.niceDetails} lang={lang} />
         <Team d={d.team} />
-        <ClosingCta d={d.closing} />
+        <ClosingCta d={d.closing} discord={d.discord} />
       </main>
       <Footer d={d.footer} />
       <RevealObserver />

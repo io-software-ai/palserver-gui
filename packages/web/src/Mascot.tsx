@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { FiX, FiExternalLink, FiHeart, FiInstagram, FiMessageCircle } from "react-icons/fi";
+import { FiX, FiExternalLink, FiHeart, FiInstagram } from "react-icons/fi";
+import { SiDiscord } from "react-icons/si";
 import { usePromoConfig } from "./promoConfig";
+import { useDiscordWidget } from "./discordWidget";
 import { useHiddenCards } from "./tabPrefs";
 import { t, useI18n } from "./i18n";
 import { card, btnSponsor, btnGhost } from "./ui";
@@ -60,6 +62,7 @@ export function Mascot() {
 function SponsorModal({ onClose }: { onClose: () => void }) {
   useI18n();
   const { company } = usePromoConfig();
+  const discordOnline = useDiscordWidget(company.discordGuildId);
   return (
     <div
       className="fixed inset-0 z-30 flex items-center justify-center bg-[rgb(35_32_48/0.55)] p-6 backdrop-blur-[3px]"
@@ -91,7 +94,10 @@ function SponsorModal({ onClose }: { onClose: () => void }) {
             <FiExternalLink className="size-4" /> {t("官方網站")}
           </a>
           <a className={`${btnGhost} inline-flex items-center justify-center gap-1.5`} href={company.discord} target="_blank" rel="noreferrer">
-            <FiMessageCircle className="size-4" /> Discord
+            <SiDiscord className="size-4" /> Discord
+            {discordOnline != null && (
+              <span className="text-[11px] font-bold text-grass">{t("線上 {n} 人", { n: discordOnline })}</span>
+            )}
           </a>
         </div>
         <p className="mt-3 text-center text-xs text-ink-muted">{t("感謝你讓帕魯世界更好玩 🐾")}</p>

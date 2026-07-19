@@ -44,7 +44,7 @@
 | **伺服器管理員** —— 要長期營運、在意安全與自動化 | [給管理員:營運指南](#給管理員營運指南) |
 | **開發者** —— 想改程式、送 PR | [給開發者:開發指南](#給開發者開發指南) |
 
-遇到問題先看 **[常見問題 FAQ](https://faq.toc.icu/)**,或到 [Discord](https://discord.gg/sgMMdUZd3V) 問。
+遇到問題先看 **[常見問題 FAQ](https://faq.toc.icu/)**,或到 [Discord](https://discord.gg/w3YupCut) 問。
 
 ---
 
@@ -324,7 +324,7 @@ PALSERVER_IMAGE_VANILLA=palserver/dev-stub:latest pnpm dev:agent
 
 - **官方網站:** <https://palserver-GUI.iosoftware.ai>
 - **常見問題:** <https://faq.toc.icu/>
-- **Discord:** <https://discord.gg/sgMMdUZd3V>
+- **Discord:** <https://discord.gg/w3YupCut>
 - **存檔搬家:** [docs/MIGRATION.md](docs/MIGRATION.md)
 - **隱私權政策:** [PRIVACY.md](PRIVACY.md)
 - **v1(已停止維護):** <https://github.com/Dalufishe/palserver-GUI>

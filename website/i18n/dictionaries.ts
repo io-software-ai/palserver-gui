@@ -79,6 +79,8 @@ export type Dictionary = {
     noteLink: string;
     notePost: string;
   };
+  /** Discord 社群 widget:join = 尚未抓到線上人數時的保底文字;online = 抓到後的模板,用 {n} 當人數佔位。 */
+  discord: { join: string; online: string };
   footer: { madePre: string; madeMid: string; license: string };
   langLabel: string;
 };
@@ -278,6 +280,7 @@ const zh: Dictionary = {
     noteLink: '遊戲伺服器代管維護服務',
     notePost: '——版本更新、備份、崩潰救援交給我們。',
   },
+  discord: { join: '加入 Discord', online: '{n} 人在線' },
   footer: {
     madePre: '由 ',
     madeMid: ' 與核心團隊用愛製作 · ',
@@ -481,6 +484,7 @@ const zhCN: Dictionary = {
     noteLink: '游戏服务器代管维护服务',
     notePost: '——版本更新、备份、崩溃救援交给我们。',
   },
+  discord: { join: '加入 Discord', online: '{n} 人在线' },
   footer: {
     madePre: '由 ',
     madeMid: ' 与核心团队用爱制作 · ',
@@ -684,6 +688,7 @@ const en: Dictionary = {
     noteLink: 'managed game-server maintenance service',
     notePost: ' — version updates, backups and crash recovery, handled by us.',
   },
+  discord: { join: 'Join Discord', online: '{n} online' },
   footer: {
     madePre: 'Made with love by ',
     madeMid: ' and the core team · ',
@@ -887,6 +892,7 @@ const ja: Dictionary = {
     noteLink: 'ゲームサーバー運用代行サービス',
     notePost: ' も提供しています——バージョン更新・バックアップ・クラッシュ復旧はお任せください。',
   },
+  discord: { join: 'Discordに参加', online: '{n} 人がオンライン' },
   footer: {
     madePre: '制作:',
     madeMid: ' とコアチームが愛を込めて · ',

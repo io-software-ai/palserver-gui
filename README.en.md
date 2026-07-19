@@ -44,7 +44,7 @@ Browser (React Web UI)
 | **A server admin** — long-term operation, security & automation | [For admins: operations guide](#for-admins-operations-guide) |
 | **A developer** — want to hack on it, send PRs | [For developers: development guide](#for-developers-development-guide) |
 
-If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on [Discord](https://discord.gg/sgMMdUZd3V).
+If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on [Discord](https://discord.gg/w3YupCut).
 
 ---
 
@@ -339,7 +339,7 @@ paid service, etc.). For commercial licensing contact <contact@iosoftware.ai>.
 
 - **Official site:** <https://palserver-GUI.iosoftware.ai>
 - **FAQ:** <https://faq.toc.icu/>
-- **Discord:** <https://discord.gg/sgMMdUZd3V>
+- **Discord:** <https://discord.gg/w3YupCut>
 - **Save migration:** [docs/MIGRATION.md](docs/MIGRATION.md)
 - **Privacy policy:** [PRIVACY.md](PRIVACY.md)
 - **v1 (no longer maintained):** <https://github.com/Dalufishe/palserver-GUI>

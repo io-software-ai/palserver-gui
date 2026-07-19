@@ -15,7 +15,15 @@ import { useEffect, useState } from "react";
  */
 
 export interface PromoConfig {
-  company: { name: string; website: string; instagram: string; discord: string; sponsor: string };
+  company: {
+    name: string;
+    website: string;
+    instagram: string;
+    discord: string;
+    /** Discord widget.json 用的 guild id(線上人數),與 discord 邀請連結分開存,方便遠端各自覆蓋。 */
+    discordGuildId: string;
+    sponsor: string;
+  };
   ipService: { name: string; website: string; discord: string };
   /** 常見問題站,header 與頁尾都會連過去。 */
   faq: string;
@@ -47,13 +55,14 @@ const DEFAULT: PromoConfig = {
     name: "io software",
     website: "https://iosoftware.ai/",
     instagram: "https://www.instagram.com/iosoftware.ai/",
-    discord: "https://discord.gg/sgMMdUZd3V",
+    discord: "https://discord.gg/w3YupCut",
+    discordGuildId: "1205193368771104808",
     sponsor: "https://buymeacoffee.com/dalufish",
   },
   ipService: {
     name: "IP 直連設定服務",
     website: "https://iosoftware.ai/ip-connect-service",
-    discord: "https://discord.gg/sgMMdUZd3V",
+    discord: "https://discord.gg/w3YupCut",
   },
   faq: "https://faq.toc.icu/",
   maintenanceService: {

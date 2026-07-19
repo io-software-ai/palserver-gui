@@ -54,4 +54,4 @@ palserver GUI(下稱「本軟體」)由 io software(開發者 Eason Lu / Dalufis
 政策若有變更,會更新於本頁(GUI 內「隱私權政策」)與 GitHub repo。
 有任何疑問,歡迎透過
 [GitHub Issues](https://github.com/io-software-ai/palserver-gui/issues) 或
-[Discord](https://discord.gg/sgMMdUZd3V) 與我們聯繫。
+[Discord](https://discord.gg/w3YupCut) 與我們聯繫。

@@ -44,7 +44,7 @@
 | **サーバー管理者** —— 長期運用・セキュリティ・自動化が気になる | [管理者向け:運用ガイド](#管理者向け運用ガイド) |
 | **開発者** —— コードを触りたい、PR を送りたい | [開発者向け:開発ガイド](#開発者向け開発ガイド) |
 
-困ったらまず **[FAQ](https://faq.toc.icu/)** を見るか、[Discord](https://discord.gg/sgMMdUZd3V) で聞いてください。
+困ったらまず **[FAQ](https://faq.toc.icu/)** を見るか、[Discord](https://discord.gg/w3YupCut) で聞いてください。
 
 ---
 
@@ -326,7 +326,7 @@ PALSERVER_IMAGE_VANILLA=palserver/dev-stub:latest pnpm dev:agent
 
 - **公式サイト:** <https://palserver-GUI.iosoftware.ai>
 - **FAQ:** <https://faq.toc.icu/>
-- **Discord:** <https://discord.gg/sgMMdUZd3V>
+- **Discord:** <https://discord.gg/w3YupCut>
 - **セーブデータ移行:** [docs/MIGRATION.md](docs/MIGRATION.md)
 - **プライバシーポリシー:** [PRIVACY.md](PRIVACY.md)
 - **v1(メンテナンス終了):** <https://github.com/Dalufishe/palserver-GUI>
