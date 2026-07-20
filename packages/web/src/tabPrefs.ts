@@ -37,7 +37,7 @@ export const TABS: { id: Tab; label: string }[] = [
   { id: "breeding", label: "配種計算" },
   { id: "saves", label: "存檔備份" },
   { id: "restart", label: "伺服器重啟" },
-  { id: "bridge", label: "群服互通" },
+  { id: "bridge", label: "Webhook" },
   { id: "instance", label: "設定" },
 ];
 

@@ -27,6 +27,7 @@ export const EARLY_ACCESS_FEATURES: EarlyAccessFeature[] = [
   { id: "daily-restart", label: "每天多個固定時刻自動重啟(單一時刻免費;多時刻如 00:00/06:00/12:00/18:00)" },
   { id: "public-map", label: "公開地圖(伺服器地圖公開分享到雲端)" },
   { id: "boss-respawn", label: "頭目重生時間(全頭目死活 / 重生倒數)" },
+  { id: "message-bridge", label: "Webhook(群服互通:多平台事件通知 + 雙向轉發)" },
 ];
 
 /** 這個功能是否對所有人免費 —— 只有「不在目錄裡」的功能免費;目錄內為贊助者專屬,無期限。 */

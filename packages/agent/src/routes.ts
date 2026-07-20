@@ -2432,7 +2432,10 @@ export function registerRoutes(
     z.object({ ...MessageBridgeChannelBaseShape, platform: z.literal("webhook"), url: z.string().trim().max(1000), secret: z.string().max(2000).optional() }),
   ])).max(32) }).strict();
 
-  app.put("/api/instances/:id/message-bridge", async (req) => {
+  app.put("/api/instances/:id/message-bridge", async (req, reply) => {
+    if (!featureEnabled("message-bridge")) {
+      return reply.code(403).send({ error: "此功能為贊助者先行版,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
     const rec = getOr404((req.params as { id: string }).id);
     const patch = MessageBridgePatchSchema.parse(req.body) as MessageBridgePatch;
     const config = await messageBridge.updateConfig(rec.id, patch);
@@ -2440,6 +2443,9 @@ export function registerRoutes(
   });
 
   app.post("/api/instances/:id/message-bridge/webhook", async (req, reply) => {
+    if (!featureEnabled("message-bridge")) {
+      return reply.code(403).send({ error: "此功能為贊助者先行版,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
     const rec = store.get((req.params as { id: string }).id);
     if (!rec) return reply.code(404).send({ error: "instance not found" });
     const body = z.object({ userId: z.string().max(128).optional(), author: z.string().max(80).optional(), text: z.string().trim().min(1).max(500) }).parse(req.body);
@@ -2453,6 +2459,9 @@ export function registerRoutes(
   });
 
   app.post("/api/instances/:id/message-bridge/webhook/:channelId", async (req, reply) => {
+    if (!featureEnabled("message-bridge")) {
+      return reply.code(403).send({ error: "此功能為贊助者先行版,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
     const rec = store.get((req.params as { id: string }).id);
     if (!rec) return reply.code(404).send({ error: "instance not found" });
     const channelId = (req.params as { channelId: string }).channelId;

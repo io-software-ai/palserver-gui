@@ -15,10 +15,10 @@ import {
   FiTrash2,
   FiX,
 } from "react-icons/fi";
-import type { MessageBridgeChannelConfig, MessageBridgeChannelPatch, MessageBridgeConfig, MessageBridgeLanguage, MessageBridgePatch, MessageBridgePlatform, MessageBridgeRules, MessageBridgeStatus } from "@palserver/shared";
+import { hasFeature, type MessageBridgeChannelConfig, type MessageBridgeChannelPatch, type MessageBridgeConfig, type MessageBridgeLanguage, type MessageBridgePatch, type MessageBridgePlatform, type MessageBridgeRules, type MessageBridgeStatus } from "@palserver/shared";
 import type { AgentClient } from "./api";
-import { btn, btnGhost, card, errorCls, inputCls, labelCls } from "./ui";
-import { t, useI18n } from "./i18n";
+import { btn, btnGhost, card, errorCls, inputCls, labelCls, SponsorLockNotice } from "./ui";
+import { getLang, t, useI18n } from "./i18n";
 
 type DraftChannel =
   | (Extract<MessageBridgeChannelConfig, { platform: "onebot" }> & { accessToken: string })
@@ -34,10 +34,10 @@ const PLATFORMS: Array<{
   description: string;
   icon: ReactNode;
 }> = [
-  { id: "onebot", name: "OneBot 11 / QQ", description: "NapCat、Lagrange 等 OneBot 实现", icon: <FiRadio /> },
-  { id: "discord", name: "Discord", description: "Discord Bot + 文字频道", icon: <FiHash /> },
-  { id: "telegram", name: "Telegram", description: "Telegram Bot + 群组", icon: <FiSend /> },
-  { id: "webhook", name: "通用 Webhook", description: "飞书、企业微信或自建中转", icon: <FiLink /> },
+  { id: "onebot", name: "OneBot 11 / QQ", description: "NapCat、Lagrange 等 OneBot 實作", icon: <FiRadio /> },
+  { id: "discord", name: "Discord", description: "Discord Bot + 文字頻道", icon: <FiHash /> },
+  { id: "telegram", name: "Telegram", description: "Telegram Bot + 群組", icon: <FiSend /> },
+  { id: "webhook", name: "通用 Webhook", description: "飛書、企業微信或自建中轉", icon: <FiLink /> },
 ];
 
 const toDraft = (config: MessageBridgeConfig): Draft => ({ channels: config.channels.map((channel): DraftChannel => {
@@ -47,9 +47,15 @@ const toDraft = (config: MessageBridgeConfig): Draft => ({ channels: config.chan
   return { ...channel, secret: "" };
 }) });
 
+/** GUI 目前語言 → 頻道預設訊息語言("zh" 對應 "zh-TW",其餘同名)。 */
+const guiLanguage = (): MessageBridgeLanguage => {
+  const lang = getLang();
+  return lang === "zh" ? "zh-TW" : lang;
+};
+
 const newChannel = (platform: Platform): DraftChannel => {
   const id = `${platform}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  const common = { ...rulePatch({ relayGroupToGame: true, relayGameToGroup: true, notifyJoinLeave: true, notifyCapture: true, notifyDeath: true, notifyBoss: true, notifyServerStatus: true, notifyBackup: true, relayPrefix: "", commandPrefix: "/" }), id, enabled: true, adminIds: [], language: "zh-CN" as const };
+  const common = { ...rulePatch({ relayGroupToGame: true, relayGameToGroup: true, notifyJoinLeave: true, notifyCapture: true, notifyDeath: true, notifyBoss: true, notifyServerStatus: true, notifyBackup: true, relayPrefix: "", commandPrefix: "/" }), id, enabled: true, adminIds: [], language: guiLanguage() };
   if (platform === "onebot") return { ...common, platform, wsUrl: "ws://127.0.0.1:3001", groupId: "", accessTokenSet: false, accessToken: "" };
   if (platform === "discord") return { ...common, platform, channelId: "", proxyEnabled: false, proxyUrlSet: false, tokenSet: false, proxyUrl: "", token: "" };
   if (platform === "telegram") return { ...common, platform, chatId: "", tokenSet: false, token: "" };
@@ -78,6 +84,7 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [entitled, setEntitled] = useState<boolean | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -96,7 +103,24 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
     return () => { alive = false; clearInterval(timer); };
   }, [client, instanceId]);
 
+  // 授權:Webhook(群服互通)為贊助者先行版
+  useEffect(() => {
+    client
+      .license()
+      .then((l) => setEntitled(hasFeature("message-bridge", l)))
+      .catch(() => setEntitled(false));
+  }, [client, instanceId]);
+
   const platformCounts = useMemo(() => new Map(PLATFORMS.map((platform) => [platform.id, draft?.channels.filter((channel) => channel.platform === platform.id).length ?? 0])), [draft]);
+
+  // 贊助者限定:未解鎖只顯示先行版說明,不顯示表單。
+  if (entitled === false) {
+    return (
+      <div className="flex flex-col gap-4">
+        <SponsorLockNotice>{t("這是贊助者先行版功能。到「設定 → 贊助者識別碼」輸入識別碼即可使用。")}</SponsorLockNotice>
+      </div>
+    );
+  }
 
   if (!draft) {
     return <div className="max-w-3xl">{error ? <p className={errorCls}>{error}</p> : <p className="text-sm text-ink-muted">{t("載入中…")}</p>}</div>;
@@ -116,7 +140,7 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
   const removeChannel = (channelId: string) => {
     setDraft({ channels: draft.channels.filter((channel) => channel.id !== channelId) });
     if (expanded === channelId) setExpanded(null);
-    setNotice(t("渠道已标记移除，保存后生效。"));
+    setNotice(t("頻道已標記移除，儲存後生效。"));
   };
 
   const isReady = (channel: DraftChannel): boolean => {
@@ -141,7 +165,7 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
     const invalid = draft.channels.find((channel) => !isReady(channel));
     if (invalid) {
       setExpanded(invalid.id);
-      setError(t("请完整填写已启用渠道的连接信息。"));
+      setError(t("請完整填寫已啟用頻道的連線資訊。"));
       return;
     }
     setBusy(true);
@@ -164,8 +188,8 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
     <div className="flex max-w-3xl flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="inline-flex items-center gap-2 text-lg font-extrabold"><FiMessageCircle className="text-pal" /> {t("群服互通")}</h2>
-          <p className="mt-1 text-[13px] text-ink-muted">{t("连接群聊与游戏服务器，并在多个消息平台之间同步聊天和事件。")}</p>
+          <h2 className="inline-flex items-center gap-2 text-lg font-extrabold"><FiMessageCircle className="text-pal" /> {t("Webhook")}</h2>
+          <p className="mt-1 text-[13px] text-ink-muted">{t("連線群組與遊戲伺服器，並在多個訊息平台之間同步聊天和事件。")}</p>
         </div>
         <button className={`${btn} inline-flex items-center gap-1.5`} disabled={busy || draft.channels.some((channel) => !channel.commandPrefix)} onClick={() => void save()}>
           <FiSave className="size-4" /> {busy ? t("儲存中…") : t("儲存變更")}
@@ -175,18 +199,18 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-extrabold">{t("消息渠道")}</h3>
-            <p className="mt-1 text-xs text-ink-muted">{t("每种渠道可添加多个独立连接。")}</p>
+            <h3 className="text-sm font-extrabold">{t("訊息頻道")}</h3>
+            <p className="mt-1 text-xs text-ink-muted">{t("每種頻道可新增多個獨立連線。")}</p>
           </div>
           <button className={`${btnGhost} inline-flex items-center gap-1.5`} disabled={draft.channels.length >= 32} onClick={() => setAdding(true)}>
-            <FiPlus className="size-4" /> {t("添加渠道")}
+            <FiPlus className="size-4" /> {t("新增頻道")}
           </button>
         </div>
 
         {draft.channels.length === 0 ? (
           <button className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line bg-card-soft px-4 text-center transition hover:border-pal" onClick={() => setAdding(true)}>
             <FiPlus className="size-5 text-pal" />
-            <span className="text-sm font-extrabold">{t("添加第一个消息渠道")}</span>
+            <span className="text-sm font-extrabold">{t("新增第一個訊息頻道")}</span>
             <span className="text-xs text-ink-muted">OneBot、Discord、Telegram、Webhook</span>
           </button>
         ) : draft.channels.map((channel, index) => {
@@ -204,7 +228,7 @@ export function MessageBridgeTab({ client, instanceId }: { client: AgentClient; 
                   <ChannelStatus channelEnabled={channel.enabled} connected={state?.connected ?? false} error={state?.error ?? null} />
                 </button>
                 <Toggle checked={channel.enabled} onChange={(enabled) => setChannel(channel.id, { enabled })} label={channel.enabled ? t("啟用") : t("停用")} compact />
-                <button className="grid size-8 shrink-0 place-items-center text-ink-muted transition hover:text-danger" onClick={() => removeChannel(channel.id)} title={t("移除渠道")} aria-label={t("移除渠道")}><FiTrash2 /></button>
+                <button className="grid size-8 shrink-0 place-items-center text-ink-muted transition hover:text-danger" onClick={() => removeChannel(channel.id)} title={t("移除頻道")} aria-label={t("移除頻道")}><FiTrash2 /></button>
                 <button className="grid size-8 shrink-0 place-items-center text-ink-muted" onClick={() => setExpanded(open ? null : channel.id)} aria-label={open ? t("收起") : t("編輯")}>{open ? <FiChevronUp /> : <FiChevronDown />}</button>
               </div>
               {open && <div className="mt-4 border-t-2 border-line pt-4"><ChannelForm channel={channel} client={client} instanceId={instanceId} onChange={(patch) => setChannel(channel.id, patch)} /></div>}
@@ -233,7 +257,7 @@ function ChannelForm({ channel, client, instanceId, onChange }: {
     <Field label="WebSocket URL"><input className={inputCls} value={channel.wsUrl} onChange={(e) => onChange({ wsUrl: e.target.value })} placeholder="ws://127.0.0.1:3001" /></Field>
     <Field label={t("群號")}><input className={inputCls} value={channel.groupId} onChange={(e) => onChange({ groupId: e.target.value })} /></Field>
     <SecretField label="Access Token" value={channel.accessToken} saved={channel.accessTokenSet} onChange={(accessToken) => onChange({ accessToken })} />
-    <p className="self-end text-xs text-ink-muted">{t("在 OneBot 实现中开启正向 WebSocket，并填写监听地址、群号和访问令牌。")}</p>
+    <p className="self-end text-xs text-ink-muted">{t("在 OneBot 實作中開啟正向 WebSocket，並填寫監聽地址、群號和存取權杖。")}</p>
     <AdminField value={channel.adminIds} onChange={(adminIds) => onChange({ adminIds })} />
   </div>;
   if (channel.platform === "discord") return <div className="grid gap-3 sm:grid-cols-2">
@@ -241,14 +265,14 @@ function ChannelForm({ channel, client, instanceId, onChange }: {
     <LanguageField value={channel.language} onChange={(language) => onChange({ language })} />
     <Field label="Channel ID"><input className={inputCls} value={channel.channelId} onChange={(e) => onChange({ channelId: e.target.value })} /></Field>
     <SecretField label="Bot Token" value={channel.token} saved={channel.tokenSet} onChange={(token) => onChange({ token })} />
-    <p className="text-xs text-ink-muted sm:col-span-2">{t("在 Discord Developer Portal 啟用 Message Content Intent，並授予機器人查看頻道與發送消息權限。")}</p>
+    <p className="text-xs text-ink-muted sm:col-span-2">{t("在 Discord Developer Portal 啟用 Message Content Intent，並授予機器人查看頻道與發送訊息權限。")}</p>
     <div className="flex flex-col gap-3 border-y-2 border-line py-3 sm:col-span-2">
-      <Check checked={channel.proxyEnabled} onChange={(proxyEnabled) => onChange({ proxyEnabled })} label={t("使用代理连接 Discord")} />
+      <Check checked={channel.proxyEnabled} onChange={(proxyEnabled) => onChange({ proxyEnabled })} label={t("使用代理連線 Discord")} />
       {channel.proxyEnabled && <div className="grid gap-3 sm:grid-cols-2">
         <SecretField label={t("代理地址")} value={channel.proxyUrl} saved={channel.proxyUrlSet} onChange={(proxyUrl) => onChange({ proxyUrl })} />
-        <p className="self-end text-xs text-ink-muted">{t("同时用于 Discord Gateway 和消息 API。支持 HTTP、HTTPS、SOCKS4、SOCKS5，例如 http://127.0.0.1:7890。")}</p>
+        <p className="self-end text-xs text-ink-muted">{t("同時用於 Discord Gateway 和訊息 API。支援 HTTP、HTTPS、SOCKS4、SOCKS5，例如 http://127.0.0.1:7890。")}</p>
       </div>}
-      <p className="text-xs text-ink-muted">{t("如果状态持续显示“Discord Gateway 已断开”，请启用代理并确认本机代理软件允许 Agent 访问。")}</p>
+      <p className="text-xs text-ink-muted">{t("如果狀態持續顯示「Discord Gateway 已斷開」，請啟用代理並確認本機代理軟體允許 Agent 存取。")}</p>
     </div>
     <AdminField value={channel.adminIds} onChange={(adminIds) => onChange({ adminIds })} />
   </div>;
@@ -257,7 +281,7 @@ function ChannelForm({ channel, client, instanceId, onChange }: {
     <LanguageField value={channel.language} onChange={(language) => onChange({ language })} />
     <Field label="Chat ID"><input className={inputCls} value={channel.chatId} onChange={(e) => onChange({ chatId: e.target.value })} placeholder="-100..." /></Field>
     <SecretField label="Bot Token" value={channel.token} saved={channel.tokenSet} onChange={(token) => onChange({ token })} />
-    <p className="text-xs text-ink-muted sm:col-span-2">{t("将机器人加入群组，关闭隐私模式后填写 Bot Token 和 Chat ID。")}</p>
+    <p className="text-xs text-ink-muted sm:col-span-2">{t("將機器人加入群組，關閉隱私模式後填寫 Bot Token 和 Chat ID。")}</p>
     <AdminField value={channel.adminIds} onChange={(adminIds) => onChange({ adminIds })} />
   </div>;
   return <div className="grid gap-3 sm:grid-cols-2">
@@ -274,10 +298,10 @@ function ChannelForm({ channel, client, instanceId, onChange }: {
 }
 
 function AddChannelDialog({ onAdd, onClose }: { onAdd: (platform: Platform) => void; onClose: () => void }) {
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label={t("添加消息渠道")} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label={t("新增訊息頻道")} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="w-full max-w-md rounded-lg border-2 border-line bg-card p-5 shadow-xl">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <div><h3 className="text-base font-extrabold">{t("添加消息渠道")}</h3><p className="mt-1 text-xs text-ink-muted">{t("选择连接方式，添加后再填写连接信息。")}</p></div>
+        <div><h3 className="text-base font-extrabold">{t("新增訊息頻道")}</h3><p className="mt-1 text-xs text-ink-muted">{t("選擇連線方式，新增後再填寫連線資訊。")}</p></div>
         <button className="grid size-8 place-items-center text-ink-muted" onClick={onClose} aria-label={t("關閉")}><FiX /></button>
       </div>
       <div className="flex flex-col gap-2">
@@ -292,16 +316,16 @@ function AddChannelDialog({ onAdd, onClose }: { onAdd: (platform: Platform) => v
 }
 
 function ChannelStatus({ channelEnabled, connected, error }: { channelEnabled: boolean; connected: boolean; error: string | null }) {
-  const label = !channelEnabled ? t("渠道已停用") : connected ? t("已連接") : error || t("等待連接");
+  const label = !channelEnabled ? t("頻道已停用") : connected ? t("已連接") : error || t("等待連接");
   const color = channelEnabled && connected ? "bg-ok" : error && channelEnabled ? "bg-danger" : "bg-ink-muted";
   return <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-ink-muted"><span className={`size-1.5 shrink-0 rounded-full ${color}`} /><span className="truncate" title={error ?? undefined}>{label}</span></span>;
 }
 
 function ChannelRulesForm({ value, onChange }: { value: MessageBridgeRules; onChange: (patch: Partial<MessageBridgeRules>) => void }) {
   return <section className="flex flex-col gap-3 border-b-2 border-line pb-4 sm:col-span-2">
-    <h4 className="text-sm font-extrabold">{t("互通规则")}</h4>
+    <h4 className="text-sm font-extrabold">{t("互通規則")}</h4>
     <div className="grid gap-2 sm:grid-cols-2">
-      <Check checked={value.relayGroupToGame} onChange={(relayGroupToGame) => onChange({ relayGroupToGame })} label={t("群消息轉發到遊戲")} />
+      <Check checked={value.relayGroupToGame} onChange={(relayGroupToGame) => onChange({ relayGroupToGame })} label={t("群訊息轉發到遊戲")} />
       <Check checked={value.relayGameToGroup} onChange={(relayGameToGroup) => onChange({ relayGameToGroup })} label={t("遊戲聊天轉發到群")} />
       <Check checked={value.notifyJoinLeave} onChange={(notifyJoinLeave) => onChange({ notifyJoinLeave })} label={t("玩家進出提示")} />
       <Check checked={value.notifyCapture} onChange={(notifyCapture) => onChange({ notifyCapture })} label={t("抓捕帕魯提示")} />
@@ -318,8 +342,8 @@ function ChannelRulesForm({ value, onChange }: { value: MessageBridgeRules; onCh
         <input className={`${inputCls} w-16 py-1.5`} value={value.commandPrefix} maxLength={3} onChange={(event) => onChange({ commandPrefix: event.target.value })} />
       </label>
     </div>
-    <p className="text-xs text-ink-muted">{t("設定訊息轉發前綴後，只有帶此前綴的群消息會被轉發，轉發時會移除前綴；留空則轉發全部群消息。")}</p>
-    <p className="text-xs text-ink-muted">{t("群內可使用 /server、/players、/help、/whoami；管理員可使用 /adminhelp 查看管理指令。群消息也會同步到其他已連接平台。死亡與抓捕事件需要 PalDefender 日誌。")}</p>
+    <p className="text-xs text-ink-muted">{t("設定訊息轉發前綴後，只有帶此前綴的群訊息會被轉發，轉發時會移除前綴；留空則轉發全部群訊息。")}</p>
+    <p className="text-xs text-ink-muted">{t("群內可使用 /server、/players、/help、/whoami；管理員可使用 /adminhelp 查看管理指令。群訊息也會同步到其他已連接平台。死亡與抓捕事件需要 PalDefender 日誌。")}</p>
   </section>;
 }
 
@@ -340,7 +364,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function LanguageField({ value, onChange }: { value: MessageBridgeLanguage; onChange: (value: MessageBridgeLanguage) => void }) {
-  return <Field label={t("消息語言")}><select className={inputCls} value={value} onChange={(event) => onChange(event.target.value as MessageBridgeLanguage)}>
+  return <Field label={t("訊息語言")}><select className={inputCls} value={value} onChange={(event) => onChange(event.target.value as MessageBridgeLanguage)}>
     <option value="zh-TW">繁體中文</option>
     <option value="zh-CN">简体中文</option>
     <option value="en">English</option>
@@ -349,7 +373,7 @@ function LanguageField({ value, onChange }: { value: MessageBridgeLanguage; onCh
 }
 
 function SecretField({ label, value, saved, onChange }: { label: string; value: string; saved: boolean; onChange: (value: string) => void }) {
-  return <Field label={label}><input className={inputCls} type="password" value={value} onChange={(e) => onChange(e.target.value)} placeholder={saved ? t("已保存；留空則不修改") : t("尚未配置")} /></Field>;
+  return <Field label={label}><input className={inputCls} type="password" value={value} onChange={(e) => onChange(e.target.value)} placeholder={saved ? t("已儲存；留空則不修改") : t("尚未配置")} /></Field>;
 }
 
 function AdminField({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
@@ -357,23 +381,23 @@ function AdminField({ value, onChange }: { value: string[]; onChange: (value: st
   const update = (index: number, id: string) => onChange(rows.map((row, rowIndex) => rowIndex === index ? id : row));
   const remove = (index: number) => onChange(rows.length === 1 ? [] : rows.filter((_, rowIndex) => rowIndex !== index));
   return <fieldset className={`${labelCls} sm:col-span-2`}>
-    <legend className="inline-flex items-center gap-1.5"><FiShield className="text-pal" />{t("渠道管理员用户 ID")}</legend>
+    <legend className="inline-flex items-center gap-1.5"><FiShield className="text-pal" />{t("頻道管理員用戶 ID")}</legend>
     <div className="flex flex-col gap-2">
       {rows.map((id, index) => <div key={index} className="flex items-center gap-2">
         <input
           className={`${inputCls} min-w-0 flex-1 font-mono text-xs`}
           value={id}
           onChange={(event) => update(index, event.target.value)}
-          placeholder={t("群内发送 /whoami 可查询用户 ID")}
-          aria-label={`${t("渠道管理员用户 ID")} ${index + 1}`}
+          placeholder={t("群內發送 /whoami 可查詢用戶 ID")}
+          aria-label={`${t("頻道管理員用戶 ID")} ${index + 1}`}
         />
         <button
           type="button"
           className="grid size-9 shrink-0 place-items-center rounded-lg text-ink-muted transition hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
           disabled={rows.length === 1 && !id}
           onClick={() => remove(index)}
-          title={t("移除管理员")}
-          aria-label={t("移除管理员")}
+          title={t("移除管理員")}
+          aria-label={t("移除管理員")}
         ><FiTrash2 /></button>
       </div>)}
       <button
@@ -381,8 +405,8 @@ function AdminField({ value, onChange }: { value: string[]; onChange: (value: st
         className="grid size-9 place-items-center rounded-lg border-2 border-dashed border-line text-pal transition hover:border-pal hover:bg-card-soft disabled:cursor-not-allowed disabled:opacity-40"
         disabled={rows.length >= 50}
         onClick={() => onChange([...rows, ""])}
-        title={t("添加管理员")}
-        aria-label={t("添加管理员")}
+        title={t("新增管理員")}
+        aria-label={t("新增管理員")}
       ><FiPlus /></button>
     </div>
   </fieldset>;
