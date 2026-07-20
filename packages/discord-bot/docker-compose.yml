@@ -1,0 +1,11 @@
+# 獨立部署 palserver-GUI 官方 Discord bot。
+# bot 只主動對外連線(呼叫 agent REST API),不需要對外開任何 port,
+# 跟 agent 之間用 Tailscale 之類的內網位址也能跑,NAT 環境友善。
+services:
+  discord-bot:
+    build:
+      context: ../..
+      dockerfile: packages/discord-bot/Dockerfile
+    image: palserver/discord-bot:latest
+    restart: unless-stopped
+    env_file: .env
