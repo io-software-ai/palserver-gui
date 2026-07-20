@@ -355,16 +355,75 @@ function collectPals(pals: Record<string, unknown> | undefined, location: PdPal[
   if (!pals || typeof pals !== "object") return [];
   return Object.entries(pals).map(([instanceId, raw]) => {
     const p = (raw ?? {}) as Record<string, unknown>;
+    const palId = String(p.PalID ?? "");
+    // BOSS 判定:PD 1.8+ 直接给 IsBoss;老版本或塔主从 palId 前缀 / 内部标记推断。
+    const isBoss = Boolean(p.IsBoss ?? p.IsBOSS) || /^BOSS_/i.test(palId) || Boolean(p.IsTowerBoss ?? p.IsTower);
+    const isTower = Boolean(p.IsTower ?? p.IsTowerBoss) && !isBoss;
     return {
       instanceId,
-      palId: String(p.PalID ?? ""),
+      palId,
       nickname: String(p.Nickname ?? ""),
       gender: String(p.Gender ?? ""),
       level: Number(p.Level ?? 0),
       shiny: Boolean(p.Shiny),
       location,
+      ivs: readPalIvs(p),
+      passives: readStringArray(p.Passives ?? p.PassiveSkillList ?? p.Traits),
+      activeSkills: readStringArray(p.ActiveSkills ?? p.ActiveSkillList),
+      rank: readNumber(p.Rank ?? p.CondensedRank),
+      condensedPals: readNumber(p.CondensedPals ?? p.CondensedCount),
+      souls: readSouls(p),
+      isBoss,
+      isTower,
     };
   });
+}
+
+/** 兼容 PD 不同版本的 IVs 字段名:IVs 对象、Talent_HP/Shot/Melee/Defense。 */
+export function readPalIvs(p: Record<string, unknown>): PdPal["ivs"] | undefined {
+  const obj = p.IVs;
+  if (obj && typeof obj === "object") {
+    const o = obj as Record<string, unknown>;
+    const out: NonNullable<PdPal["ivs"]> = {};
+    if (readNumber(o.HP) != null) out.hp = readNumber(o.HP);
+    if (readNumber(o.Health) != null && out.hp == null) out.hp = readNumber(o.Health);
+    if (readNumber(o.Attack) != null) out.attack = readNumber(o.Attack);
+    if (readNumber(o.Melee) != null && out.attack == null) out.attack = readNumber(o.Melee);
+    if (readNumber(o.Defense) != null) out.defense = readNumber(o.Defense);
+    if (readNumber(o.WorkSpeed) != null) out.workSpeed = readNumber(o.WorkSpeed);
+    if (Object.keys(out).length) return out;
+  }
+  const hp = readNumber(p.Talent_HP ?? p.TalentHP ?? p.TalentHp);
+  const atk = readNumber(p.Talent_Shot ?? p.TalentShot ?? p.TalentAttack ?? p.Talent_Melee ?? p.TalentMelee);
+  const def = readNumber(p.Talent_Defense ?? p.TalentDefense);
+  if (hp == null && atk == null && def == null) return undefined;
+  return { hp: hp ?? undefined, attack: atk ?? undefined, defense: def ?? undefined };
+}
+
+function readSouls(p: Record<string, unknown>): PdPal["souls"] | undefined {
+  const obj = p.Souls ?? p.PalSouls;
+  if (obj && typeof obj === "object") {
+    const o = obj as Record<string, unknown>;
+    const out: NonNullable<PdPal["souls"]> = {};
+    if (readNumber(o.HP) != null) out.hp = readNumber(o.HP);
+    if (readNumber(o.Attack) != null) out.attack = readNumber(o.Attack);
+    if (readNumber(o.Defense) != null) out.defense = readNumber(o.Defense);
+    if (readNumber(o.WorkSpeed) != null) out.workSpeed = readNumber(o.WorkSpeed);
+    if (Object.keys(out).length) return out;
+  }
+  return undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  if (value == null) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out = value.map((v) => String(v ?? "").trim()).filter(Boolean);
+  return out.length ? out : undefined;
 }
 
 function collectItems(inventory: Record<string, unknown> | undefined): PdItemSlot[] {

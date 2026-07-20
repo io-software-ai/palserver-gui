@@ -15,6 +15,7 @@ COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/packages/agent/package.json packages/agent/
 COPY --from=build /app/packages/agent/dist packages/agent/dist
 COPY --from=build /app/packages/web/dist packages/web/dist
+COPY --from=build /app/THIRD_PARTY_LICENSES.md /app/THIRD_PARTY_LICENSES.md
 RUN pnpm install --frozen-lockfile --prod --filter @palserver/agent --filter @palserver/shared
 EXPOSE 8250
 CMD ["node", "packages/agent/dist/index.js"]

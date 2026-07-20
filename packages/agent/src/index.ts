@@ -35,6 +35,7 @@ import { announceBoot, trackPlayers } from "./telemetry.js";
 import { cleanupOldBinaries, startUpdateChecker, type UpdateOps } from "./self-update.js";
 import { refreshLicense } from "./license.js";
 import { startTray } from "./tray.js";
+import { MessageBridgeService } from "./message-bridge.js";
 
 // 啟動流程包在 async main() 內,讓 entry 沒有頂層 await —— 這樣才能打包成
 // CommonJS 供 Node SEA 免安裝執行檔使用(頂層 await 只能輸出 ESM)。
@@ -142,7 +143,11 @@ app.addHook("onRequest", async (req, reply) => {
   if (!req.url.startsWith("/api/")) return;
   const routePath = req.url.split("?")[0];
   // 公開端點:偵測 agent(/api/info)與配對換發 token(/api/pair)本身不需授權。
-  if (routePath === "/api/info" || routePath === "/api/pair") return;
+  if (
+    routePath === "/api/info" ||
+    routePath === "/api/pair" ||
+    /^\/api\/instances\/[^/]+\/message-bridge\/webhook$/.test(routePath)
+  ) return;
   // 本機(loopback)免驗證,單機自用零摩擦;PALSERVER_REQUIRE_TOKEN=1 可關閉。
   if (!REQUIRE_TOKEN && isLoopback(req.ip)) return;
   await makeAuthHook(token)(req, reply);
@@ -154,6 +159,13 @@ void fetchLatest().catch(() => {});
 
 const presence = new PresenceTracker(store);
 presence.start();
+
+const messageBridge = new MessageBridgeService(
+  store,
+  presence,
+  (rec) => rec.backend === "native" ? nativeDriver : rec.backend === "k8s" ? k8sDriver : dockerDriver,
+);
+messageBridge.start();
 
 // 匿名使用統計(可關閉,見 PRIVACY.md):登記這次啟動,並把既有名冊上的玩家
 // 補進全球玩家統計(只送單向雜湊;telemetry 模組自己會去重)。
@@ -200,7 +212,8 @@ const updateOps: UpdateOps = {
   log: (msg) => app.log.info(`[update] ${msg}`),
 };
 
-registerRoutes(app, store, presence, scheduler, supervisor, publicMap, auth, updateOps);
+registerRoutes(app, store, presence, scheduler, supervisor, publicMap, messageBridge, auth, updateOps);
+app.addHook("onClose", async () => messageBridge.stop());
 
 await app.listen({ host: HOST, port: PORT });
 
