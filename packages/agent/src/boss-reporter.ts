@@ -28,7 +28,7 @@ import {
  * Okaetsu fork)則沿用。設計沿用 palschema.ts 的安裝/狀態模式。
  */
 
-const BOSS_REPORTER_MOD_VERSION = "1.4";
+const BOSS_REPORTER_MOD_VERSION = "1.5";
 const WIN64_REL = "Pal/Binaries/Win64";
 const BOSS_MARKER_REL = `${WIN64_REL}/.palserver-boss-reporter.json`;
 

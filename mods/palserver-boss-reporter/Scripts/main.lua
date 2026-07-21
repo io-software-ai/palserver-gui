@@ -1,4 +1,7 @@
--- PalserverBossReporter v1.4
+-- PalserverBossReporter v1.5
+-- v1.5:「觀測有斷過、這次測到的重生間隔不可信」時,除了不覆蓋新值,也把舊的 respawnInterval
+--       一併清成 -1——不然舊測量值會被之後每一次死亡繼續沿用,顯示一個跟本次死亡無關的舊倒數
+--       (使用者實測回報:剛捕捉的頭目顯示 22 小時後重生,查出來就是幾天前某輪的殘留值)。
 -- v1.4:detectAlive 新增「確認不在」訊號——spawner 本身這 tick 有被 FindAllOf 掃到(代表此區域
 --       已載入,不是視野外的假訊號),但 IndividualHandleList 個體數確實是 0,視為「這隻現在
 --       真的不在這裡」(不分是被擊殺後遺體立即被清、還是被玩家「捕捉」帶走——捕捉不會讓 HP 歸零,
@@ -193,7 +196,11 @@ local function scanOnce()
             t.respawnInterval = now - t.diedAt
             log("boss RESPAWNED: " .. name .. " after " .. t.respawnInterval .. "s (continuous)")
           else
-            log("boss RESPAWNED: " .. name .. " (interval not trusted — observation gap)")
+            -- 這次的觀測不可信,不能只是「不覆蓋」——上一輪測到的 respawnInterval 是對「上一次死亡」
+            -- 量的,跟這一輪的死亡時間點沒有關係;放著不清掉,下次顯示倒數會用一個跟本次死亡無關的
+            -- 舊數字(使用者回報的 bug:剛捕捉的頭目顯示 22 小時後重生,查出來就是這個舊值殘留)。
+            t.respawnInterval = -1
+            log("boss RESPAWNED: " .. name .. " (interval not trusted — observation gap, cleared stale value)")
           end
         end
         t.alive = alive
