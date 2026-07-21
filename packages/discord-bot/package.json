@@ -5,6 +5,16 @@
   "type": "module",
   "description": "palserver-GUI 官方 Discord bot:從 Discord 用 slash 指令回控伺服器(呼叫 agent REST API)。也是第三方接 agent 的參考實作。",
   "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./bot": {
+      "types": "./dist/bot.d.ts",
+      "import": "./dist/bot.js"
+    }
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",

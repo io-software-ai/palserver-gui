@@ -32,6 +32,9 @@ importers:
       '@kubernetes/client-node':
         specifier: ^1.3.0
         version: 1.3.0
+      '@palserver/discord-bot':
+        specifier: workspace:*
+        version: link:../discord-bot
       '@palserver/shared':
         specifier: workspace:*
         version: link:../shared

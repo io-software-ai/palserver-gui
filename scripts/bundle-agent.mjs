@@ -43,7 +43,10 @@ await build({
   target: "node20",
   format: "cjs",
   outfile: path.join(root, "packages/agent/bundle/agent.cjs"),
-  external: ["cpu-features"],
+  // cpu-features:ssh2 的可選原生加速(見上)。zlib-sync / bufferutil / utf-8-validate:discord.js
+  // (@discordjs/ws + ws)的可選原生加速模組(.node),都是 try/catch require,打包不進 SEA;標為
+  // external 讓它們留成 runtime require,載入失敗時 discord.js/ws 自動退回純 JS(功能不受影響)。
+  external: ["cpu-features", "zlib-sync", "bufferutil", "utf-8-validate"],
   // 把版本烙進 bundle:env.ts 讀 process.env.PALSERVER_AGENT_VERSION,這裡換成字面值。
   define: { "process.env.PALSERVER_AGENT_VERSION": JSON.stringify(version) },
   logLevel: "info",

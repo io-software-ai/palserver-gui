@@ -1747,5 +1747,22 @@
   ".env 範本": ".env template",
   "複製後填入 Discord 的三個值,AGENT_TOKEN 貼上上方的權杖。": "Copy this, then fill in the three Discord values — paste the token above into AGENT_TOKEN.",
   "可用指令": "Available commands",
-  "管理員": "Admin"
+  "管理員": "Admin",
+  "在這台機器上自動執行(推薦)": "Run automatically on this machine (recommended)",
+  "貼上 Discord bot token,由這台 agent 直接把 bot 跑起來並自動維持 —— 免 Docker、免 Node、免手動註冊指令。token 只存在這台機器,不會回傳到瀏覽器。": "Paste a Discord bot token and this agent will run and keep the bot alive for you — no Docker, no Node, no manual command registration. The token stays on this machine and is never sent back to the browser.",
+  "Discord Bot Token": "Discord Bot Token",
+  "更換": "Change",
+  "貼上 bot token": "Paste bot token",
+  "還沒有 token?到 Discord 開發者後台建立 Bot 並邀請進你的伺服器(步驟見下方「進階」)。": "No token yet? Create a bot in the Discord Developer Portal and invite it to your server (see the steps under \"Advanced\" below).",
+  "尚未設定 token": "No token set yet",
+  "執行中": "Running",
+  "啟動中…": "Starting…",
+  "請先設定 token 再啟用。": "Set a token before enabling.",
+  "進階:在另一台機器 / 用 Docker 執行": "Advanced: run on another machine / with Docker",
+  "隱藏進階設定": "Hide advanced settings",
+  "以下步驟是把 bot 跑在「另一台機器」或用 Docker 自架時才需要;同機自動執行不用。": "These steps are only needed to run the bot on a different machine or self-host it with Docker — not for running it automatically on this machine.",
+  "到 Discord 開發者後台建立應用程式與 Bot,取得 Bot Token。": "Create an application and bot in the Discord Developer Portal to get the Bot Token.",
+  "把 Bot 邀請進你的 Discord 伺服器。": "Invite the bot to your Discord server.",
+  "用 docker compose up -d 或 pnpm start 啟動 bot;slash 指令會在 bot 上線時自動註冊。詳見 packages/discord-bot/README。": "Start the bot with docker compose up -d or pnpm start; slash commands are registered automatically when the bot comes online. See packages/discord-bot/README for details.",
+  "把 DISCORD_TOKEN 換成你的 bot token,AGENT_TOKEN 貼上上方的權杖。": "Replace DISCORD_TOKEN with your bot token and paste the token above into AGENT_TOKEN."
 }

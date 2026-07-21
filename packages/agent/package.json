@@ -20,6 +20,7 @@
     "@fastify/static": "^8.0.0",
     "@fastify/websocket": "^11.0.0",
     "@kubernetes/client-node": "^1.3.0",
+    "@palserver/discord-bot": "workspace:*",
     "@palserver/shared": "workspace:*",
     "dockerode": "^4.0.2",
     "extract-zip": "^2.0.1",

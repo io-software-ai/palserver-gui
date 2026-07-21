@@ -55,6 +55,7 @@ import type {
   SaveScanStats,
   SavesStatus,
   VersionStatus,
+  DiscordBotStatus,
   WebhookConfigPublic,
   WebhookDelivery,
   WebhookFormat,
@@ -609,6 +610,19 @@ export class AgentClient {
 
   webhookDeliveries(id: string, whId: string): Promise<WebhookDelivery[]> {
     return this.request(`/api/instances/${id}/webhooks/${whId}/deliveries`);
+  }
+
+  /** 同機 Discord bot(agent 自跑)目前狀態:啟用與否、是否已設 token、子行程是否在跑。 */
+  discordBot(id: string): Promise<DiscordBotStatus> {
+    return this.request(`/api/instances/${id}/discord-bot`);
+  }
+
+  /** 更新同機 Discord bot 設定(enabled / token);token 寫入後不回讀(僅回 tokenSet)。回傳同 discordBot()。 */
+  setDiscordBot(id: string, patch: { enabled?: boolean; token?: string }): Promise<DiscordBotStatus> {
+    return this.request(`/api/instances/${id}/discord-bot`, {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    });
   }
 
   palDefenderRest(id: string): Promise<PdRestStatus> {

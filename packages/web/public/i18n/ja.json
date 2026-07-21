@@ -1747,5 +1747,22 @@
   ".env 範本": ".env テンプレート",
   "複製後填入 Discord 的三個值,AGENT_TOKEN 貼上上方的權杖。": "コピーしてから Discord の 3 つの値を入力し、AGENT_TOKEN には上記のトークンを貼り付けてください。",
   "可用指令": "利用可能なコマンド",
-  "管理員": "管理者"
+  "管理員": "管理者",
+  "在這台機器上自動執行(推薦)": "このマシンで自動実行(推奨)",
+  "貼上 Discord bot token,由這台 agent 直接把 bot 跑起來並自動維持 —— 免 Docker、免 Node、免手動註冊指令。token 只存在這台機器,不會回傳到瀏覽器。": "Discord bot トークンを貼り付けるだけで、この agent が bot を直接起動して自動的に維持します —— Docker も Node も手動のコマンド登録も不要です。トークンはこのマシン内にのみ保存され、ブラウザーに返されることはありません。",
+  "Discord Bot Token": "Discord Bot トークン",
+  "更換": "変更",
+  "貼上 bot token": "bot トークンを貼り付け",
+  "還沒有 token?到 Discord 開發者後台建立 Bot 並邀請進你的伺服器(步驟見下方「進階」)。": "トークンがまだない場合は、Discord デベロッパーポータルで Bot を作成し、サーバーに招待してください(手順は下の「詳細」を参照)。",
+  "尚未設定 token": "トークン未設定",
+  "執行中": "実行中",
+  "啟動中…": "起動中…",
+  "請先設定 token 再啟用。": "有効化する前にトークンを設定してください。",
+  "進階:在另一台機器 / 用 Docker 執行": "詳細:別のマシン / Docker で実行",
+  "隱藏進階設定": "詳細設定を隠す",
+  "以下步驟是把 bot 跑在「另一台機器」或用 Docker 自架時才需要;同機自動執行不用。": "以下の手順は、bot を「別のマシン」で実行する場合や Docker で自前ホスティングする場合にのみ必要です。同一マシンでの自動実行では不要です。",
+  "到 Discord 開發者後台建立應用程式與 Bot,取得 Bot Token。": "Discord デベロッパーポータルでアプリケーションと Bot を作成し、Bot Token を取得します。",
+  "把 Bot 邀請進你的 Discord 伺服器。": "Bot をあなたの Discord サーバーに招待します。",
+  "用 docker compose up -d 或 pnpm start 啟動 bot;slash 指令會在 bot 上線時自動註冊。詳見 packages/discord-bot/README。": "docker compose up -d または pnpm start で Bot を起動します。スラッシュコマンドは Bot がオンラインになると自動的に登録されます。詳細は packages/discord-bot/README を参照してください。",
+  "把 DISCORD_TOKEN 換成你的 bot token,AGENT_TOKEN 貼上上方的權杖。": "DISCORD_TOKEN をあなたの bot トークンに置き換え、AGENT_TOKEN には上記のトークンを貼り付けてください。"
 }

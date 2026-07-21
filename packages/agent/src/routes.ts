@@ -33,6 +33,7 @@ import type { BackupScheduler } from "./backup-scheduler.js";
 import type { RestartSupervisor } from "./supervisor.js";
 import type { PublicMapPublisher } from "./public-map.js";
 import type { WebhooksService } from "./webhooks.js";
+import type { DiscordBotManager } from "./discord-bot-manager.js";
 import { AGENT_VERSION, PORT, HOST, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER, ENV_LOCKED, IS_PORTABLE_EXE } from "./env.js";
 import { saveSettings } from "./settings.js";
 import { collectSpecs, reviewSpecs } from "./system-review.js";
@@ -250,6 +251,7 @@ export function registerRoutes(
   supervisor: RestartSupervisor,
   publicMap: PublicMapPublisher,
   webhooks: WebhooksService,
+  discordBot: DiscordBotManager,
   auth: AuthContext,
   updateOps: UpdateOps,
 ): void {
@@ -2023,6 +2025,26 @@ export function registerRoutes(
     const { id, whId } = whParams(req);
     getOr404(id);
     return webhooks.deliveries(id, whId);
+  });
+
+  // ── 同機 Discord bot(agent 自跑並監督;贊助限定,共用 webhookGate)。enabled + token 存
+  // <instanceDir>/discord-bot.json;token 寫入不回讀(status 只回 tokenSet),見 discord-bot-manager.ts。
+  const discordBotInput = z.object({
+    enabled: z.boolean().optional(),
+    token: z.string().optional(),
+  });
+
+  app.get("/api/instances/:id/discord-bot", async (req, reply) => {
+    if (!webhookGate(reply)) return reply;
+    const rec = getOr404((req.params as { id: string }).id);
+    return discordBot.status(rec.id);
+  });
+
+  app.put("/api/instances/:id/discord-bot", async (req, reply) => {
+    if (!webhookGate(reply)) return reply;
+    const rec = getOr404((req.params as { id: string }).id);
+    const patch = discordBotInput.parse(req.body);
+    return discordBot.update(rec.id, patch);
   });
 
   app.get("/api/instances/:id/version", async (req) => {

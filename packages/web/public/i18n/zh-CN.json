@@ -1768,5 +1768,22 @@
   ".env 範本": ".env 模板",
   "複製後填入 Discord 的三個值,AGENT_TOKEN 貼上上方的權杖。": "复制后填入 Discord 的三个值,AGENT_TOKEN 粘贴上方的令牌。",
   "可用指令": "可用指令",
-  "管理員": "管理员"
+  "管理員": "管理员",
+  "在這台機器上自動執行(推薦)": "在这台机器上自动运行(推荐)",
+  "貼上 Discord bot token,由這台 agent 直接把 bot 跑起來並自動維持 —— 免 Docker、免 Node、免手動註冊指令。token 只存在這台機器,不會回傳到瀏覽器。": "粘贴 Discord bot 令牌,由这台 agent 直接把 bot 跑起来并自动维持 —— 免 Docker、免 Node、免手动注册指令。令牌只存在这台机器,不会回传到浏览器。",
+  "Discord Bot Token": "Discord Bot 令牌",
+  "更換": "更换",
+  "貼上 bot token": "粘贴 bot 令牌",
+  "還沒有 token?到 Discord 開發者後台建立 Bot 並邀請進你的伺服器(步驟見下方「進階」)。": "还没有令牌?到 Discord 开发者后台创建 Bot 并邀请进你的服务器(步骤见下方「进阶」)。",
+  "尚未設定 token": "尚未设置令牌",
+  "執行中": "运行中",
+  "啟動中…": "启动中…",
+  "請先設定 token 再啟用。": "请先设置令牌再启用。",
+  "進階:在另一台機器 / 用 Docker 執行": "进阶:在另一台机器 / 用 Docker 运行",
+  "隱藏進階設定": "隐藏进阶设置",
+  "以下步驟是把 bot 跑在「另一台機器」或用 Docker 自架時才需要;同機自動執行不用。": "以下步骤只有在把 bot 跑在「另一台机器」或用 Docker 自架时才需要;同机自动运行不用。",
+  "到 Discord 開發者後台建立應用程式與 Bot,取得 Bot Token。": "到 Discord 开发者后台创建应用程序与 Bot,获取 Bot Token。",
+  "把 Bot 邀請進你的 Discord 伺服器。": "把 Bot 邀请进你的 Discord 服务器。",
+  "用 docker compose up -d 或 pnpm start 啟動 bot;slash 指令會在 bot 上線時自動註冊。詳見 packages/discord-bot/README。": "用 docker compose up -d 或 pnpm start 启动 bot;slash 指令会在 bot 上线时自动注册。详见 packages/discord-bot/README。",
+  "把 DISCORD_TOKEN 換成你的 bot token,AGENT_TOKEN 貼上上方的權杖。": "把 DISCORD_TOKEN 换成你的 bot 令牌,AGENT_TOKEN 粘贴上方的令牌。"
 }

@@ -1238,6 +1238,27 @@ export interface PublicMapStatus {
   lastPublish: PublicMapPublishResult | null;
 }
 
+/** 同機 Discord bot(agent 自跑並監督;見 packages/agent/src/discord-bot-manager.ts)前端可見/可改的設定。
+ *  token 不放這個型別 —— 只寫入 agent 端,前端靠 DiscordBotStatus.tokenSet 得知是否已設。 */
+export interface DiscordBotSettings {
+  enabled: boolean;
+}
+
+export const DEFAULT_DISCORD_BOT_SETTINGS: DiscordBotSettings = {
+  enabled: false,
+};
+
+/** GET / PUT /api/instances/:id/discord-bot 的回應形狀。永不含 token 本身。 */
+export interface DiscordBotStatus {
+  settings: DiscordBotSettings;
+  /** 是否已設定 bot token(不回傳 token 本身,僅告知有無)。 */
+  tokenSet: boolean;
+  /** bot 子行程目前是否在執行(agent 同機自跑)。 */
+  running: boolean;
+  /** 最近一次非預期退出/連線失敗的簡述(達重啟上限而停用時亦記於此),供 UI 顯示。 */
+  lastError?: string;
+}
+
 /** 快照裡的座標屬於主世界底圖還是世界樹(見 savToMap / savToWorldTreeMap)。 */
 export type PublicMapArea = "world" | "tree";
 
