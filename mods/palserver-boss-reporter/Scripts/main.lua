@@ -1,4 +1,8 @@
--- PalserverBossReporter v1.3
+-- PalserverBossReporter v1.4
+-- v1.4:detectAlive 新增「確認不在」訊號——spawner 本身這 tick 有被 FindAllOf 掃到(代表此區域
+--       已載入,不是視野外的假訊號),但 IndividualHandleList 個體數確實是 0,視為「這隻現在
+--       真的不在這裡」(不分是被擊殺後遺體立即被清、還是被玩家「捕捉」帶走——捕捉不會讓 HP 歸零,
+--       過去偵測不到,重生倒數完全不會啟動)。兩者對重生倒數的下游處理一致,都算「等重生」。
 -- v1.3:野外頭目狀態改「黏著」——看過活的就一直記活、擊殺後倒數持續,玩家離開(spawner 卸載)
 --       不再退回未知(寫入所有曾觀測過的頭目,不只本 tick 載入的);座標一併記憶。
 -- 純伺服器端 UE4SS Lua 模組:每 15 秒輪詢頭目,輸出狀態到
@@ -70,13 +74,19 @@ local function loadPrevState()
 end
 
 -- 判活:讀 spawner.IndividualHandleList,逐 handle 以 HP 為準(HP>0 活、HP==0 死=遺體 handle
--- 仍在);讀不到 HP 才退回角色是否在場。回傳 true/false/nil(nil=沒有個體 handle,未生成/未載入)。
+-- 仍在);讀不到 HP 才退回角色是否在場。
+-- 回傳 (alive, reason):alive 為 true/false/nil(nil=無法判斷,如反射失敗);reason 只在
+-- alive==false 時有意義,純供 log 分辨死因,不影響下游邏輯:
+--   "hp"    HP 讀到 0(擊殺,遺體 handle 仍在)
+--   "empty" spawner 這 tick「有掃到」(此區域已載入,非視野外假訊號),但個體清單數量是 0——
+--           這隻現在真的不在(擊殺後遺體立即被清 / 被玩家捕捉帶走,兩者無法區分也不需要區分,
+--           對重生倒數而言下游處理一致:見檔頭 v1.4 說明)。
 local function detectAlive(sp)
   local okHL, hl = pcall(function() return sp.IndividualHandleList end)
   if not okHL or not hl then return nil end
-  local n = 0
-  pcall(function() n = hl:GetArrayNum() end)
-  if n == 0 then return nil end
+  local okN, n = pcall(function() return hl:GetArrayNum() end)
+  if not okN then return nil end
+  if n == 0 then return false, "empty" end
   local hpSeen, bestHp, anyValid = false, 0, false
   for i = 1, n do
     local h = hl[i]
@@ -96,9 +106,9 @@ local function detectAlive(sp)
       end
     end
   end
-  if hpSeen then return bestHp > 0 end   -- HP 讀到了:>0 活、==0 死
-  if anyValid then return true end       -- 讀不到 HP 但角色在場 → 活
-  return nil                             -- 都拿不到 → 未知
+  if hpSeen then return bestHp > 0, "hp" end   -- HP 讀到了:>0 活、==0 死
+  if anyValid then return true end             -- 讀不到 HP 但角色在場 → 活
+  return nil                                   -- 都拿不到 → 未知
 end
 
 -- 掃地下城頭目:BossState(0 存活/1 已擊殺)、名稱、等級、座標、重生剩餘秒(遊戲自算)。
@@ -158,7 +168,7 @@ local function scanOnce()
       loadedBosses = loadedBosses + 1
       local name = "?"
       pcall(function() name = sp:GetSpawnerName():ToString() end)
-      local alive = detectAlive(sp)
+      local alive, deathReason = detectAlive(sp)
       local x, y, z = 0, 0, 0
       pcall(function()
         local loc = sp:K2_GetActorLocation()
@@ -173,7 +183,7 @@ local function scanOnce()
       if alive ~= nil then
         if t.alive == true and alive == false then
           t.diedAt = now
-          log("boss DOWN: " .. name .. " at " .. now)
+          log("boss DOWN: " .. name .. " at " .. now .. " (" .. (deathReason or "?") .. ")")
         elseif t.alive == false and alive == true then
           t.respawnedAt = now
           -- 只有「死→活」期間持續觀測(spawner 未卸載)才採信實測冷卻:中間若 spawner
