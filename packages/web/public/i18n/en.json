@@ -1777,6 +1777,8 @@
   "貼上頻道 ID(留空 = 不發通知)": "Paste a channel ID (empty = no notifications)",
   "取得頻道 ID:開發者模式下右鍵頻道 →「複製頻道 ID」。請確認 bot 在該頻道有發言權限。": "To get a channel ID: with Developer Mode on, right-click a channel → Copy Channel ID. Make sure the bot can post there.",
   "要通知的事件": "Events to notify",
+  "將在儲存後清除": "Will be cleared on save",
+  "復原": "Undo",
   "啟動伺服器": "Start the server",
   "查看連線位址": "Show connection address",
   "查看版本與更新": "Show version & updates",

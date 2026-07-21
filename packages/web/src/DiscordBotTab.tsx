@@ -13,7 +13,8 @@ import { SponsorLockNotice, btn, btnDanger, btnGhost, card, inputCls, labelCls }
  * 「Discord Bot」分頁。兩種部署:
  *  - 同機自動執行(推薦):貼 token → agent self-fork 一個 bot 子行程並監督(見 discord-bot-manager.ts)。
  *  - 進階/跨機:把 bot 跑在另一台機器或 Docker(下方折疊區的引導 + .env 範本 + 連線資訊)。
- * 通知方向走「Webhook」分頁(format:discord);這頁只管「從 Discord 下指令」。
+ * 編輯採「草稿 + 儲存變更」模式(比照世界設定等分頁):改動先存本地 draft,按「確定修改」
+ * 才一次 PUT;dirty 時顯示 sticky 底欄。狀態列(running/lastError)仍 5s 輪詢即時更新。
  */
 
 function CopyBlock({ text }: { text: string }) {
@@ -74,17 +75,37 @@ const COMMANDS: { name: string; desc: string; admin: boolean }[] = [
 
 const DEV_PORTAL = "https://discord.com/developers/applications";
 
+/** 本地草稿:與 status.settings 同構,外加 token 的三態(undefined=不變 / 非空=更換 / ""=清除)。 */
+interface Draft {
+  enabled: boolean;
+  adminUserIds: string[];
+  notifyChannelId: string;
+  notifyEvents: Set<WebhookEventType>;
+  statusChannelId: string;
+  token?: string;
+}
+
+function draftFromStatus(s: DiscordBotStatus): Draft {
+  return {
+    enabled: s.settings.enabled,
+    adminUserIds: [...(s.settings.adminUserIds ?? [])],
+    notifyChannelId: s.settings.notifyChannelId ?? "",
+    notifyEvents: new Set((s.settings.notifyEvents ?? []) as WebhookEventType[]),
+    statusChannelId: s.settings.statusChannelId ?? "",
+  };
+}
+
 export function DiscordBotTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
   useI18n();
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const [addresses, setAddresses] = useState<{ ip: string; vpn: string | null }[]>([]);
   const [status, setStatus] = useState<DiscordBotStatus | null>(null);
-  const [tokenInput, setTokenInput] = useState("");
-  const [editingToken, setEditingToken] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [tokenEditing, setTokenEditing] = useState(false);
+  const [adminInput, setAdminInput] = useState("");
+  const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [adminInput, setAdminInput] = useState("");
 
   useEffect(() => {
     client
@@ -101,7 +122,7 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
       .catch(() => {});
   }, [client, entitled]);
 
-  // 同機狀態:掛載即拉一次,之後每 5s 輪詢(bot 子行程崩潰/連上會反映在 running / lastError)。
+  // 同機狀態:掛載即拉一次,之後每 5s 輪詢(只更新 status 顯示;不動使用者的 draft)。
   const refreshStatus = useCallback(() => {
     client
       .discordBot(instanceId)
@@ -116,44 +137,66 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
     return () => clearInterval(timer);
   }, [entitled, refreshStatus]);
 
-  const mutate = useCallback(
-    async (patch: {
-      enabled?: boolean;
-      token?: string;
-      adminUserIds?: string[];
-      notifyChannelId?: string;
-      notifyEvents?: string[];
-      statusChannelId?: string;
-    }): Promise<DiscordBotStatus | null> => {
-      setBusy(true);
-      setErr(null);
-      try {
-        const next = await client.setDiscordBot(instanceId, patch);
-        setStatus(next);
-        return next;
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : String(e));
-        return null;
-      } finally {
-        setBusy(false);
-      }
-    },
-    [client, instanceId],
-  );
+  // 首次載入(或重置後)以 status 初始化草稿;之後輪詢不覆蓋草稿。
+  useEffect(() => {
+    if (status && !draft) setDraft(draftFromStatus(status));
+  }, [status, draft]);
 
-  const saveToken = async () => {
-    const tk = tokenInput.trim();
-    if (!tk) return;
-    const next = await mutate({ token: tk });
-    if (next) {
-      setTokenInput("");
-      setEditingToken(false);
+  const tokenSet = !!status?.tokenSet;
+  /** 儲存後會不會有 token(啟用開關的前提)。 */
+  const willHaveToken = draft?.token !== undefined ? draft.token.length > 0 : tokenSet;
+
+  const dirtyCount = useMemo(() => {
+    if (!draft || !status) return 0;
+    const s = status.settings;
+    let n = 0;
+    if (draft.enabled !== s.enabled) n++;
+    if (draft.adminUserIds.join(",") !== (s.adminUserIds ?? []).join(",")) n++;
+    if (draft.notifyChannelId.trim() !== (s.notifyChannelId ?? "")) n++;
+    const ev = [...draft.notifyEvents].sort().join(",");
+    if (ev !== [...(s.notifyEvents ?? [])].sort().join(",")) n++;
+    if (draft.statusChannelId.trim() !== (s.statusChannelId ?? "")) n++;
+    if (draft.token !== undefined) n++;
+    return n;
+  }, [draft, status]);
+
+  const save = async () => {
+    if (!draft) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      const next = await client.setDiscordBot(instanceId, {
+        enabled: draft.enabled,
+        adminUserIds: draft.adminUserIds,
+        notifyChannelId: draft.notifyChannelId.trim(),
+        notifyEvents: [...draft.notifyEvents],
+        statusChannelId: draft.statusChannelId.trim(),
+        ...(draft.token !== undefined ? { token: draft.token } : {}),
+      });
+      setStatus(next);
+      setDraft(draftFromStatus(next));
+      setTokenEditing(false);
+      setAdminInput("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
     }
   };
-  const clearToken = async () => {
-    await mutate({ token: "", enabled: false });
-    setTokenInput("");
-    setEditingToken(false);
+
+  const reset = () => {
+    if (status) setDraft(draftFromStatus(status));
+    setTokenEditing(false);
+    setAdminInput("");
+    setErr(null);
+  };
+
+  const addAdmin = () => {
+    if (!draft) return;
+    const id = adminInput.trim();
+    setAdminInput("");
+    if (!id || draft.adminUserIds.includes(id)) return;
+    setDraft({ ...draft, adminUserIds: [...draft.adminUserIds, id] });
   };
 
   // 建議的 AGENT_URL(跨機用):優先給 VPN / Tailscale 位址,否則第一個區網位址;沿用目前 scheme 與 port。
@@ -192,30 +235,16 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
     );
   }
 
-  const tokenSet = !!status?.tokenSet;
-  const enabled = !!status?.settings.enabled;
-  const adminIds = status?.settings.adminUserIds ?? [];
-  const notifyChannel = status?.settings.notifyChannelId ?? "";
-  const statusChannel = status?.settings.statusChannelId ?? "";
-  const notifyEvents = new Set((status?.settings.notifyEvents ?? []) as WebhookEventType[]);
+  if (!draft) return null;
 
-  const addAdmin = async () => {
-    const id = adminInput.trim();
-    if (!id || adminIds.includes(id)) {
-      setAdminInput("");
-      return;
-    }
-    const next = await mutate({ adminUserIds: [...adminIds, id] });
-    if (next) setAdminInput("");
-  };
-  const removeAdmin = (id: string) => void mutate({ adminUserIds: adminIds.filter((x) => x !== id) });
+  const enabled = draft.enabled;
 
   let statusText: string;
   let statusTone: string;
   if (!tokenSet) {
     statusText = t("尚未設定 token");
     statusTone = "text-ink-muted";
-  } else if (!enabled) {
+  } else if (!status?.settings.enabled) {
     statusText = t("已停用");
     statusTone = "text-ink-muted";
   } else if (status?.running) {
@@ -249,23 +278,31 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
 
         <div className="mt-3 flex flex-col gap-1.5">
           <span className="text-[13px] font-bold text-ink-muted">{t("Discord Bot Token")}</span>
-          {tokenSet && !editingToken ? (
+          {draft.token === "" ? (
+            <div className="flex items-center gap-3 text-sm">
+              <span className="font-bold text-sun">{t("將在儲存後清除")}</span>
+              <button
+                type="button"
+                className={btnGhost}
+                onClick={() => setDraft({ ...draft, token: undefined })}
+              >
+                {t("復原")}
+              </button>
+            </div>
+          ) : tokenSet && !tokenEditing && draft.token === undefined ? (
             <div className="flex items-center gap-3 text-sm">
               <span className="inline-flex items-center gap-1 font-bold text-grass">
                 <FiCheck className="size-4" />
                 {t("已設定")}
               </span>
-              <button
-                type="button"
-                className={btnGhost}
-                onClick={() => {
-                  setEditingToken(true);
-                  setTokenInput("");
-                }}
-              >
+              <button type="button" className={btnGhost} onClick={() => setTokenEditing(true)}>
                 {t("更換")}
               </button>
-              <button type="button" className={btnDanger} onClick={clearToken} disabled={busy}>
+              <button
+                type="button"
+                className={btnDanger}
+                onClick={() => setDraft({ ...draft, token: "", enabled: false })}
+              >
                 {t("清除")}
               </button>
             </div>
@@ -275,16 +312,20 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
                 type="password"
                 autoComplete="off"
                 spellCheck={false}
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
+                value={draft.token ?? ""}
+                onChange={(e) => setDraft({ ...draft, token: e.target.value || undefined })}
                 placeholder={t("貼上 bot token")}
                 className={`${inputCls} min-w-0 flex-1`}
               />
-              <button type="button" className={btn} onClick={saveToken} disabled={busy || !tokenInput.trim()}>
-                {t("儲存")}
-              </button>
               {tokenSet && (
-                <button type="button" className={btnGhost} onClick={() => setEditingToken(false)}>
+                <button
+                  type="button"
+                  className={btnGhost}
+                  onClick={() => {
+                    setTokenEditing(false);
+                    setDraft({ ...draft, token: undefined });
+                  }}
+                >
                   {t("取消")}
                 </button>
               )}
@@ -308,12 +349,12 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
           <input
             type="checkbox"
             checked={enabled}
-            disabled={busy || (!tokenSet && !enabled)}
-            onChange={(e) => void mutate({ enabled: e.target.checked })}
+            disabled={!willHaveToken && !enabled}
+            onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
           />
           {t("啟用")}
         </label>
-        {!tokenSet && <p className="mt-1 text-[11px] font-bold text-sun">{t("請先設定 token 再啟用。")}</p>}
+        {!willHaveToken && <p className="mt-1 text-[11px] font-bold text-sun">{t("請先設定 token 再啟用。")}</p>}
 
         <div className="mt-3 text-sm">
           <span className="text-ink-muted">{t("狀態")}</span>
@@ -337,20 +378,20 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                void addAdmin();
+                addAdmin();
               }
             }}
             placeholder={t("貼上 Discord user id")}
             inputMode="numeric"
             className={`${inputCls} min-w-0 flex-1`}
           />
-          <button type="button" className={btn} onClick={addAdmin} disabled={busy || !adminInput.trim()}>
+          <button type="button" className={btn} onClick={addAdmin} disabled={!adminInput.trim()}>
             {t("新增")}
           </button>
         </div>
-        {adminIds.length > 0 ? (
+        {draft.adminUserIds.length > 0 ? (
           <ul className="mt-3 flex flex-col gap-1.5">
-            {adminIds.map((id) => (
+            {draft.adminUserIds.map((id) => (
               <li
                 key={id}
                 className="flex items-center justify-between gap-2 rounded-lg border border-line bg-sky-soft px-3 py-1.5 text-sm"
@@ -360,8 +401,7 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
                   type="button"
                   className="text-ink-muted transition hover:text-berry"
                   title={t("移除")}
-                  onClick={() => removeAdmin(id)}
-                  disabled={busy}
+                  onClick={() => setDraft({ ...draft, adminUserIds: draft.adminUserIds.filter((x) => x !== id) })}
                 >
                   <FiX className="size-4" />
                 </button>
@@ -381,12 +421,8 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
         <label className={`${labelCls} mt-3`}>
           <span>{t("通知頻道 ID")}</span>
           <input
-            key={notifyChannel}
-            defaultValue={notifyChannel}
-            onBlur={(e) => {
-              const v = e.currentTarget.value.trim();
-              if (v !== notifyChannel) void mutate({ notifyChannelId: v });
-            }}
+            value={draft.notifyChannelId}
+            onChange={(e) => setDraft({ ...draft, notifyChannelId: e.target.value })}
             placeholder={t("貼上頻道 ID(留空 = 不發通知)")}
             inputMode="numeric"
             className={inputCls}
@@ -397,7 +433,10 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
         </p>
         <div className="mt-3 flex flex-col gap-1.5">
           <span className="text-xs font-bold text-ink-muted">{t("要通知的事件")}</span>
-          <EventPicker selected={notifyEvents} onChange={(next) => void mutate({ notifyEvents: [...next] })} />
+          <EventPicker
+            selected={draft.notifyEvents}
+            onChange={(next) => setDraft({ ...draft, notifyEvents: next })}
+          />
         </div>
       </section>
 
@@ -409,12 +448,8 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
         <label className={`${labelCls} mt-3`}>
           <span>{t("狀態面板頻道 ID")}</span>
           <input
-            key={statusChannel}
-            defaultValue={statusChannel}
-            onBlur={(e) => {
-              const v = e.currentTarget.value.trim();
-              if (v !== statusChannel) void mutate({ statusChannelId: v });
-            }}
+            value={draft.statusChannelId}
+            onChange={(e) => setDraft({ ...draft, statusChannelId: e.target.value })}
             placeholder={t("貼上頻道 ID(留空 = 不顯示狀態面板)")}
             inputMode="numeric"
             className={inputCls}
@@ -494,6 +529,22 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
             </div>
           </section>
         </>
+      )}
+
+      {dirtyCount > 0 && (
+        <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-cute border-2 border-sun/50 bg-card p-3 shadow-(--shadow-cute)">
+          <span className="text-[13px] font-bold text-ink-muted">
+            {t("小心~您有 {n} 項變更尚未儲存!", { n: dirtyCount })}
+          </span>
+          <div className="flex gap-2">
+            <button className={btnGhost} onClick={reset} disabled={saving}>
+              {t("重置")}
+            </button>
+            <button className={btn} onClick={() => void save()} disabled={saving}>
+              {saving ? t("儲存中…") : t("確定修改")}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

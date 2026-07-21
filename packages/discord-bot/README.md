@@ -4,7 +4,7 @@ palserver-GUI 官方 Discord bot:在 Discord 用 slash 指令回控 Palworld 伺
 
 伺服器事件的**主動通知**(玩家上下線、伺服器啟停等)是另一條路 —— agent 內建的 webhook 系統,設定在 GUI 的「Webhook」分頁,不在這個套件裡。這個 bot 只處理「你在 Discord 下指令 → 回控伺服器」的方向。
 
-這個套件同時也是**第三方串接 agent REST API 的參考實作**:如果你想串自己的機器人或工具,`src/agent.ts` 示範了完整的認證方式與各端點呼叫方法。
+這個套件同時也是**第三方串接 agent REST API 的參考實作**:如果你想串自己的機器人或工具,`src/agent.ts` 示範了完整的認證方式與各端點呼叫方法。**開發者指南(端點表、認證、收事件)見 [docs/discord-bot.md](../../docs/discord-bot.md)。**
 
 > **想要零設定?同機部署直接用 GUI 的「Discord Bot」分頁** —— 貼上 bot token 就好,agent 會
 > 幫你把 bot 跑起來,不用碰這個套件、不用 Docker/Node。下面這套是給**跨機部署**、或想自己
@@ -43,17 +43,32 @@ palserver-GUI 官方 Discord bot:在 Discord 用 slash 指令回控 Palworld 伺
 |---|---|
 | `/players` | 查看目前在線玩家(名稱、等級、延遲) |
 | `/status` | 查看伺服器狀態(在線人數、FPS、遊戲天數、據點數、運行時間、版本) |
+| `/join` | 查看連線位址(怎麼加入伺服器) |
+| `/version` | 查看遊戲版本與有無更新 |
+| `/top` | 玩家等級排行榜(存檔掃描資料,含離線玩家) |
+| `/guilds` | 公會清單(需 PalDefender REST) |
+| `/boss` | 野外頭目重生狀態(需頭目回報模組) |
 
-管理限定(需要 Administrator 權限,回覆僅下指令者可見):
+管理限定(**白名單制**:只有 `DISCORD_ADMIN_IDS` / GUI 白名單裡的 Discord user id 能用,
+**不看** Discord 伺服器管理員權限;留空 = 沒有人能用。回覆僅下指令者可見):
 
 | 指令 | 說明 |
 |---|---|
 | `/broadcast <message>` | 在遊戲內廣播訊息 |
 | `/save` | 立即儲存世界存檔 |
-| `/restart` | 重新啟動伺服器 |
+| `/backup` | 立即備份世界存檔 |
+| `/start` / `/stop` / `/restart` | 啟動 / 停止 / 重新啟動伺服器 |
+| `/update` | 更新伺服器到最新版(需先停止伺服器) |
 | `/kick <player>` | 踢出在線玩家(限在線,離線玩家踢不到) |
 | `/ban <player> [reason]` | 封鎖玩家(可用名稱或 UID,離線也能封) |
+| `/unban <player>` | 解除封鎖 |
 | `/rcon <command>` | 執行任意 RCON 指令(進階功能,需自行了解指令語法) |
+
+## 狀態面板(選用)
+
+設 `DISCORD_STATUS_CHANNEL_ID` 後,bot 會在該頻道維護**一則每分鐘自動更新**的伺服器狀態
+embed(在線玩家、FPS、運行時間…),重啟後自動找回同一則訊息續用、不洗版。bot 需要該頻道的
+「發言」與「讀取訊息歷史」權限。
 
 ## 網路需求
 
