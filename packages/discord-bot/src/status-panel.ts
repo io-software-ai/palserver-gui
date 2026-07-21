@@ -1,52 +1,17 @@
 import type { Client, Message } from "discord.js";
 import { agent, resolveInstance } from "./agent.js";
-import { formatUptime } from "./commands.js";
-import { BRAND, brandEmbed } from "./theme.js";
+import { brandEmbed } from "./theme.js";
+import { buildStatusEmbed } from "./views.js";
 
 /**
  * 伺服器狀態面板:在指定頻道維護「一則」自動更新的 embed(每分鐘編輯同一則訊息,不洗版)。
  * bot 重啟後從頻道近期訊息找回自己上次的面板訊息續用(靠 footer 標記,免持久化 message id)。
- * 資料來源 = agent 的 /live(與 /status、/players 指令同一條路),伺服器離線就顯示離線狀態。
+ * 畫面與 /status 指令共用同一個渲染器(views.ts buildStatusEmbed),設計語言一致。
  */
 
 const UPDATE_INTERVAL_MS = 60_000;
 /** footer 前綴 = 面板訊息的識別標記(重啟後據此找回舊訊息)。 */
 const PANEL_FOOTER_PREFIX = "狀態面板";
-
-function buildPanelEmbed(instanceName: string, live: Awaited<ReturnType<typeof agent.live>>) {
-  const footer = `${PANEL_FOOTER_PREFIX} ・ ${instanceName} ・ 每分鐘自動更新`;
-  if (!live.available || !live.metrics || !live.info) {
-    return brandEmbed({
-      color: BRAND.warning,
-      title: "伺服器離線",
-      description: live.reason ?? "伺服器目前離線或尚未設定即時資訊。",
-      instanceName: footer,
-    });
-  }
-  const { metrics, info } = live;
-  const players =
-    live.players.length === 0
-      ? "目前沒有玩家在線。"
-      : live.players
-          .slice(0, 20)
-          .map((p) => `**${p.name}** ・ Lv.${p.level} ・ ${Math.round(p.ping)}ms`)
-          .join("\n") + (live.players.length > 20 ? `\n…共 ${live.players.length} 人` : "");
-  const embed = brandEmbed({
-    color: BRAND.success,
-    title: info.servername || instanceName,
-    description: players,
-    instanceName: footer,
-  });
-  embed.addFields(
-    { name: "在線人數", value: `${metrics.currentplayernum} / ${metrics.maxplayernum}`, inline: true },
-    { name: "FPS", value: `${metrics.serverfps}`, inline: true },
-    { name: "遊戲天數", value: `${metrics.days}`, inline: true },
-    { name: "據點數", value: `${metrics.basecampnum}`, inline: true },
-    { name: "運行時間", value: formatUptime(metrics.uptime), inline: true },
-    { name: "版本", value: info.version || "未知", inline: true },
-  );
-  return embed;
-}
 
 export function startStatusPanel(client: Client<true>, channelId: string): { stop(): void } {
   let message: Message | null = null;
@@ -78,7 +43,8 @@ export function startStatusPanel(client: Client<true>, channelId: string): { sto
     try {
       const instance = await resolveInstance();
       const live = await agent.live(instance.id);
-      const embed = buildPanelEmbed(instance.name, live);
+      const footer = `${PANEL_FOOTER_PREFIX} · ${instance.name} · 每分鐘自動更新`;
+      const embed = buildStatusEmbed(instance.name, live, footer);
       if (!message) message = await resolvePanelMessage();
       if (message) await message.edit({ embeds: [embed] });
     } catch (err) {
