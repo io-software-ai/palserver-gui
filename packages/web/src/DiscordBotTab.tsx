@@ -54,11 +54,21 @@ function CredentialRow({ label, value, secret }: { label: string; value: string;
 const COMMANDS: { name: string; desc: string; admin: boolean }[] = [
   { name: "/players", desc: "查看在線玩家", admin: false },
   { name: "/status", desc: "查看伺服器狀態", admin: false },
+  { name: "/join", desc: "查看連線位址", admin: false },
+  { name: "/version", desc: "查看版本與更新", admin: false },
+  { name: "/top", desc: "等級排行榜", admin: false },
+  { name: "/guilds", desc: "公會清單", admin: false },
+  { name: "/boss", desc: "頭目重生狀態", admin: false },
   { name: "/broadcast", desc: "遊戲內廣播訊息", admin: true },
   { name: "/save", desc: "立即存檔", admin: true },
+  { name: "/backup", desc: "立即備份", admin: true },
+  { name: "/start", desc: "啟動伺服器", admin: true },
+  { name: "/stop", desc: "停止伺服器", admin: true },
   { name: "/restart", desc: "重啟伺服器", admin: true },
+  { name: "/update", desc: "更新伺服器", admin: true },
   { name: "/kick", desc: "踢出在線玩家", admin: true },
   { name: "/ban", desc: "封鎖玩家", admin: true },
+  { name: "/unban", desc: "解除封鎖", admin: true },
   { name: "/rcon", desc: "執行 RCON 指令", admin: true },
 ];
 

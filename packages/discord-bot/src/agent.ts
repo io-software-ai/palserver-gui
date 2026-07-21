@@ -1,5 +1,15 @@
 import https from "node:https";
-import type { InstanceSummary, LiveStatus } from "@palserver/shared";
+import type {
+  BackupInfo,
+  BossRespawnStatus,
+  ConnectionInfo,
+  InstanceSummary,
+  LiveStatus,
+  PdGuildList,
+  SavePlayersSummary,
+  SavesStatus,
+  VersionStatus,
+} from "@palserver/shared";
 
 /** agent 呼叫失敗(連線失敗、401、非 2xx)一律丟這個,handler 統一捕捉成 danger embed。 */
 export class AgentError extends Error {}
@@ -168,6 +178,43 @@ export const agent = {
       method: "POST",
       body: JSON.stringify({ command }),
     }),
+
+  start: (instanceId: string) =>
+    agentRequest<InstanceSummary>(`/api/instances/${instanceId}/start`, { method: "POST", body: "{}" }),
+
+  stop: (instanceId: string) =>
+    agentRequest<InstanceSummary>(`/api/instances/${instanceId}/stop`, { method: "POST", body: "{}" }),
+
+  connection: (instanceId: string) =>
+    agentRequest<ConnectionInfo>(`/api/instances/${instanceId}/connection`),
+
+  versionStatus: (instanceId: string) =>
+    agentRequest<VersionStatus>(`/api/instances/${instanceId}/version`),
+
+  update: (instanceId: string) =>
+    agentRequest<unknown>(`/api/instances/${instanceId}/update`, { method: "POST", body: "{}" }),
+
+  savesStatus: (instanceId: string) => agentRequest<SavesStatus>(`/api/instances/${instanceId}/saves`),
+
+  backupNow: (instanceId: string, worldGuid: string) =>
+    agentRequest<BackupInfo>(`/api/instances/${instanceId}/saves/backup`, {
+      method: "POST",
+      body: JSON.stringify({ worldGuid }),
+    }),
+
+  unban: (instanceId: string, value: string) =>
+    agentRequest<{ ok: boolean }>(`/api/instances/${instanceId}/moderation/unban`, {
+      method: "POST",
+      body: JSON.stringify({ value }),
+    }),
+
+  playersSummary: (instanceId: string) =>
+    agentRequest<SavePlayersSummary>(`/api/instances/${instanceId}/saves/players-snapshot`),
+
+  guilds: (instanceId: string) => agentRequest<PdGuildList>(`/api/instances/${instanceId}/guilds`),
+
+  bossRespawns: (instanceId: string) =>
+    agentRequest<BossRespawnStatus>(`/api/instances/${instanceId}/boss-respawns`),
 };
 
 /** /kick 只吃 userId,但玩家在 Discord 端只會打名字——用 /live 的在線玩家名單解析,
