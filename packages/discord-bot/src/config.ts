@@ -6,6 +6,15 @@ export interface BotConfig {
   agentUrl: string;
   agentToken: string;
   instanceId?: string;
+  adminUserIds: string[];
+}
+
+/** 逗號分隔的 id 字串 → 去空白、去空項的陣列。 */
+function parseIds(raw: string | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function required(name: string): string {
@@ -29,5 +38,7 @@ export function loadConfigFromEnv(): BotConfig {
     agentToken: process.env.AGENT_TOKEN?.trim() || "",
     // 選填:固定操作的實例 id。留空則自動取 agent 的第一個實例(單台伺服器就不用設)。
     instanceId: process.env.AGENT_INSTANCE_ID?.trim() || undefined,
+    // 管理員白名單(whitelist-only):逗號分隔的 Discord user id。
+    adminUserIds: parseIds(process.env.DISCORD_ADMIN_IDS),
   };
 }

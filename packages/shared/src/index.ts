@@ -1242,10 +1242,19 @@ export interface PublicMapStatus {
  *  token 不放這個型別 —— 只寫入 agent 端,前端靠 DiscordBotStatus.tokenSet 得知是否已設。 */
 export interface DiscordBotSettings {
   enabled: boolean;
+  /** 管理員白名單:只有這些 Discord user id 能用管理指令(broadcast/restart/kick/ban/rcon…)。
+   *  留空 = 沒有人能用管理指令(whitelist-only,不看 Discord 伺服器管理員權限)。 */
+  adminUserIds: string[];
+  /** 事件通知要貼到的 Discord 頻道 id(留空 = 不發通知)。bot 用 gateway 直接貼,免另設 webhook URL。 */
+  notifyChannelId?: string;
+  /** 要通知的事件型別(同 webhook 的訂閱語法:精確 / "player.*" / "*")。空陣列 = 不發。 */
+  notifyEvents: string[];
 }
 
 export const DEFAULT_DISCORD_BOT_SETTINGS: DiscordBotSettings = {
   enabled: false,
+  adminUserIds: [],
+  notifyEvents: [],
 };
 
 /** GET / PUT /api/instances/:id/discord-bot 的回應形狀。永不含 token 本身。 */

@@ -208,3 +208,69 @@ export function eventMatches(subscriptions: string[], type: WebhookEventType): b
     (s) => s === "*" || s === type || (s.endsWith(".*") && type.startsWith(s.slice(0, -1))),
   );
 }
+
+/** 把事件信封轉成 Discord embed payload({embeds:[…]})。agent(webhook format:discord)與官方
+ *  bot(同機通知)共用同一份渲染,確保兩條路徑的訊息一致。純函式,不簽章。 */
+export function toDiscordPayload(env: WebhookEnvelope): { embeds: unknown[] } {
+  const d = env.data as Record<string, unknown>;
+  const s = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : "");
+  const COLOR: Partial<Record<WebhookEventType, number>> = {
+    "player.join": 0x57d38c,
+    "player.leave": 0x9aa4b2,
+    "player.chat": 0x5fb0ff,
+    "player.death": 0xff6b6b,
+    "player.capture": 0xc792ea,
+    "server.running": 0x57d38c,
+    "server.exited": 0x9aa4b2,
+    "server.crash": 0xff5c7a,
+    "server.restart": 0xffcf5f,
+    "server.startup_failure": 0xff5c7a,
+    "boss.killed": 0xf1c40f,
+    "boss.respawn": 0xf1c40f,
+    "backup.completed": 0x57d38c,
+    "backup.failed": 0xff6b6b,
+    "webhook.ping": 0x888888,
+  };
+  const text: Record<string, { title: string; description: string }> = {
+    "player.join": { title: "玩家加入", description: `**${s("name")}** 加入了伺服器` },
+    "player.leave": { title: "玩家離開", description: `**${s("name")}** 離開了伺服器` },
+    "player.chat": { title: "聊天", description: `**${s("name")}**〔${s("channel")}〕${s("message")}` },
+    "player.death": {
+      title: "玩家死亡",
+      description: d.pal
+        ? `**${s("name")}** 被野生 ${s("pal")} 擊殺`
+        : `**${s("name")}** 死亡:${s("cause")}`,
+    },
+    "player.capture": { title: "捕捉帕魯", description: `**${s("name")}** 捕捉了 ${s("pal")}` },
+    "server.starting": { title: "伺服器啟動中", description: "" },
+    "server.running": { title: "伺服器已上線", description: s("version") },
+    "server.exited": { title: "伺服器已停止", description: "" },
+    "server.crash": { title: "伺服器崩潰", description: s("detail") },
+    "server.restart": {
+      title: "伺服器重啟",
+      description: `原因:${s("reason")}(${d.ok ? "成功" : "失敗"})`,
+    },
+    "server.startup_failure": { title: "啟動失敗", description: s("detail") },
+    "server.update_available": {
+      title: "有新版本",
+      description: s("latest") ? `${s("current")} → ${s("latest")}` : `目前 ${s("current")},有可用更新`,
+    },
+    "boss.killed": { title: "頭目被擊殺", description: s("name") },
+    "boss.respawn": { title: "頭目重生", description: s("name") },
+    "backup.completed": { title: "備份完成", description: s("path") },
+    "backup.failed": { title: "備份失敗", description: s("error") },
+    "webhook.ping": { title: "Webhook 測試", description: "設定成功,這是一則測試訊息。" },
+  };
+  const t = text[env.type] ?? { title: env.type, description: "" };
+  return {
+    embeds: [
+      {
+        title: t.title,
+        description: t.description || undefined,
+        color: COLOR[env.type] ?? 0x5865f2,
+        timestamp: env.occurredAt,
+        footer: { text: env.instance.name },
+      },
+    ],
+  };
+}

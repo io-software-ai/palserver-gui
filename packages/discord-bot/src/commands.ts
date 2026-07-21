@@ -1,6 +1,5 @@
 import {
   EmbedBuilder,
-  PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type RESTPostAPIChatInputApplicationCommandsJSONBody,
@@ -104,9 +103,7 @@ export const commands: BotCommand[] = [
   {
     json: new SlashCommandBuilder()
       .setName("broadcast")
-      .setDescription("在遊戲內廣播訊息")
-      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-      .addStringOption((opt) =>
+      .setDescription("在遊戲內廣播訊息")      .addStringOption((opt) =>
         opt.setName("message").setDescription("要廣播的訊息").setRequired(true).setMaxLength(500),
       )
       .toJSON(),
@@ -127,9 +124,7 @@ export const commands: BotCommand[] = [
   {
     json: new SlashCommandBuilder()
       .setName("save")
-      .setDescription("立即儲存世界存檔")
-      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-      .toJSON(),
+      .setDescription("立即儲存世界存檔")      .toJSON(),
     admin: true,
     ephemeral: true,
     run: async (_interaction, instance) => {
@@ -141,9 +136,7 @@ export const commands: BotCommand[] = [
   {
     json: new SlashCommandBuilder()
       .setName("restart")
-      .setDescription("重新啟動伺服器")
-      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-      .toJSON(),
+      .setDescription("重新啟動伺服器")      .toJSON(),
     admin: true,
     ephemeral: true,
     run: async (_interaction, instance) => {
@@ -160,9 +153,7 @@ export const commands: BotCommand[] = [
   {
     json: new SlashCommandBuilder()
       .setName("kick")
-      .setDescription("將在線玩家踢出伺服器")
-      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-      .addStringOption((opt) =>
+      .setDescription("將在線玩家踢出伺服器")      .addStringOption((opt) =>
         opt.setName("player").setDescription("玩家名稱(必須在線)").setRequired(true),
       )
       .toJSON(),
@@ -184,9 +175,7 @@ export const commands: BotCommand[] = [
   {
     json: new SlashCommandBuilder()
       .setName("ban")
-      .setDescription("封鎖玩家(離線也可以,用名稱或 UID)")
-      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-      .addStringOption((opt) =>
+      .setDescription("封鎖玩家(離線也可以,用名稱或 UID)")      .addStringOption((opt) =>
         opt.setName("player").setDescription("玩家名稱或 UID").setRequired(true),
       )
       .addStringOption((opt) =>
@@ -211,9 +200,7 @@ export const commands: BotCommand[] = [
   {
     json: new SlashCommandBuilder()
       .setName("rcon")
-      .setDescription("執行 RCON 指令(進階功能,需了解指令語法)")
-      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-      .addStringOption((opt) =>
+      .setDescription("執行 RCON 指令(進階功能,需了解指令語法)")      .addStringOption((opt) =>
         opt.setName("command").setDescription("RCON 指令").setRequired(true).setMaxLength(500),
       )
       .toJSON(),

@@ -1764,5 +1764,17 @@
   "到 Discord 開發者後台建立應用程式與 Bot,取得 Bot Token。": "Create an application and bot in the Discord Developer Portal to get the Bot Token.",
   "把 Bot 邀請進你的 Discord 伺服器。": "Invite the bot to your Discord server.",
   "用 docker compose up -d 或 pnpm start 啟動 bot;slash 指令會在 bot 上線時自動註冊。詳見 packages/discord-bot/README。": "Start the bot with docker compose up -d or pnpm start; slash commands are registered automatically when the bot comes online. See packages/discord-bot/README for details.",
-  "把 DISCORD_TOKEN 換成你的 bot token,AGENT_TOKEN 貼上上方的權杖。": "Replace DISCORD_TOKEN with your bot token and paste the token above into AGENT_TOKEN."
+  "把 DISCORD_TOKEN 換成你的 bot token,AGENT_TOKEN 貼上上方的權杖。": "Replace DISCORD_TOKEN with your bot token and paste the token above into AGENT_TOKEN.",
+  "管理員白名單": "Admin whitelist",
+  "只有清單中的 Discord 使用者能用管理指令(broadcast / restart / kick / ban / rcon);留空 = 沒有人能用。": "Only the Discord users in this list can use admin commands (broadcast / restart / kick / ban / rcon); empty = nobody can.",
+  "取得 user id:Discord 設定 → 進階 → 開啟「開發者模式」,右鍵使用者 →「複製使用者 ID」。": "To get a user ID: Discord Settings → Advanced → enable Developer Mode, then right-click a user → Copy User ID.",
+  "貼上 Discord user id": "Paste a Discord user ID",
+  "新增": "Add",
+  "目前沒有任何管理員,管理指令沒有人能用。": "No admins configured — nobody can use admin commands.",
+  "事件通知": "Event notifications",
+  "讓 bot 把伺服器事件(玩家上下線、崩潰、頭目…)貼到指定頻道 —— 免另外設定 Webhook 網址。": "Have the bot post server events (player join/leave, crashes, bosses…) to a channel — no separate Webhook URL needed.",
+  "通知頻道 ID": "Notification channel ID",
+  "貼上頻道 ID(留空 = 不發通知)": "Paste a channel ID (empty = no notifications)",
+  "取得頻道 ID:開發者模式下右鍵頻道 →「複製頻道 ID」。請確認 bot 在該頻道有發言權限。": "To get a channel ID: with Developer Mode on, right-click a channel → Copy Channel ID. Make sure the bot can post there.",
+  "要通知的事件": "Events to notify"
 }

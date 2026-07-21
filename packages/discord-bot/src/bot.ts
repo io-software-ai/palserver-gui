@@ -4,7 +4,7 @@ import {
   Events,
   GatewayIntentBits,
   MessageFlags,
-  PermissionFlagsBits,
+  type APIEmbed,
   type ChatInputCommandInteraction,
   type Client as DiscordClient,
 } from "discord.js";
@@ -21,6 +21,8 @@ export interface StartBotOptions {
   agentToken?: string;
   /** 固定操作的實例 id;留空取第一個實例。 */
   instanceId?: string;
+  /** 管理員白名單(whitelist-only):只有這些 Discord user id 能用管理指令。留空 = 沒人能用。 */
+  adminUserIds?: string[];
 }
 
 export interface RunningBot {
@@ -40,6 +42,26 @@ export function startBot(opts: StartBotOptions): RunningBot {
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
   const commandMap = new Map(commands.map((c) => [c.json.name, c]));
   const commandBody = commands.map((c) => c.json);
+  // 管理員白名單(whitelist-only):只認這些 Discord user id,不看 Discord 伺服器管理員權限。留空 = 沒人能用管理指令。
+  const adminIds = new Set(opts.adminUserIds ?? []);
+
+  /** 事件通知(同機模式):agent 主行程經 IPC 傳來渲染好的 embed,貼到指定頻道。
+   *  standalone(無 IPC 父行程)時 process.on("message") 不會觸發,無害。 */
+  async function postNotify(channelId: string, embeds: unknown[]): Promise<void> {
+    try {
+      const ch = await client.channels.fetch(channelId);
+      if (ch?.isSendable()) await ch.send({ embeds: embeds as APIEmbed[] });
+      else console.error(`[discord-bot] 通知頻道 ${channelId} 不存在或無法發送(缺權限?)`);
+    } catch (err) {
+      console.error("[discord-bot] 發送事件通知失敗:", err instanceof Error ? err.message : err);
+    }
+  }
+  process.on("message", (msg: unknown) => {
+    if (!msg || typeof msg !== "object") return;
+    const m = msg as { kind?: string; channelId?: string; payload?: { embeds?: unknown[] } };
+    if (m.kind !== "notify" || !m.channelId || !m.payload) return;
+    void postNotify(m.channelId, m.payload.embeds ?? []);
+  });
 
   /** 啟動時把指令自動註冊到 bot 目前所在的每個 Discord 伺服器 —— 使用者不必手動跑 deploy,
    *  也不必填 application id / guild id(都從 token 推導)。指令定義變動後重啟即重新註冊。 */
@@ -59,15 +81,18 @@ export function startBot(opts: StartBotOptions): RunningBot {
     const command = commandMap.get(interaction.commandName);
     if (!command) return;
 
-    if (command.admin) {
-      const hasPermission = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false;
-      if (!hasPermission) {
-        await interaction.reply({
-          embeds: [brandEmbed({ color: BRAND.danger, title: "權限不足", description: "此指令僅限管理員使用。" })],
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
+    if (command.admin && !adminIds.has(interaction.user.id)) {
+      await interaction.reply({
+        embeds: [
+          brandEmbed({
+            color: BRAND.danger,
+            title: "權限不足",
+            description: "此指令僅限管理員(白名單)使用。請伺服器主在 GUI 的「Discord Bot」分頁把你的 Discord user id 加入白名單。",
+          }),
+        ],
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
     }
 
     await interaction.deferReply(command.ephemeral ? { flags: MessageFlags.Ephemeral } : undefined);

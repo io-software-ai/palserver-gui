@@ -54,6 +54,10 @@ if (process.env.PALSERVER_RUN_BOT) {
     agentUrl: process.env.AGENT_URL ?? `http://127.0.0.1:${PORT}`,
     agentToken: process.env.AGENT_TOKEN ?? "",
     instanceId: process.env.AGENT_INSTANCE_ID,
+    adminUserIds: (process.env.DISCORD_ADMIN_IDS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   });
   return;
 }

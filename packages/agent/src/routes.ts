@@ -2032,6 +2032,9 @@ export function registerRoutes(
   const discordBotInput = z.object({
     enabled: z.boolean().optional(),
     token: z.string().optional(),
+    adminUserIds: z.array(z.string().trim().min(1)).optional(),
+    notifyChannelId: z.string().trim().optional(),
+    notifyEvents: z.array(z.string().min(1)).optional(),
   });
 
   app.get("/api/instances/:id/discord-bot", async (req, reply) => {

@@ -1785,5 +1785,17 @@
   "到 Discord 開發者後台建立應用程式與 Bot,取得 Bot Token。": "到 Discord 开发者后台创建应用程序与 Bot,获取 Bot Token。",
   "把 Bot 邀請進你的 Discord 伺服器。": "把 Bot 邀请进你的 Discord 服务器。",
   "用 docker compose up -d 或 pnpm start 啟動 bot;slash 指令會在 bot 上線時自動註冊。詳見 packages/discord-bot/README。": "用 docker compose up -d 或 pnpm start 启动 bot;slash 指令会在 bot 上线时自动注册。详见 packages/discord-bot/README。",
-  "把 DISCORD_TOKEN 換成你的 bot token,AGENT_TOKEN 貼上上方的權杖。": "把 DISCORD_TOKEN 换成你的 bot 令牌,AGENT_TOKEN 粘贴上方的令牌。"
+  "把 DISCORD_TOKEN 換成你的 bot token,AGENT_TOKEN 貼上上方的權杖。": "把 DISCORD_TOKEN 换成你的 bot 令牌,AGENT_TOKEN 粘贴上方的令牌。",
+  "管理員白名單": "管理员白名单",
+  "只有清單中的 Discord 使用者能用管理指令(broadcast / restart / kick / ban / rcon);留空 = 沒有人能用。": "只有列表中的 Discord 用户能用管理指令(broadcast / restart / kick / ban / rcon);留空 = 没有人能用。",
+  "取得 user id:Discord 設定 → 進階 → 開啟「開發者模式」,右鍵使用者 →「複製使用者 ID」。": "获取 user id:Discord 设置 → 高级 → 开启「开发者模式」,右键用户 →「复制用户 ID」。",
+  "貼上 Discord user id": "粘贴 Discord user id",
+  "新增": "新增",
+  "目前沒有任何管理員,管理指令沒有人能用。": "目前没有任何管理员,管理指令没有人能用。",
+  "事件通知": "事件通知",
+  "讓 bot 把伺服器事件(玩家上下線、崩潰、頭目…)貼到指定頻道 —— 免另外設定 Webhook 網址。": "让 bot 把服务器事件(玩家上下线、崩溃、头目…)贴到指定频道 —— 免另外设置 Webhook 网址。",
+  "通知頻道 ID": "通知频道 ID",
+  "貼上頻道 ID(留空 = 不發通知)": "粘贴频道 ID(留空 = 不发通知)",
+  "取得頻道 ID:開發者模式下右鍵頻道 →「複製頻道 ID」。請確認 bot 在該頻道有發言權限。": "获取频道 ID:开发者模式下右键频道 →「复制频道 ID」。请确认 bot 在该频道有发言权限。",
+  "要通知的事件": "要通知的事件"
 }

@@ -459,7 +459,7 @@ export function WebhookSettingsTab({ client, instanceId }: { client: AgentClient
 }
 
 /** 事件分組勾選:每組一個「全選該組」checkbox(indeterminate 表示只選了一部分)+ 逐一勾選。 */
-function EventPicker({
+export function EventPicker({
   selected,
   onChange,
 }: {

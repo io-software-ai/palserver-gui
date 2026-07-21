@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiCheck, FiCopy, FiExternalLink } from "react-icons/fi";
+import { FiCheck, FiCopy, FiExternalLink, FiX } from "react-icons/fi";
 import { hasFeature } from "@palserver/shared";
-import type { DiscordBotStatus } from "@palserver/shared";
+import type { DiscordBotStatus, WebhookEventType } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { CopyPath } from "./CopyPath";
+import { EventPicker } from "./WebhookSettingsTab";
 import { copyText } from "./clipboard";
 import { t, useI18n } from "./i18n";
 import { SponsorLockNotice, btn, btnDanger, btnGhost, card, inputCls, labelCls } from "./ui";
@@ -73,6 +74,7 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [adminInput, setAdminInput] = useState("");
 
   useEffect(() => {
     client
@@ -105,7 +107,13 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
   }, [entitled, refreshStatus]);
 
   const mutate = useCallback(
-    async (patch: { enabled?: boolean; token?: string }): Promise<DiscordBotStatus | null> => {
+    async (patch: {
+      enabled?: boolean;
+      token?: string;
+      adminUserIds?: string[];
+      notifyChannelId?: string;
+      notifyEvents?: string[];
+    }): Promise<DiscordBotStatus | null> => {
       setBusy(true);
       setErr(null);
       try {
@@ -175,6 +183,20 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
 
   const tokenSet = !!status?.tokenSet;
   const enabled = !!status?.settings.enabled;
+  const adminIds = status?.settings.adminUserIds ?? [];
+  const notifyChannel = status?.settings.notifyChannelId ?? "";
+  const notifyEvents = new Set((status?.settings.notifyEvents ?? []) as WebhookEventType[]);
+
+  const addAdmin = async () => {
+    const id = adminInput.trim();
+    if (!id || adminIds.includes(id)) {
+      setAdminInput("");
+      return;
+    }
+    const next = await mutate({ adminUserIds: [...adminIds, id] });
+    if (next) setAdminInput("");
+  };
+  const removeAdmin = (id: string) => void mutate({ adminUserIds: adminIds.filter((x) => x !== id) });
 
   let statusText: string;
   let statusTone: string;
@@ -286,6 +308,85 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
           <span className="text-ink-muted">:</span> <span className={`font-bold ${statusTone}`}>{statusText}</span>
         </div>
         {err && <p className="mt-1 text-[11px] font-bold text-berry">{err}</p>}
+      </section>
+
+      <section className={card}>
+        <h4 className="text-sm font-extrabold">{t("管理員白名單")}</h4>
+        <p className="mt-1 text-xs text-ink-muted">
+          {t("只有清單中的 Discord 使用者能用管理指令(broadcast / restart / kick / ban / rcon);留空 = 沒有人能用。")}
+        </p>
+        <p className="mt-1 text-[11px] text-ink-muted">
+          {t("取得 user id:Discord 設定 → 進階 → 開啟「開發者模式」,右鍵使用者 →「複製使用者 ID」。")}
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            value={adminInput}
+            onChange={(e) => setAdminInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void addAdmin();
+              }
+            }}
+            placeholder={t("貼上 Discord user id")}
+            inputMode="numeric"
+            className={`${inputCls} min-w-0 flex-1`}
+          />
+          <button type="button" className={btn} onClick={addAdmin} disabled={busy || !adminInput.trim()}>
+            {t("新增")}
+          </button>
+        </div>
+        {adminIds.length > 0 ? (
+          <ul className="mt-3 flex flex-col gap-1.5">
+            {adminIds.map((id) => (
+              <li
+                key={id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-line bg-sky-soft px-3 py-1.5 text-sm"
+              >
+                <code className="font-mono text-xs text-ink">{id}</code>
+                <button
+                  type="button"
+                  className="text-ink-muted transition hover:text-berry"
+                  title={t("移除")}
+                  onClick={() => removeAdmin(id)}
+                  disabled={busy}
+                >
+                  <FiX className="size-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-[11px] font-bold text-sun">{t("目前沒有任何管理員,管理指令沒有人能用。")}</p>
+        )}
+      </section>
+
+      <section className={card}>
+        <h4 className="text-sm font-extrabold">{t("事件通知")}</h4>
+        <p className="mt-1 text-xs text-ink-muted">
+          {t("讓 bot 把伺服器事件(玩家上下線、崩潰、頭目…)貼到指定頻道 —— 免另外設定 Webhook 網址。")}
+        </p>
+        <label className={`${labelCls} mt-3`}>
+          <span>{t("通知頻道 ID")}</span>
+          <input
+            key={notifyChannel}
+            defaultValue={notifyChannel}
+            onBlur={(e) => {
+              const v = e.currentTarget.value.trim();
+              if (v !== notifyChannel) void mutate({ notifyChannelId: v });
+            }}
+            placeholder={t("貼上頻道 ID(留空 = 不發通知)")}
+            inputMode="numeric"
+            className={inputCls}
+          />
+        </label>
+        <p className="mt-1 text-[11px] text-ink-muted">
+          {t("取得頻道 ID:開發者模式下右鍵頻道 →「複製頻道 ID」。請確認 bot 在該頻道有發言權限。")}
+        </p>
+        <div className="mt-3 flex flex-col gap-1.5">
+          <span className="text-xs font-bold text-ink-muted">{t("要通知的事件")}</span>
+          <EventPicker selected={notifyEvents} onChange={(next) => void mutate({ notifyEvents: [...next] })} />
+        </div>
       </section>
 
       <section className={card}>

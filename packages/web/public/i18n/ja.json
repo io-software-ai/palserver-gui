@@ -1764,5 +1764,17 @@
   "到 Discord 開發者後台建立應用程式與 Bot,取得 Bot Token。": "Discord デベロッパーポータルでアプリケーションと Bot を作成し、Bot Token を取得します。",
   "把 Bot 邀請進你的 Discord 伺服器。": "Bot をあなたの Discord サーバーに招待します。",
   "用 docker compose up -d 或 pnpm start 啟動 bot;slash 指令會在 bot 上線時自動註冊。詳見 packages/discord-bot/README。": "docker compose up -d または pnpm start で Bot を起動します。スラッシュコマンドは Bot がオンラインになると自動的に登録されます。詳細は packages/discord-bot/README を参照してください。",
-  "把 DISCORD_TOKEN 換成你的 bot token,AGENT_TOKEN 貼上上方的權杖。": "DISCORD_TOKEN をあなたの bot トークンに置き換え、AGENT_TOKEN には上記のトークンを貼り付けてください。"
+  "把 DISCORD_TOKEN 換成你的 bot token,AGENT_TOKEN 貼上上方的權杖。": "DISCORD_TOKEN をあなたの bot トークンに置き換え、AGENT_TOKEN には上記のトークンを貼り付けてください。",
+  "管理員白名單": "管理者ホワイトリスト",
+  "只有清單中的 Discord 使用者能用管理指令(broadcast / restart / kick / ban / rcon);留空 = 沒有人能用。": "リストにある Discord ユーザーだけが管理コマンド(broadcast / restart / kick / ban / rcon)を使えます。空欄 = 誰も使えません。",
+  "取得 user id:Discord 設定 → 進階 → 開啟「開發者模式」,右鍵使用者 →「複製使用者 ID」。": "user id の取得:Discord の設定 → 詳細設定 →「開発者モード」を有効化し、ユーザーを右クリック →「ユーザー ID をコピー」。",
+  "貼上 Discord user id": "Discord user id を貼り付け",
+  "新增": "追加",
+  "目前沒有任何管理員,管理指令沒有人能用。": "管理者が未設定です。管理コマンドは誰も使えません。",
+  "事件通知": "イベント通知",
+  "讓 bot 把伺服器事件(玩家上下線、崩潰、頭目…)貼到指定頻道 —— 免另外設定 Webhook 網址。": "bot にサーバーイベント(プレイヤーの入退出、クラッシュ、ボスなど)を指定チャンネルへ投稿させます —— 別途 Webhook URL の設定は不要です。",
+  "通知頻道 ID": "通知チャンネル ID",
+  "貼上頻道 ID(留空 = 不發通知)": "チャンネル ID を貼り付け(空欄 = 通知しない)",
+  "取得頻道 ID:開發者模式下右鍵頻道 →「複製頻道 ID」。請確認 bot 在該頻道有發言權限。": "チャンネル ID の取得:開発者モードでチャンネルを右クリック →「チャンネル ID をコピー」。bot がそのチャンネルで発言できることを確認してください。",
+  "要通知的事件": "通知するイベント"
 }

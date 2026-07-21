@@ -617,8 +617,17 @@ export class AgentClient {
     return this.request(`/api/instances/${id}/discord-bot`);
   }
 
-  /** 更新同機 Discord bot 設定(enabled / token);token 寫入後不回讀(僅回 tokenSet)。回傳同 discordBot()。 */
-  setDiscordBot(id: string, patch: { enabled?: boolean; token?: string }): Promise<DiscordBotStatus> {
+  /** 更新同機 Discord bot 設定(enabled / token / 管理員白名單 / 通知頻道與事件);token 寫入後不回讀(僅回 tokenSet)。回傳同 discordBot()。 */
+  setDiscordBot(
+    id: string,
+    patch: {
+      enabled?: boolean;
+      token?: string;
+      adminUserIds?: string[];
+      notifyChannelId?: string;
+      notifyEvents?: string[];
+    },
+  ): Promise<DiscordBotStatus> {
     return this.request(`/api/instances/${id}/discord-bot`, {
       method: "PUT",
       body: JSON.stringify(patch),
