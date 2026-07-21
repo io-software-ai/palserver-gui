@@ -32,6 +32,8 @@ interface Runtime {
   restartTimer?: NodeJS.Timeout;
   /** 近期非預期退出時間戳(ms),用來套滑動視窗上限。 */
   recentExits: number[];
+  /** 擷取子行程 stderr 尾段(~4KB),退出時把最後一行併進 lastError,讓 GUI 看得到真正原因。 */
+  stderrTail: string;
   lastError?: string;
 }
 
@@ -79,7 +81,7 @@ export class DiscordBotManager {
   private rt(id: string): Runtime {
     let r = this.runtimes.get(id);
     if (!r) {
-      r = { starting: false, intentionalStop: false, recentExits: [] };
+      r = { starting: false, intentionalStop: false, recentExits: [], stderrTail: "" };
       this.runtimes.set(id, r);
     }
     return r;
@@ -155,13 +157,16 @@ export class DiscordBotManager {
     r.starting = true;
     r.intentionalStop = false;
 
-    // 自我 re-exec(比照 tray self-fork:argv.slice(1),SEA 內 = 重跑自己這顆 exe;dev = 重跑同一份 tsx 入口)。
+    // 自我 re-exec:帶上 process.execArgv 再接 argv.slice(1)。
+    //   SEA/exe:execArgv=[] → 等於重跑自己這顆 exe;`node dist/index.js`:重跑該檔;
+    //   dev(tsx watch):execArgv 含 tsx loader(如 --import tsx)→ 保留它才能重跑 .ts,否則 node 不認得 .ts 秒退。
     // 護欄:子行程帶 PALSERVER_RUN_BOT=1,主入口據此只跑 bot 分支、不會再進到這裡 spawn(見 index.ts 開頭)。
-    const child = spawn(process.execPath, process.argv.slice(1), {
+    const child = spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)], {
       // 不 detached:bot 隨 agent 一起活/死。孤兒 bot 控制著可能已停的伺服器是錯的,也免去 pid re-adopt。
       detached: false,
       windowsHide: true,
-      stdio: ["ignore", "inherit", "inherit"],
+      // stderr 用 pipe 擷取(退出時併進 lastError 供 GUI 顯示原因);同時原樣轉寫到本行程 stderr 保留 console 可見。
+      stdio: ["ignore", "inherit", "pipe"],
       env: {
         ...process.env,
         PALSERVER_RUN_BOT: "1",
@@ -174,6 +179,12 @@ export class DiscordBotManager {
     });
     r.child = child;
     r.starting = false;
+    r.stderrTail = "";
+    child.stderr?.on("data", (d: Buffer) => {
+      const cur = this.rt(id);
+      cur.stderrTail = (cur.stderrTail + d.toString()).slice(-4000);
+      process.stderr.write(d);
+    });
 
     child.on("error", (err) => {
       const cur = this.rt(id);
@@ -191,9 +202,12 @@ export class DiscordBotManager {
       const now = Date.now();
       cur.recentExits = cur.recentExits.filter((t) => now - t < RESTART_WINDOW_MS);
       cur.recentExits.push(now);
-      cur.lastError = `bot 子行程結束(code=${code ?? "?"}${signal ? `, signal=${signal}` : ""})`;
+      // 取 stderr 最後一行非空內容當原因(如「登入失敗: An invalid token was provided.」)。
+      const detail = cur.stderrTail.trim().split(/\r?\n/).filter(Boolean).pop();
+      const base = `bot 子行程結束(code=${code ?? "?"}${signal ? `, signal=${signal}` : ""})`;
+      cur.lastError = detail ? `${base}:${detail}` : base;
       if (cur.recentExits.length >= MAX_RESTARTS_PER_WINDOW) {
-        cur.lastError = `bot 短時間內重啟過多(${cur.recentExits.length} 次)已停止自動重啟。請確認 token 正確後重新啟用。`;
+        cur.lastError = `bot 短時間內重啟過多(${cur.recentExits.length} 次)已停止自動重啟,請確認 token 是否正確後重新啟用。${detail ? `最後錯誤:${detail}` : ""}`;
         return;
       }
       const backoff = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** (cur.recentExits.length - 1));
