@@ -1781,7 +1781,7 @@
   "要通知的事件": "Events to notify",
   "將在儲存後清除": "Will be cleared on save",
   "開發者": "Developers",
-  "使用官方機器人(零門檻)": "Use the official bot (zero setup)",
+  "使用官方機器人": "Use the official bot",
   "進階:自架與開發": "Advanced: self-host & develop",
   "把 bot 部署到另一台機器 / Docker,或用 Agent REST API 開發你自己的機器人。": "Deploy the bot on another machine / with Docker, or build your own bot with the Agent REST API.",
   "需要專屬的 Discord 機器人?": "Need a custom Discord bot?",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiCheck, FiCopy, FiExternalLink, FiMail, FiMessageCircle, FiX } from "react-icons/fi";
+import { FiCheck, FiCode, FiCopy, FiExternalLink, FiMail, FiMessageCircle, FiStar, FiX } from "react-icons/fi";
 import { BOT_LANGS, hasFeature } from "@palserver/shared";
 import type { BotLang, DiscordBotLogLine, DiscordBotStatus, WebhookEventType } from "@palserver/shared";
 import type { AgentClient } from "./api";
@@ -283,10 +283,15 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── 第一部分:使用官方機器人(零門檻) ─────────────────────────── */}
+      {/* ── 第一部分:使用官方機器人 ─────────────────────────────────── */}
       <div>
-        <h3 className="text-base font-extrabold">{t("使用官方機器人(零門檻)")}</h3>
-        <p className="mt-1 text-sm text-ink-muted">
+        <p className="inline-flex items-center gap-2 text-sm font-extrabold text-ink-muted">
+          <FiMessageCircle className="size-4 text-pal" /> {t("使用官方機器人")}
+          <span className="inline-flex items-center gap-1 rounded-full bg-pal/10 px-2 py-0.5 text-xs font-bold text-pal">
+            <FiStar className="size-3" /> {t("贊助者")}
+          </span>
+        </p>
+        <p className="mt-1 text-xs text-ink-muted">
           {t("在 Discord 用 /players、/restart、/broadcast 等指令直接操作伺服器。這是一個獨立的自架服務,只對外連線、不需要對外開放連接埠(可走 Tailscale)。")}
         </p>
       </div>
@@ -543,8 +548,10 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
 
       {/* ── 第二部分:進階 —— 自架與開發 ─────────────────────────────── */}
       <div className="mt-2 border-t-2 border-line pt-4">
-        <h3 className="text-base font-extrabold">{t("進階:自架與開發")}</h3>
-        <p className="mt-1 text-sm text-ink-muted">
+        <p className="inline-flex items-center gap-2 text-sm font-extrabold text-ink-muted">
+          <FiCode className="size-4 text-pal" /> {t("進階:自架與開發")}
+        </p>
+        <p className="mt-1 text-xs text-ink-muted">
           {t("把 bot 部署到另一台機器 / Docker,或用 Agent REST API 開發你自己的機器人。")}
         </p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
