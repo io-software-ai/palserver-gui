@@ -23,8 +23,8 @@ import {
  * UE4SS Lua 模組,模組每 15s 把頭目 spawner 死活寫到 Pal/Saved/palserver-boss-state.json,
  * agent 讀檔回報給 web。模組只讀取遊戲狀態、不改任何遊戲行為,玩家端無需安裝。
  *
- * 相依 UE4SS(Lua 載入器);缺就裝標準版(UE4SS-RE),已裝任一版(含 PalSchema 的
- * Okaetsu fork)則沿用。設計沿用 palschema.ts 的安裝/狀態模式。
+ * 相依 UE4SS(Lua 載入器);缺就裝 Palworld 專用的 Okaetsu fork(experimental-palworld,
+ * 與 PalSchema 同一份),已裝任一版則沿用。設計沿用 palschema.ts 的安裝/狀態模式。
  */
 
 const WIN64_REL = "Pal/Binaries/Win64";

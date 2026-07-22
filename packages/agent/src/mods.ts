@@ -21,11 +21,17 @@ import { execInPod, readFileInPod, writeFileBytesInPod, makeDirInPod, deletePath
  * Both are fetched from their GitHub latest release (URL overridable via env).
  */
 
-const GH_REPOS: Record<ModComponent, { repo: string; asset: RegExp; envUrl: string }> = {
+const GH_REPOS: Record<
+  ModComponent,
+  { repo: string; asset: RegExp; betaAsset?: RegExp; tag?: string; envUrl: string }
+> = {
   ue4ss: {
-    repo: "UE4SS-RE/RE-UE4SS",
-    /* UE4SS experimental-latest 資產名含 git 資訊(例:UE4SS_v3.0.1-1011-gb50986bd.zip)。 */
-    asset: /^UE4SS_v?[\d.]+(-[\d]+-g[0-9a-f]+)?\.zip$/i,
+    // Palworld 專用的 Okaetsu fork(experimental-palworld);與 PalSchema 用的同一份,
+    // 相容性比上游標準 UE4SS 好。此 release 是固定 tag(非版本號),用 tag 直接鎖定。
+    repo: "Okaetsu/RE-UE4SS",
+    tag: "experimental-palworld",
+    asset: /^UE4SS-Palworld\.zip$/i, // 標準版
+    betaAsset: /^UE4SS-Palworld_zDev\.zip$/i, // 開發版(含除錯主控台/工具,體積較大)
     envUrl: "PALSERVER_UE4SS_URL",
   },
   paldefender: {
@@ -310,8 +316,12 @@ export async function latestModVersions(): Promise<Record<ModComponent, string |
       continue;
     }
     try {
-      const { repo } = GH_REPOS[component];
-      const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+      const cfg = GH_REPOS[component];
+      // 固定 tag 的元件(如 UE4SS Okaetsu fork)直接查該 tag,否則查 latest。
+      const endpoint = cfg.tag
+        ? `https://api.github.com/repos/${cfg.repo}/releases/tags/${cfg.tag}`
+        : `https://api.github.com/repos/${cfg.repo}/releases/latest`;
+      const res = await fetch(endpoint, {
         headers: { "user-agent": "palserver-gui", accept: "application/vnd.github+json" },
       });
       const tag = res.ok ? ((await res.json()) as GitRelease).tag_name : null;
@@ -329,14 +339,16 @@ async function resolveDownload(
   component: ModComponent,
   channel: "stable" | "beta",
 ): Promise<{ version: string; url: string }> {
-  const { repo, asset, envUrl } = GH_REPOS[component];
+  const { repo, asset, betaAsset, tag, envUrl } = GH_REPOS[component];
   const override = process.env[envUrl];
   if (override) return { version: "custom", url: override };
 
-  // "latest" excludes pre-releases; for beta we scan the release list and take
-  // the newest, whether it's a pre-release or stable.
-  const endpoint =
-    channel === "beta"
+  // 固定 tag 的元件(UE4SS Okaetsu fork = experimental-palworld)兩個通道都用同一 release,
+  // 靠不同資產區分(stable=標準版、beta=zDev 開發版)。否則:stable="latest"(排除 pre-release)、
+  // beta 掃 release 清單取最新(含 pre-release)。
+  const endpoint = tag
+    ? `https://api.github.com/repos/${repo}/releases/tags/${tag}`
+    : channel === "beta"
       ? `https://api.github.com/repos/${repo}/releases?per_page=15`
       : `https://api.github.com/repos/${repo}/releases/latest`;
   const res = await fetch(endpoint, {
@@ -345,15 +357,16 @@ async function resolveDownload(
   if (!res.ok) throw new Error(`GitHub release lookup failed for ${repo}: HTTP ${res.status}`);
 
   const body = await res.json();
-  const release: GitRelease | undefined = channel === "beta"
-    ? (body as GitRelease[]).filter((r) => !r.draft).at(0)
-    : (body as GitRelease);
+  const release: GitRelease | undefined =
+    !tag && channel === "beta" ? (body as GitRelease[]).filter((r) => !r.draft).at(0) : (body as GitRelease);
   if (!release) throw new Error(`no releases found for ${repo}`);
 
-  const match = release.assets.find((a) => asset.test(a.name));
+  // beta 通道若有專屬資產(如 UE4SS zDev)就用它,否則沿用標準資產。
+  const pattern = channel === "beta" && betaAsset ? betaAsset : asset;
+  const match = release.assets.find((a) => pattern.test(a.name));
   if (!match) {
     throw new Error(
-      `no matching asset in ${repo}@${release.tag_name} (looked for ${asset}); ` +
+      `no matching asset in ${repo}@${release.tag_name} (looked for ${pattern}); ` +
         `set ${envUrl} to pin a download URL`,
     );
   }

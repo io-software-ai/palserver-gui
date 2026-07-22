@@ -223,7 +223,7 @@
   "新實例先啟動一次再停止,讓存檔資料夾生成": "Start the new instance once, then stop it, so save folders are generated",
   "本機邀請碼存檔需額外修正玩家角色": "Local invite-code saves need an extra player-character fix",
   "查看完整教學": "Full guide",
-  "測試版(Beta)可能不穩定,但含較新的功能(例如玩家細節 API)。\n\n確定要安裝最新測試版嗎?": "Beta builds may be unstable but include newer features (e.g. the player-detail API).\n\nInstall the latest beta?",
+  "開發版(zDev)含 UE4SS 除錯主控台與開發工具、體積較大,一般伺服器不需要,主要供模組開發。\n\n確定要安裝開發版嗎?": "The dev build (zDev) includes the UE4SS debug console and developer tools and is larger; regular servers don't need it — it's mainly for mod development.\n\nInstall the dev build?",
   "確定要移除 {label} 嗎?\n\n會刪除它安裝的檔案({extra}也會一併移除)。此動作無法復原,重啟後生效。": "Remove {label}?\n\nIts installed files will be deleted ({extra} too). This cannot be undone; takes effect after restart.",
   "含 Lua 模組": "including Lua mods",
   "含設定檔": "including its config",

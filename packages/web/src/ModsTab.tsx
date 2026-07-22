@@ -52,7 +52,7 @@ export function ModsTab({
   }, [client]);
 
   const install = async (component: ModComponent, channel: "stable" | "beta" = "stable") => {
-    if (channel === "beta" && !confirm(t("測試版(Beta)可能不穩定,但含較新的功能(例如玩家細節 API)。\n\n確定要安裝最新測試版嗎?"))) {
+    if (channel === "beta" && !confirm(t("開發版(zDev)含 UE4SS 除錯主控台與開發工具、體積較大,一般伺服器不需要,主要供模組開發。\n\n確定要安裝開發版嗎?"))) {
       return;
     }
     setBusy(component);
