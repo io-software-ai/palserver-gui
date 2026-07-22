@@ -378,13 +378,17 @@ export async function installComponent(
   ctx: DriverContext,
   component: ModComponent,
   channel: "stable" | "beta" = "stable",
+  /** 直接指定下載 URL(繞過 GitHub release 解析);給限速地區走鏡像用。資產格式須與該元件相同。 */
+  urlOverride?: string,
 ): Promise<{ version: string }> {
   const status = await getModsStatus(rec, ctx);
   if (!status.supported) {
     throw Object.assign(new Error(status.reason ?? "mods unsupported"), { statusCode: 409 });
   }
 
-  const { version, url } = await resolveDownload(component, channel);
+  const { version, url } = urlOverride
+    ? { version: "custom", url: urlOverride }
+    : await resolveDownload(component, channel);
   const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new Error(`download failed: HTTP ${res.status}`);
   const zipBuffer = Buffer.from(await res.arrayBuffer());

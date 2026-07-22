@@ -1226,8 +1226,13 @@ export function registerRoutes(
     const component = z
       .enum(["ue4ss", "paldefender"])
       .parse((req.params as { component: string }).component);
-    const { channel } = z
-      .object({ channel: z.enum(["stable", "beta"]).default("stable") })
+    const { channel, url } = z
+      .object({
+        channel: z.enum(["stable", "beta"]).default("stable"),
+        // 選填:直接指定下載 URL(繞過 GitHub release 解析)。給限速地區走鏡像用;
+        // 僅接受 https。資產內容格式須與該元件一致(如 UE4SS 的 UE4SS-Palworld.zip)。
+        url: z.string().url().startsWith("https://").optional(),
+      })
       .parse(req.body ?? {});
     // native: DLLs are locked by the running Windows process — must stop first.
     // docker/k8s: exec into container needs the Pod running; Linux doesn't lock
@@ -1238,7 +1243,7 @@ export function registerRoutes(
     if ((rec.backend === "docker" || rec.backend === "k8s") && !await isRunning(rec)) {
       return reply.code(409).send({ error: "伺服器未運行 — docker/k8s 安裝需要容器在運行中才能傳輸檔案" });
     }
-    const { version } = await installComponent(rec, ctxOf(rec), component, channel);
+    const { version } = await installComponent(rec, ctxOf(rec), component, channel, url);
     // PalDefender's admin/moderation surface depends on RCON. Older records
     // may still carry the historical false default, so installing PD repairs
     // that state and picks a free TCP port before the next restart.
