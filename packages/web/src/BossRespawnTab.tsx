@@ -281,7 +281,8 @@ export function BossRespawnTab({
           }
           desc={t("安裝純伺服器端的 UE4SS Lua 模組,每 15 秒回報野外頭目與地下城頭目的死活與重生時間。模組只讀取遊戲狀態、不改遊戲內容,玩家端不需安裝任何東西。")}
           installed={status.modInstalled}
-          version={status.version ? `${t("模組")} ${status.version}` : null}
+          version={status.version}
+          latestVersion={status.latestVersion}
           running={running ?? false}
           busy={installing}
           busyLabel={status.modInstalled ? t("更新中…") : t("安裝中…")}

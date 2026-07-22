@@ -87,6 +87,8 @@ export interface BossRespawnStatus {
   modInstalled: boolean;
   /** 我們安裝時記錄的模組版本;未安裝時為 null。 */
   version?: string | null;
+  /** 遠端 mod repo 的最新版 tag(去 v 前綴);查不到/未安裝時 null。與 version 不同時 UI 顯示「有新版」。 */
+  latestVersion?: string | null;
   /** 模組寫出的最新狀態;尚無檔案(未啟動過)時為 null。 */
   state: BossRespawnState | null;
   /** state 是否過時(generatedAt 距今超過 BOSS_STATE_STALE_SECONDS)。 */
