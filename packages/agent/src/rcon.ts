@@ -19,13 +19,22 @@ const CONNECT_TIMEOUT_MS = 4000;
  * after the first one arrives. */
 const DRAIN_MS = 250;
 
+type RconBase64Resolver = (rec: InstanceRecord) => boolean | Promise<boolean>;
+let resolveBase64: RconBase64Resolver | null = null;
+
+/** PalDefender stores the protocol mode in Config.json. Routes install a
+ * resolver once their instance context is available. */
+export function setRconBase64Resolver(resolver: RconBase64Resolver): void {
+  resolveBase64 = resolver;
+}
+
 class RconError extends Error {
   constructor(message: string, readonly statusCode: number) {
     super(message);
   }
 }
 
-function encode(id: number, type: number, body: string): Buffer {
+export function encodeRconPacket(id: number, type: number, body: string): Buffer {
   const payload = Buffer.from(body, "utf8");
   const size = 4 + 4 + payload.length + 2;
   const buf = Buffer.allocUnsafe(4 + size);
@@ -36,6 +45,12 @@ function encode(id: number, type: number, body: string): Buffer {
   buf.writeUInt8(0, 12 + payload.length);
   buf.writeUInt8(0, 13 + payload.length);
   return buf;
+}
+
+export function decodeRconBase64(body: string): string {
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(body) || body.length % 4 !== 0) return body;
+  const decoded = Buffer.from(body, "base64").toString("utf8");
+  return decoded.includes("\uFFFD") ? body : decoded;
 }
 
 interface Packet {
@@ -79,10 +94,15 @@ function rconHost(rec: InstanceRecord): string {
 
 /** `async` so a disabled-RCON instance rejects instead of throwing
  * synchronously — callers attach .catch() and would otherwise be bypassed. */
-export async function rconExec(rec: InstanceRecord, command: string): Promise<string> {
+export async function rconExec(
+  rec: InstanceRecord,
+  command: string,
+  options?: { base64?: boolean },
+): Promise<string> {
   requireRcon(rec);
   const port = Number(rec.settings.RCONPort);
   const password = String(rec.settings.AdminPassword);
+  const useBase64 = options?.base64 ?? (resolveBase64 ? await resolveBase64(rec) : false);
 
   return new Promise<string>((resolve, reject) => {
     const socket = net.createConnection({ host: rconHost(rec), port });
@@ -102,7 +122,7 @@ export async function rconExec(rec: InstanceRecord, command: string): Promise<st
       err ? reject(err) : resolve(value);
     };
 
-    socket.on("connect", () => socket.write(encode(1, TYPE_AUTH, password)));
+    socket.on("connect", () => socket.write(encodeRconPacket(1, TYPE_AUTH, password)));
 
     socket.on("data", (chunk) => {
       tail = decode(Buffer.concat([tail, chunk]), packets);
@@ -116,18 +136,20 @@ export async function rconExec(rec: InstanceRecord, command: string): Promise<st
         }
         authed = true;
         packets.length = 0;
-        socket.write(encode(2, TYPE_EXEC, command));
+        const body = useBase64 ? Buffer.from(command, "utf8").toString("base64") : command;
+        socket.write(encodeRconPacket(2, TYPE_EXEC, body));
         return;
       }
 
       // Collect response packets, then settle once they stop arriving.
       if (drainTimer) clearTimeout(drainTimer);
       drainTimer = setTimeout(() => {
-        const body = packets
+        const rawBody = packets
           .filter((p) => p.type === TYPE_RESPONSE)
           .map((p) => p.body)
           .join("")
           .trim();
+        const body = useBase64 ? decodeRconBase64(rawBody) : rawBody;
         finish(null, body);
       }, DRAIN_MS);
     });

@@ -1,6 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyServerExit, linesToReplay } from "./native.js";
+import { classifyServerExit, decodeWindowsLog, linesToReplay } from "./native.js";
+
+test("decodeWindowsLog: Windows GBK system error falls back from invalid UTF-8", () => {
+  assert.equal(decodeWindowsLog(Buffer.from([0xB2, 0xCE, 0xCA, 0xFD, 0xCE, 0xDE, 0xD0, 0xA7])), "参数无效");
+});
+
+test("decodeWindowsLog: mixed UTF-8 and GBK lines preserve both", () => {
+  const bytes = Buffer.concat([
+    Buffer.from("啟動完成\n", "utf8"),
+    Buffer.from([0xB2, 0xCE, 0xCA, 0xFD, 0xCE, 0xDE, 0xD0, 0xA7]),
+  ]);
+  assert.equal(decodeWindowsLog(bytes), "啟動完成\n参数无效");
+});
 
 test("linesToReplay: replay=0 不補任何歷史(slice(-0)=整包 的陷阱)", () => {
   // 這是「重啟時舊捕捉/死亡誤報」的根因:log-event-tracker 用 replay=0,必須真的回 []。

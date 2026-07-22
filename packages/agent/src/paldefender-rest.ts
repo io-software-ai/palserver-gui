@@ -257,6 +257,27 @@ export async function provisionPdToken(
   return existsInRuntime(rec, file);
 }
 
+/** Enable PalDefender's UTF-8-safe RCON transport before the server starts.
+ * Existing Config.json fields are preserved. */
+export function preprovisionPdRconBase64(rec: InstanceRecord, ctx: DriverContext): void {
+  if (rec.backend !== "native") return;
+  const win64 = path.join(serverRoot(rec, ctx), "Pal", "Binaries", "Win64");
+  const dir = PD_DIR_NAMES.map((name) => path.join(win64, name)).find((candidate) => fs.existsSync(candidate));
+  if (!dir) return;
+  const file = path.join(dir, "Config.json");
+  let config: Record<string, unknown> = {};
+  try {
+    config = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    // Missing means PalDefender has not generated Config.json yet; malformed
+    // means leave the user's file untouched for the existing editor to report.
+    return;
+  }
+  if (config.RCONbase64 === true) return;
+  config.RCONbase64 = true;
+  fs.writeFileSync(file, JSON.stringify(config, null, 4));
+}
+
 /** 強化版建立流程用:在「首次啟動前」預先鋪好 REST 設定與 GUI 權杖。
  * PalDefender 尚未跑過、連 PalDefender/ 目錄都還沒有,所以自己建目錄寫檔;
  * PalDefender 首次開機讀到 Enabled:true 就直接把 REST API 帶起來,缺的
@@ -292,6 +313,18 @@ export function preprovisionPdRest(rec: InstanceRecord, ctx: DriverContext): voi
       JSON.stringify({ Name: "palserver GUI", Token: token, Permissions: ["REST.*"] }, null, 4),
     );
   }
+
+  const pdConfigFile = path.join(dir, "Config.json");
+  let pdConfig: Record<string, unknown> = {};
+  if (fs.existsSync(pdConfigFile)) {
+    try {
+      pdConfig = JSON.parse(fs.readFileSync(pdConfigFile, "utf8"));
+    } catch {
+      return; // Preserve malformed user config; the config UI reports it.
+    }
+  }
+  pdConfig.RCONbase64 = true;
+  fs.writeFileSync(pdConfigFile, JSON.stringify(pdConfig, null, 4));
 }
 
 /** Map PalDefender's error codes to something a manager can act on. */
@@ -349,6 +382,15 @@ async function pdFetch<T>(
     throw new PdRestError(`PalDefender 回應 HTTP ${res.status}`);
   }
   return (await res.json()) as T;
+}
+
+/** Send prominent messages through PalDefender's JSON/UTF-8 API. */
+export async function sendPdAlert(rec: InstanceRecord, ctx: DriverContext, message: string): Promise<void> {
+  const status = await getPdRestStatus(rec, ctx);
+  if (!status.enabled) throw new PdRestError(status.reason ?? "PalDefender REST API 未啟用");
+  const dir = await getPdDir(rec, ctx);
+  if (!dir) throw new PdRestError("尚未安裝 PalDefender");
+  await pdFetch<unknown>(rec, dir, "/Alert", { Message: message });
 }
 
 function collectPals(pals: Record<string, unknown> | undefined, location: PdPal["location"]): PdPal[] {
