@@ -123,6 +123,14 @@ local function scanDungeons()
   local now = os.time()
   for _, inst in ipairs(insts) do
     local bs = 0
+    local remain = 0
+    local respawnAt = -1
+    pcall(function() remain = inst:CalcRemainSecondsBy(inst, inst.RespawnBossTimeAt) end)
+    -- 只有已擊殺Boss 才有 重生時間 並接著算:now + 遊戲自算的剩餘秒。
+    if type(remain) == "number" and remain > 0 then 
+      bs = 1
+      respawnAt = now + math.floor(remain) 
+    end
     pcall(function() bs = tonumber(inst.BossState) or 0 end)
     local level = -1
     pcall(function() level = inst.Level end)
@@ -130,13 +138,6 @@ local function scanDungeons()
     pcall(function() name = inst:GetDungeonNameText():ToString() end)
     local x, y, z = 0, 0, 0
     pcall(function() local w = inst.RepFieldWarpPointLocation; x, y, z = w.X, w.Y, w.Z end)
-    -- 只有已擊殺(BossState==1)才算重生時間:now + 遊戲自算的剩餘秒。
-    local respawnAt = -1
-    if bs == 1 then
-      local remain = 0
-      pcall(function() remain = inst:CalcRemainSecondsBy(inst, inst.RespawnBossTimeAt) end)
-      if type(remain) == "number" and remain > 0 then respawnAt = now + math.floor(remain) end
-    end
     out[#out + 1] = string.format(
       '{"name":"%s","level":%d,"bossState":%d,"respawnAt":%d,"x":%.1f,"y":%.1f,"z":%.1f}',
       jsonEscape(name), level, bs, respawnAt, x, y, z)
