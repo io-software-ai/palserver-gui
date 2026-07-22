@@ -2,6 +2,21 @@
 
 (目前無草稿。)
 
+v2.8.0 已發布(2026-07-22:修復為主。UE4SS 內建載入器改用 Palworld 專用的 Okaetsu fork
+(experimental-palworld,GH_REPOS.ue4ss 鎖 tag,stable=UE4SS-Palworld.zip、beta=zDev)——
+模組閃退大減;UE4SS 以標準資產 updated_at(建置日期)標版本+偵測更新(releaseVersion)。
+**根治「停服殘留 PalServer 鎖檔擋更新」老問題**:killLeftoverProcessesUnder 從 Get-Process 的
+$_.Path(需開行程控制代碼、會靜默漏抓)改用 Get-CimInstance Win32_Process 的 ExecutablePath 可靠
+列舉(commit b5c1977;測試機實測 install 從 hang 110s→5.7s)。boss-reporter 修復:PR#53 v1.6
+地城掃描當機、野外一律「約下個遊戲日重生」(移除 measured 倒數分支,修 22:00:00 殘留值 bug);
+**改遠端交付**——原始碼獨立 repo io-software-ai/palserver-boss-reporter(含 release CI 依檔頭版本自動發
+Release),agent 純遠端下載無內嵌 fallback、分頁「有新版」徽章。安裝下載>10s 跳黃色殭屍進程警告
+(SlowInstallWarning,重開機/工作管理員指引)。mod install 支援 url 覆寫 + 下載 timeout(限速地區走
+鏡像)。合併 PR#45(ARM64 Docker/FEX)、#52(伺服器端資料夾瀏覽器+兩階段 tp+pgbroadcast REST+
+自訂帕魯濃縮 UI+WorldTreeRelic 物品)、#49(捕捉輔助配種+帕魯倉庫/公會據點位置)、#46 zh-CN 目錄
+翻譯;Tailscale/CGNAT 100.64.0.0/10 放行目錄瀏覽。四語 RELEASE_NOTES 已更新。PR#46/#47 為 PR52 子集,
+建議關閉;PR#42(backend 重構)因舊 base 大衝突暫緩。)
+
 v2.7.0 已發布(2026-07-22:主打贊助者新功能「Discord 官方機器人」—— 同機貼 token 即用(agent 自跑+監督,
 免 Docker/手動註冊指令)、18 支 slash 指令回控伺服器、每分鐘更新的狀態面板、事件通知、管理員白名單;
 也支援進階自架(另機/Docker)+ 第三方 bot 開發者指南 + 完整 Agent REST API 文檔。另一大功能「Webhook

@@ -1,6 +1,6 @@
 {
   "name": "@palserver/discord-bot",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "private": true,
   "type": "module",
   "description": "palserver-GUI 官方 Discord bot:從 Discord 用 slash 指令回控伺服器(呼叫 agent REST API)。也是第三方接 agent 的參考實作。",
