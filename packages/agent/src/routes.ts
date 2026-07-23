@@ -98,7 +98,7 @@ import {
   restoreConfigSnapshot,
 } from "./config-backup.js";
 import { getPalDefenderConfig, writePalDefenderConfig } from "./paldefender-config.js";
-import { getPlayerDetail, getPdPlayers, getPdGuilds, getPdGuild, getPdRestStatus, setPdRestEnabled, setPdRestPort, provisionPdToken } from "./paldefender-rest.js";
+import { getPlayerDetail, getPdPlayers, getPdGuilds, getPdGuild, getPdRestStatus, setPdRestEnabled, setPdRestPort, provisionPdToken, deleteBase } from "./paldefender-rest.js";
 import { setTelemetryEnabled, telemetryStatus, track } from "./telemetry.js";
 import { licenseStatus, setLicenseKey, clearLicenseKey, featureEnabled } from "./license.js";
 import { giveCustomPal } from "./pals.js";
@@ -1390,6 +1390,28 @@ export function registerRoutes(
     const { id, guildId } = req.params as { id: string; guildId: string };
     const rec = getOr404(id);
     return getPdGuild(rec, ctxOf(rec), guildId);
+  });
+
+  // 刪除據點(不可逆):經 PalDefender 即時拆除,伺服器運行中即可執行、不需停服。贊助者先行。
+  app.post("/api/instances/:id/guilds/base/:baseId/delete", async (req, reply) => {
+    if (!featureEnabled("delete-base")) {
+      return reply.code(403).send({ error: "刪除據點為贊助者先行版功能,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    const rec = getOr404((req.params as { id: string }).id);
+    if (serverPlatform(rec) !== "windows") {
+      return reply.code(409).send({ error: "刪除據點目前僅支援 Windows 伺服器" });
+    }
+    if (!(await getModsStatus(rec, ctxOf(rec))).paldefender.installed) {
+      return reply.code(409).send({ error: "需要先安裝 PalDefender 才能刪除據點" });
+    }
+    const baseId = z
+      .string()
+      .trim()
+      .min(4)
+      .max(64)
+      .regex(/^[A-Za-z0-9-]+$/, "無效的據點識別碼")
+      .parse((req.params as { baseId: string }).baseId);
+    return deleteBase(rec, ctxOf(rec), baseId);
   });
 
   app.put("/api/instances/:id/paldefender-rest/enabled", async (req, reply) => {

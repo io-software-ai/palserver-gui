@@ -470,6 +470,28 @@ export async function getPdGuilds(
 }
 
 /** 單一公會詳情(PalDefender /guild/{id}):成員名單 + 據點(含等級/狀態)。贊助者功能。 */
+/**
+ * 刪除一個據點(公會據點)—— 呼叫 PalDefender REST 的 deletebase,由遊戲的
+ * UPalBaseCampManager 即時拆除;建築 / 容器 / 掉落 / 駐守帕魯等交叉引用由引擎自己清乾淨,
+ * 不是我們手改存檔,故損毀風險低、且**伺服器運行中即可執行、不需停服**。
+ * campId 為據點 GUID(存檔解析的 SaveGuildBase.id 與 PD guilds camps[].id 同一顆 base camp GUID)。
+ * 不可逆(PalDefender 端會另存稽核封存)。
+ */
+export async function deleteBase(
+  rec: InstanceRecord,
+  ctx: DriverContext,
+  campId: string,
+): Promise<{ deleted: boolean; result: unknown }> {
+  const status = await getPdRestStatus(rec, ctx);
+  if (!status.enabled) {
+    throw Object.assign(new Error(status.reason ?? "PalDefender REST 未啟用,無法刪除據點"), { statusCode: 409 });
+  }
+  const dir = (await getPdDir(rec, ctx))!;
+  // 帶 body({})→ pdFetch 走 POST;PD 回刪除統計。
+  const result = await pdFetch<unknown>(rec, dir, `/deletebase/${encodeURIComponent(campId)}`, {});
+  return { deleted: true, result };
+}
+
 export async function getPdGuild(
   rec: InstanceRecord,
   ctx: DriverContext,

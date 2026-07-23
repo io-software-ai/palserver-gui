@@ -1,11 +1,69 @@
 import { useCallback, useEffect, useState } from "react";
-import { FiHome, FiMapPin, FiPackage, FiRefreshCw, FiUsers, FiX, FiZap } from "react-icons/fi";
+import { FiAlertTriangle, FiHome, FiMapPin, FiPackage, FiRefreshCw, FiTrash2, FiUsers, FiX, FiZap } from "react-icons/fi";
 import { GiBookshelf } from "react-icons/gi";
 import { hasFeature, savToMap, type SaveGuild } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { useGameData, displayName, findCharacter, itemIconUrl, type GameData } from "./gameData";
 import { localizeBaseName, t, useI18n } from "./i18n";
-import { DetailsToggle, Overlay, SponsorHint, btnGhost, card, errorCls, useDetailsPref } from "./ui";
+import { DetailsToggle, Overlay, SponsorHint, btnDanger, btnGhost, card, errorCls, inputCls, useDetailsPref } from "./ui";
+
+/** 刪除據點的強確認彈窗:強調不可逆 + 必須輸入公會名稱才能刪(GitHub 刪 repo 那種強確認)。 */
+function DeleteBaseConfirm({
+  guildName,
+  baseName,
+  deleting,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  guildName: string;
+  baseName: string;
+  deleting: boolean;
+  error: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  useI18n();
+  const [text, setText] = useState("");
+  const match = text.trim() === guildName.trim() && guildName.trim().length > 0;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(35_32_48/0.6)] p-6 backdrop-blur-[3px]">
+      <div className={`${card} w-[460px] max-w-full border-berry/60`}>
+        <h2 className="inline-flex items-center gap-2 text-lg font-extrabold text-berry">
+          <FiAlertTriangle className="size-5 shrink-0" /> {t("刪除據點")}
+        </h2>
+        <div className="mt-3 space-y-2 text-[13px] leading-relaxed text-ink">
+          <p className="rounded-xl bg-berry/10 px-3 py-2 font-extrabold text-berry">
+            {t("此操作不可逆 —— 據點的建築、容器、掉落物與所有駐守工作帕魯都會被永久刪除,無法復原。")}
+          </p>
+          <p>
+            {t("即將刪除公會「{g}」的據點「{b}」。", { g: guildName, b: baseName })}
+          </p>
+          <p>
+            {t("請輸入公會名稱「{g}」以確認:", { g: guildName })}
+          </p>
+          <input
+            className={inputCls}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={guildName}
+            autoFocus
+            disabled={deleting}
+          />
+          {error && <p className={errorCls}>{error}</p>}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button className={btnGhost} onClick={onCancel} disabled={deleting}>
+            {t("取消")}
+          </button>
+          <button className={btnDanger} onClick={onConfirm} disabled={!match || deleting}>
+            {deleting ? t("刪除中…") : t("永久刪除據點")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * 公會詳情彈窗(存檔快照驅動)— 與 PlayerDetailModal 同款 UX,含「從存檔刷新」。
@@ -42,6 +100,27 @@ export function GuildDetailModal({
   // 「詳細資訊」開關:駐守帕魯/公會倉庫/研究(贊助內容);狀態記憶在 localStorage
   const [showDetails, toggleDetails] = useDetailsPref();
   const [entitled, setEntitled] = useState<boolean | null>(null);
+  // 刪除據點(贊助者先行、不可逆):deleteTarget 有值時開強確認彈窗。
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const doDeleteBase = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await client.deleteGuildBase(instanceId, deleteTarget.id);
+      // 樂觀移除:PalDefender 已即時刪除,從本地快照移掉該據點,並通知父層重掃。
+      setGuild((g) => ({ ...g, bases: g.bases.filter((b) => b.id !== deleteTarget.id) }));
+      setDeleteTarget(null);
+      onRescanned?.();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     client
@@ -100,6 +179,7 @@ export function GuildDetailModal({
   const deep = showDetails && entitled === true;
 
   return (
+    <>
     <Overlay onClose={onClose}>
       <div
         className={`${card} flex max-h-[85vh] w-[720px] max-w-full flex-col gap-4 overflow-y-auto`}
@@ -204,6 +284,18 @@ export function GuildDetailModal({
                           <FiMapPin className="size-3" /> {t("在地圖上查看")}
                         </button>
                       )}
+                      {entitled && (
+                        <button
+                          className="inline-flex items-center gap-1 rounded-full border-2 border-line px-2 py-0.5 text-xs font-bold text-ink-muted transition hover:border-berry hover:text-berry"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeleteTarget({ id: b.id, name: localizeBaseName(b.name, i) });
+                          }}
+                          title={t("刪除此據點(不可逆)")}
+                        >
+                          <FiTrash2 className="size-3" /> {t("刪除據點")}
+                        </button>
+                      )}
                       <span className="ml-auto inline-flex items-center gap-1 text-xs text-ink-muted">
                         <FiZap className="size-3.5" /> {t("{n} 隻工作帕魯", { n: b.workers.length })}
                       </span>
@@ -274,6 +366,17 @@ export function GuildDetailModal({
         {deep && guild.research && <ResearchSection research={guild.research} gameData={gameData} />}
       </div>
     </Overlay>
+    {deleteTarget && (
+      <DeleteBaseConfirm
+        guildName={guild.name}
+        baseName={deleteTarget.name}
+        deleting={deleting}
+        error={deleteError}
+        onConfirm={doDeleteBase}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    )}
+    </>
   );
 }
 

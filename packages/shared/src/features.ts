@@ -15,6 +15,7 @@ export interface EarlyAccessFeature {
 export const EARLY_ACCESS_FEATURES: EarlyAccessFeature[] = [
   { id: "custom-pal", label: "自訂帕魯(詞條 / 體質 / 星星)" },
   { id: "guild-map", label: "地圖公會詳情(名稱 / 成員 / 據點)" },
+  { id: "delete-base", label: "刪除據點(清除公會據點,經 PalDefender 即時執行)" },
   { id: "pal-stats", label: "帕魯物種數值編輯器(PalSchema:HP / 攻防 / 首領)" },
   { id: "bulk-items", label: "批量給予道具(物品選單 + 數量)" },
   { id: "teleport", label: "傳送玩家(玩家 / 地圖座標描點)" },

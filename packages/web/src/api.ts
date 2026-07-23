@@ -556,6 +556,13 @@ export class AgentClient {
     return this.request(`/api/instances/${id}/guilds/${encodeURIComponent(guildId)}`);
   }
 
+  /** 刪除據點(不可逆;經 PalDefender 即時執行,不需停服)。贊助者先行。 */
+  deleteGuildBase(id: string, baseId: string): Promise<{ deleted: boolean; result: unknown }> {
+    return this.request(`/api/instances/${id}/guilds/base/${encodeURIComponent(baseId)}/delete`, {
+      method: "POST",
+    });
+  }
+
   /** 公開地圖目前設定 + 分享連結 + 最後一次發布結果。 */
   publicMap(id: string): Promise<PublicMapStatus> {
     return this.request(`/api/instances/${id}/public-map`);
