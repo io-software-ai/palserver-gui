@@ -4,13 +4,34 @@ import { PassThrough } from "node:stream";
 import Docker from "dockerode";
 import type { InstanceStatus, InstanceStats, WorldSettings } from "@palserver/shared";
 import { buildLaunchArgs } from "@palserver/shared";
-import { CONTAINER_PREFIX, IMAGES, IMAGES_WINE, INSTANCE_LABEL } from "./env.js";
+import { CONTAINER_PREFIX, IMAGES, IMAGES_ARM64, IMAGES_WINE, INSTANCE_LABEL } from "./env.js";
 import { mergeEnginePatch } from "./engine-ini-merge.js";
 import type { InstanceRecord } from "./store.js";
 import { configPlatformDir } from "./platform.js";
 import { diffIniAgainstSnapshot, renderPalWorldSettingsIni } from "./settings-ini.js";
 
 export const docker = new Docker(); // default: /var/run/docker.sock
+
+/** ARM64 Linux 偵測(沿用 native.ts IS_LINUX_ARM64 模式;arm64 用 FEX 轉譯跑原生 server binary)。 */
+const IS_LINUX_ARM64 = process.platform === "linux" && process.arch === "arm64";
+
+/** 依 runtime / 平台 / flavor 解析容器 image 名稱(自訂 dockerImage 優先)。
+ * 優先序:wine → IMAGES_WINE(arm64 不支援 wine,但若使用者硬設仍走此表,行為可預期);
+ * arm64 linux → IMAGES_ARM64(FEX 轉譯);其他 → IMAGES(原生 x86-64)。 */
+function resolveImage(rec: InstanceRecord): string {
+  if (rec.dockerImage?.trim()) return rec.dockerImage.trim();
+  if (rec.runtime === "wine") return IMAGES_WINE[rec.flavor];
+  if (IS_LINUX_ARM64) return IMAGES_ARM64[rec.flavor];
+  return IMAGES[rec.flavor];
+}
+
+/** 依 runtime / 平台 解析 build context 目錄名(錯誤訊息用,給使用者手動 docker build)。
+ * modded 無獨立目錄(mod 是執行期注入),共用 vanilla/wine/vanilla-arm64 base。 */
+function resolveBuildDir(rec: InstanceRecord): string {
+  if (rec.runtime === "wine") return "images/wine";
+  if (IS_LINUX_ARM64) return "images/vanilla-arm64";
+  return "images/vanilla";
+}
 
 function containerName(rec: InstanceRecord): string {
   // 容器名只是給人看的 —— agent 一律靠 label(INSTANCE_LABEL=id)找容器,不靠名字。
@@ -111,8 +132,7 @@ export async function createContainer(
     ...buildLaunchArgs(rec.launchOptions),
   ];
 
-  const image = rec.dockerImage?.trim()
-    || (rec.runtime === "wine" ? IMAGES_WINE[rec.flavor] : IMAGES[rec.flavor]);
+  const image = resolveImage(rec);
   const imageExists = await docker
     .getImage(image)
     .inspect()
@@ -123,7 +143,7 @@ export async function createContainer(
       rec.dockerImage?.trim()
         ? `找不到自訂鏡像 "${image}" — 請先 docker pull 該鏡像,或確認名稱/標籤正確`
         : `server image "${image}" not found — build it first: ` +
-            `docker build -t ${image} images/${rec.runtime === "wine" ? "wine" : "vanilla"}`,
+            `docker build -t ${image} ${resolveBuildDir(rec)}`,
     ) as Error & { statusCode: number };
     err.statusCode = 409;
     throw err;
@@ -323,8 +343,7 @@ export async function listInContainer(
 
 /** Pull latest image and recreate container. */
 export async function updateImage(rec: InstanceRecord, instanceDir: string): Promise<string> {
-  const image = rec.dockerImage?.trim()
-    || (rec.runtime === "wine" ? IMAGES_WINE[rec.flavor] : IMAGES[rec.flavor]);
+  const image = resolveImage(rec);
   const stream = await docker.pull(image);
   await new Promise<void>((resolve, reject) => {
     docker.modem.followProgress(stream, (err: Error | null) => (err ? reject(err) : resolve()));

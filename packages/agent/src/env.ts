@@ -79,6 +79,12 @@ export const IMAGES_WINE: Record<"vanilla" | "modded", string> = {
   modded: process.env.PALSERVER_IMAGE_WINE_MODDED ?? "palserver/wine-modded:latest",
 };
 
+/** ARM64 variants — native Linux server via FEX translation (no Wine). */
+export const IMAGES_ARM64: Record<"vanilla" | "modded", string> = {
+  vanilla: process.env.PALSERVER_IMAGE_ARM64 ?? "palserver/vanilla-arm64:latest",
+  modded: process.env.PALSERVER_IMAGE_ARM64_MODDED ?? "palserver/vanilla-arm64:latest",
+};
+
 /** GUI 自己的 GitHub repo — 自我更新從這裡的 Releases 取得新版。 */
 export const GITHUB_REPO = process.env.PALSERVER_GITHUB_REPO ?? "io-software-ai/palserver-gui";
 
