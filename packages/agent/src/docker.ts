@@ -123,7 +123,7 @@ export async function createContainer(
       rec.dockerImage?.trim()
         ? `找不到自訂鏡像 "${image}" — 請先 docker pull 該鏡像,或確認名稱/標籤正確`
         : `server image "${image}" not found — build it first: ` +
-            `docker build -t ${image} images/${rec.flavor}`,
+            `docker build -t ${image} images/${rec.runtime === "wine" ? "wine" : "vanilla"}`,
     ) as Error & { statusCode: number };
     err.statusCode = 409;
     throw err;
