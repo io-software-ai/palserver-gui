@@ -638,8 +638,7 @@ export class AgentClient {
       enabled?: boolean;
       token?: string;
       adminUserIds?: string[];
-      notifyChannelId?: string;
-      notifyEvents?: string[];
+      notifyRoutes?: { channelId: string; events: string[] }[];
       statusChannelId?: string;
       language?: BotLang;
     },

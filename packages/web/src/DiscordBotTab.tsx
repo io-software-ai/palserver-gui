@@ -77,12 +77,17 @@ const COMMANDS: { name: string; desc: string; admin: boolean }[] = [
 
 const DEV_PORTAL = "https://discord.com/developers/applications";
 
+/** 一條通知路由的草稿(events 用 Set 方便 EventPicker 編輯)。 */
+interface NotifyRouteDraft {
+  channelId: string;
+  events: Set<WebhookEventType>;
+}
+
 /** 本地草稿:與 status.settings 同構,外加 token 的三態(undefined=不變 / 非空=更換 / ""=清除)。 */
 interface Draft {
   enabled: boolean;
   adminUserIds: string[];
-  notifyChannelId: string;
-  notifyEvents: Set<WebhookEventType>;
+  notifyRoutes: NotifyRouteDraft[];
   statusChannelId: string;
   language: BotLang;
   token?: string;
@@ -92,11 +97,27 @@ function draftFromStatus(s: DiscordBotStatus): Draft {
   return {
     enabled: s.settings.enabled,
     adminUserIds: [...(s.settings.adminUserIds ?? [])],
-    notifyChannelId: s.settings.notifyChannelId ?? "",
-    notifyEvents: new Set((s.settings.notifyEvents ?? []) as WebhookEventType[]),
+    notifyRoutes: (s.settings.notifyRoutes ?? []).map((r) => ({
+      channelId: r.channelId,
+      events: new Set((r.events ?? []) as WebhookEventType[]),
+    })),
     statusChannelId: s.settings.statusChannelId ?? "",
     language: s.settings.language,
   };
+}
+
+/** 草稿路由 → 送出 payload:去掉頻道空白或沒勾任何事件的列(那種列不會投遞,不必存)。 */
+function routesToPayload(rows: NotifyRouteDraft[]): { channelId: string; events: string[] }[] {
+  return rows
+    .map((r) => ({ channelId: r.channelId.trim(), events: [...r.events] }))
+    .filter((r) => r.channelId && r.events.length > 0);
+}
+
+/** 穩定序列化一組路由(排序後比對),供 dirty 判斷。 */
+function serializeRoutes(rows: { channelId: string; events: string[] }[]): string {
+  return JSON.stringify(
+    rows.map((r) => ({ c: r.channelId, e: [...r.events].sort() })).sort((a, b) => a.c.localeCompare(b.c)),
+  );
 }
 
 export function DiscordBotTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
@@ -173,9 +194,11 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
     let n = 0;
     if (draft.enabled !== s.enabled) n++;
     if (draft.adminUserIds.join(",") !== (s.adminUserIds ?? []).join(",")) n++;
-    if (draft.notifyChannelId.trim() !== (s.notifyChannelId ?? "")) n++;
-    const ev = [...draft.notifyEvents].sort().join(",");
-    if (ev !== [...(s.notifyEvents ?? [])].sort().join(",")) n++;
+    if (
+      serializeRoutes(routesToPayload(draft.notifyRoutes)) !==
+      serializeRoutes((s.notifyRoutes ?? []).map((r) => ({ channelId: r.channelId, events: r.events ?? [] })))
+    )
+      n++;
     if (draft.statusChannelId.trim() !== (s.statusChannelId ?? "")) n++;
     if (draft.language !== s.language) n++;
     if (draft.token !== undefined) n++;
@@ -190,8 +213,7 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
       const next = await client.setDiscordBot(instanceId, {
         enabled: draft.enabled,
         adminUserIds: draft.adminUserIds,
-        notifyChannelId: draft.notifyChannelId.trim(),
-        notifyEvents: [...draft.notifyEvents],
+        notifyRoutes: routesToPayload(draft.notifyRoutes),
         statusChannelId: draft.statusChannelId.trim(),
         language: draft.language,
         ...(draft.token !== undefined ? { token: draft.token } : {}),
@@ -491,25 +513,63 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
         <p className="mt-1 text-xs text-ink-muted">
           {t("讓 bot 把伺服器事件(玩家上下線、崩潰、頭目…)貼到指定頻道 —— 免另外設定 Webhook 網址。")}
         </p>
-        <label className={`${labelCls} mt-3`}>
-          <span>{t("通知頻道 ID")}</span>
-          <input
-            value={draft.notifyChannelId}
-            onChange={(e) => setDraft({ ...draft, notifyChannelId: e.target.value })}
-            placeholder={t("貼上頻道 ID(留空 = 不發通知)")}
-            inputMode="numeric"
-            className={inputCls}
-          />
-        </label>
         <p className="mt-1 text-[11px] text-ink-muted">
-          {t("取得頻道 ID:開發者模式下右鍵頻道 →「複製頻道 ID」。請確認 bot 在該頻道有發言權限。")}
+          {t(
+            "可設多條「頻道 → 事件」路由:不同事件送不同頻道(例如聊天獨立一個頻道),或同組事件送多個頻道(bot 同時在多個 Discord 伺服器時)。取得頻道 ID:開發者模式下右鍵頻道 →「複製頻道 ID」,並確認 bot 在該頻道有發言權限。",
+          )}
         </p>
-        <div className="mt-3 flex flex-col gap-1.5">
-          <span className="text-xs font-bold text-ink-muted">{t("要通知的事件")}</span>
-          <EventPicker
-            selected={draft.notifyEvents}
-            onChange={(next) => setDraft({ ...draft, notifyEvents: next })}
-          />
+        <div className="mt-3 flex flex-col gap-3">
+          {draft.notifyRoutes.length === 0 && (
+            <p className="text-[11px] font-bold text-ink-muted">{t("目前沒有任何通知路由 —— 不會發送事件通知。")}</p>
+          )}
+          {draft.notifyRoutes.map((route, idx) => (
+            <div key={idx} className="rounded-xl border-2 border-line p-3">
+              <div className="flex items-center gap-2">
+                <input
+                  value={route.channelId}
+                  onChange={(e) => {
+                    const next = [...draft.notifyRoutes];
+                    next[idx] = { ...route, channelId: e.target.value };
+                    setDraft({ ...draft, notifyRoutes: next });
+                  }}
+                  placeholder={t("頻道 ID")}
+                  inputMode="numeric"
+                  className={`${inputCls} min-w-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  className={btnGhost}
+                  onClick={() => setDraft({ ...draft, notifyRoutes: draft.notifyRoutes.filter((_, i) => i !== idx) })}
+                >
+                  {t("移除")}
+                </button>
+              </div>
+              <div className="mt-3">
+                <EventPicker
+                  selected={route.events}
+                  onChange={(nextEvents) => {
+                    const next = [...draft.notifyRoutes];
+                    next[idx] = { ...route, events: nextEvents };
+                    setDraft({ ...draft, notifyRoutes: next });
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+          <div>
+            <button
+              type="button"
+              className={btnGhost}
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  notifyRoutes: [...draft.notifyRoutes, { channelId: "", events: new Set<WebhookEventType>() }],
+                })
+              }
+            >
+              {t("+ 新增通知路由")}
+            </button>
+          </div>
         </div>
       </section>
 

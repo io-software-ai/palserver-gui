@@ -27,11 +27,22 @@ interface StoredState {
 const PATCHABLE_KEYS = [
   "enabled",
   "adminUserIds",
-  "notifyChannelId",
-  "notifyEvents",
+  "notifyRoutes",
   "statusChannelId",
   "language",
 ] as const satisfies readonly (keyof DiscordBotSettings)[];
+
+/** 舊設定(單一 notifyChannelId + notifyEvents)→ 新的 notifyRoutes[]。已有 notifyRoutes 就原樣;
+ *  否則若磁碟上還有舊的頻道+事件,合成一條路由。就地相容,不寫回磁碟(下次 update 才落地新形狀)。 */
+function migrateBotSettings(s: DiscordBotSettings): DiscordBotSettings {
+  if (!Array.isArray(s.notifyRoutes)) s = { ...s, notifyRoutes: [] };
+  if (s.notifyRoutes.length > 0) return s;
+  const legacy = s as DiscordBotSettings & { notifyChannelId?: string; notifyEvents?: string[] };
+  if (legacy.notifyChannelId && legacy.notifyEvents && legacy.notifyEvents.length > 0) {
+    return { ...s, notifyRoutes: [{ channelId: legacy.notifyChannelId, events: legacy.notifyEvents }] };
+  }
+  return s;
+}
 
 type DiscordBotPatch = Partial<DiscordBotSettings> & { token?: string };
 
@@ -77,8 +88,8 @@ const MAX_LOG_LINES = 300;
  * <instanceDir>/discord-bot.json,enabled + 有 token + 已授權時 self-fork 一個 bot 子行程
  * (env PALSERVER_RUN_BOT=1),崩潰按退避重啟,設定變更(token/admin)就殺舊起新。
  *
- * 事件通知:本管理器(在 agent 主行程)訂閱事件匯流排,把該實例、且命中 notifyEvents 的事件
- * 渲染成 Discord embed,經 IPC 傳給 bot 子行程貼到 notifyChannelId(bot 用 gateway 貼,免另設 webhook URL)。
+ * 事件通知:本管理器(在 agent 主行程)訂閱事件匯流排,把該實例、且命中任一 notifyRoutes 路由的事件
+ * 渲染成 Discord embed,經 IPC 傳給 bot 子行程貼到該路由的頻道(可多條路由 → 多頻道;bot 用 gateway 貼,免另設 webhook URL)。
  *
  * 慣例對照:持久化仿 public-map.ts;spawn + exit handler 仿 native.ts spawnServer;
  * 崩潰重啟的滑動視窗上限仿 supervisor.ts handleCrash(另加退避,因 bot 崩潰更快)。
@@ -104,7 +115,7 @@ export class DiscordBotManager {
     try {
       const raw = JSON.parse(fs.readFileSync(this.stateFile(id), "utf8")) as Partial<StoredState>;
       return {
-        settings: { ...DEFAULT_DISCORD_BOT_SETTINGS, ...(raw.settings ?? {}) },
+        settings: migrateBotSettings({ ...DEFAULT_DISCORD_BOT_SETTINGS, ...(raw.settings ?? {}) }),
         token: typeof raw.token === "string" ? raw.token : undefined,
       };
     } catch {
@@ -345,13 +356,18 @@ export class DiscordBotManager {
     }
   }
 
-  /** 事件匯流排回呼:把該實例、命中 notifyEvents 的事件渲染成 embed,經 IPC 交給 bot 子行程貼出。 */
+  /** 事件匯流排回呼:把該實例、命中任一 notifyRoute 的事件渲染成 embed,經 IPC 交給 bot 子行程
+   *  貼到每一條命中路由的頻道(多條路由訂同一事件 → 貼多個頻道;同頻道去重避免貼兩次)。 */
   private forwardEvent(ev: AgentEvent): void {
     const r = this.runtimes.get(ev.instanceId);
     if (!r || !this.isAlive(r) || !r.child?.connected) return;
     const state = this.readState(ev.instanceId);
-    const channelId = state.settings.notifyChannelId;
-    if (!channelId || !eventMatches(state.settings.notifyEvents ?? [], ev.type)) return;
+    const channelIds = new Set(
+      state.settings.notifyRoutes
+        .filter((route) => route.channelId && eventMatches(route.events ?? [], ev.type))
+        .map((route) => route.channelId),
+    );
+    if (channelIds.size === 0) return;
     const env: WebhookEnvelope = {
       id: `evt_${crypto.randomUUID()}`,
       type: ev.type,
@@ -360,26 +376,27 @@ export class DiscordBotManager {
       occurredAt: ev.occurredAt,
       data: ev.data,
     };
-    const msg: BotNotifyMessage = {
-      kind: "notify",
-      channelId,
-      payload: toDiscordPayload(env, state.settings.language),
-    };
-    try {
-      r.child.send(msg);
-    } catch {
-      /* IPC 可能剛好關閉:忽略,下次事件再說 */
+    const payload = toDiscordPayload(env, state.settings.language);
+    for (const channelId of channelIds) {
+      const msg: BotNotifyMessage = { kind: "notify", channelId, payload };
+      try {
+        r.child.send(msg);
+      } catch {
+        /* IPC 可能剛好關閉:忽略,下次事件再說 */
+      }
     }
   }
 
-  /** 背景追蹤器的 wants(id):bot 已授權、已啟用、設了通知頻道,且 notifyEvents 命中對應事件。
+  /** 背景追蹤器的 wants(id):bot 已授權、已啟用,且有任一條「設了頻道」的路由訂閱到對應事件。
    *  與 forwardEvent 投遞條件對齊(不納入「子行程需在線」的 live 狀態,避免 bot 重啟時追蹤器抖動)。
    *  沒有這個,只設 bot、未設對應 webhook 時 chat/boss 追蹤器不會啟動 → bot 永遠收不到 chat/boss。 */
   private wantsAny(id: string, types: WebhookEventType[]): boolean {
     if (!this.featureEnabledFn()) return false;
     const { settings } = this.readState(id);
-    if (!settings.enabled || !settings.notifyChannelId) return false;
-    return types.some((t) => eventMatches(settings.notifyEvents ?? [], t));
+    if (!settings.enabled) return false;
+    return settings.notifyRoutes.some(
+      (route) => route.channelId && types.some((t) => eventMatches(route.events ?? [], t)),
+    );
   }
 
   /** log-event-tracker 的 wants:訂閱 player log 事件(chat/death/capture)。 */

@@ -2120,8 +2120,9 @@ export function registerRoutes(
     enabled: z.boolean().optional(),
     token: z.string().optional(),
     adminUserIds: z.array(z.string().trim().min(1)).optional(),
-    notifyChannelId: z.string().trim().optional(),
-    notifyEvents: z.array(z.string().min(1)).optional(),
+    notifyRoutes: z
+      .array(z.object({ channelId: z.string().trim(), events: z.array(z.string().min(1)) }))
+      .optional(),
     statusChannelId: z.string().trim().optional(),
     language: z.enum(["en", "ja", "zh-TW", "zh-CN"]).optional(),
   });

@@ -1256,6 +1256,15 @@ export interface PublicMapStatus {
   lastPublish: PublicMapPublishResult | null;
 }
 
+/** 一條事件通知路由:一組事件 → 一個 Discord 頻道。bot 可設多條,達成「不同事件送不同頻道」
+ *  (例:聊天獨立一個頻道)或「同組事件送多個頻道」(bot 同時在多個 Discord 伺服器/群組時)。 */
+export interface DiscordNotifyRoute {
+  /** 這條路由要貼到的 Discord 頻道 id。 */
+  channelId: string;
+  /** 要送到此頻道的事件型別(同 webhook 訂閱語法:精確 / "player.*" / "*")。 */
+  events: string[];
+}
+
 /** 同機 Discord bot(agent 自跑並監督;見 packages/agent/src/discord-bot-manager.ts)前端可見/可改的設定。
  *  token 不放這個型別 —— 只寫入 agent 端,前端靠 DiscordBotStatus.tokenSet 得知是否已設。 */
 export interface DiscordBotSettings {
@@ -1263,10 +1272,9 @@ export interface DiscordBotSettings {
   /** 管理員白名單:只有這些 Discord user id 能用管理指令(broadcast/restart/kick/ban/rcon…)。
    *  留空 = 沒有人能用管理指令(whitelist-only,不看 Discord 伺服器管理員權限)。 */
   adminUserIds: string[];
-  /** 事件通知要貼到的 Discord 頻道 id(留空 = 不發通知)。bot 用 gateway 直接貼,免另設 webhook URL。 */
-  notifyChannelId?: string;
-  /** 要通知的事件型別(同 webhook 的訂閱語法:精確 / "player.*" / "*")。空陣列 = 不發。 */
-  notifyEvents: string[];
+  /** 事件通知路由:每條 = 一組事件 → 一個頻道(空陣列 = 不發通知)。bot 用 gateway 直接貼,免另設 webhook URL。
+   *  同一事件命中多條路由時會貼到多個頻道(bot 需在各該頻道有發言權限)。 */
+  notifyRoutes: DiscordNotifyRoute[];
   /** 狀態面板頻道 id(留空 = 不顯示):bot 在該頻道維護一則每分鐘自動更新的伺服器狀態 embed。 */
   statusChannelId?: string;
   /** bot 輸出與事件通知的語言(en / ja / zh-TW / zh-CN)。 */
@@ -1276,7 +1284,7 @@ export interface DiscordBotSettings {
 export const DEFAULT_DISCORD_BOT_SETTINGS: DiscordBotSettings = {
   enabled: false,
   adminUserIds: [],
-  notifyEvents: [],
+  notifyRoutes: [],
   language: DEFAULT_BOT_LANG,
 };
 
