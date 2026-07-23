@@ -65,120 +65,51 @@ function DeleteBaseConfirm({
   );
 }
 
-/** 據點小卡(簡單資訊)— 線上地圖點擊據點的第一層,比照玩家小卡:基礎資訊 + 操作
- *  (在地圖上查看 / 刪除據點)+「顯示完整資訊」開據點完整彈窗。 */
+/** 據點小卡(簡單資訊)— 線上地圖點擊據點的第一層:只顯示基礎資訊 +「顯示完整資訊」開據點完整彈窗。
+ *  (在地圖上查看 / 刪除據點等操作收在下一層「據點完整資訊」) */
 export function BasePeekModal({
-  client,
-  instanceId,
   guild,
   base,
   baseIndex,
-  onShowOnMap,
   onOpenDetail,
-  onDeleted,
   onClose,
 }: {
-  client: AgentClient;
-  instanceId: string;
   guild: SaveGuild;
   base: SaveGuild["bases"][number];
   baseIndex: number;
-  onShowOnMap?: (x: number, y: number) => void;
   /** 下一層:開據點完整資訊 */
   onOpenDetail: () => void;
-  onDeleted?: (baseId: string) => void;
   onClose: () => void;
 }) {
   useI18n();
-  const [entitled, setEntitled] = useState<boolean | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  useEffect(() => {
-    client
-      .license()
-      .then((l) => setEntitled(hasFeature("delete-base", l)))
-      .catch(() => setEntitled(false));
-  }, [client, instanceId]);
-
-  const doDelete = async () => {
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await client.deleteGuildBase(instanceId, base.id);
-      onDeleted?.(base.id);
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const m = savToMap(base.x, base.y);
   const baseName = localizeBaseName(base.name, baseIndex);
 
   return (
-    <>
-      <Overlay onClose={onClose}>
-        <div className={`${card} flex w-96 max-w-full flex-col gap-3`} onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-line bg-card-soft">
-                <img src="/game-data/landmark-icons/palbox.webp" alt="" className="size-6" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-[15px] font-extrabold">{baseName}</p>
-                <p className="text-xs text-ink-muted">
-                  {guild.name} · ({Math.round(m.x)}, {Math.round(m.y)})
-                  {guild.baseCampLevel !== null && <> · Lv.{guild.baseCampLevel}</>} ·{" "}
-                  {t("{n} 隻工作帕魯", { n: base.workers.length })}
-                </p>
-              </div>
+    <Overlay onClose={onClose}>
+      <div className={`${card} flex w-96 max-w-full flex-col gap-3`} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-line bg-card-soft">
+              <img src="/game-data/landmark-icons/palbox.webp" alt="" className="size-6" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-extrabold">{baseName}</p>
+              <p className="text-xs text-ink-muted">
+                {guild.name}
+                {guild.baseCampLevel !== null && <> · Lv.{guild.baseCampLevel}</>} ·{" "}
+                {t("{n} 隻工作帕魯", { n: base.workers.length })}
+              </p>
             </div>
-            <button className="text-ink-muted transition hover:text-ink" onClick={onClose} aria-label={t("關閉")}>
-              <FiX className="size-5" />
-            </button>
           </div>
-          {deleteError && <p className={errorCls}>{deleteError}</p>}
-          <div className="flex flex-wrap gap-2">
-            {onShowOnMap && (
-              <button className={`${btnGhost} inline-flex items-center gap-1.5`} onClick={() => onShowOnMap(m.x, m.y)}>
-                <FiMapPin className="size-3.5" /> {t("在地圖上查看")}
-              </button>
-            )}
-            {entitled && (
-              <button
-                className={`${btnDanger} inline-flex items-center gap-1.5`}
-                onClick={() => {
-                  setDeleteError(null);
-                  setConfirmDelete(true);
-                }}
-                title={t("刪除此據點(不可逆)")}
-              >
-                <FiTrash2 className="size-3.5" /> {t("刪除據點")}
-              </button>
-            )}
-            <button
-              className={`${btn} inline-flex flex-1 items-center justify-center gap-1.5`}
-              onClick={onOpenDetail}
-            >
-              <FiHome className="size-3.5" /> {t("顯示完整資訊")}
-            </button>
-          </div>
+          <button className="text-ink-muted transition hover:text-ink" onClick={onClose} aria-label={t("關閉")}>
+            <FiX className="size-5" />
+          </button>
         </div>
-      </Overlay>
-      {confirmDelete && (
-        <DeleteBaseConfirm
-          guildName={guild.name}
-          baseName={baseName}
-          deleting={deleting}
-          error={deleteError}
-          onConfirm={doDelete}
-          onCancel={() => setConfirmDelete(false)}
-        />
-      )}
-    </>
+        <button className={`${btn} inline-flex w-full items-center justify-center gap-1.5`} onClick={onOpenDetail}>
+          <FiHome className="size-3.5" /> {t("顯示完整資訊")}
+        </button>
+      </div>
+    </Overlay>
   );
 }
 

@@ -478,20 +478,13 @@ export function MapTab({
       )}
       {basePeek && (
         <BasePeekModal
-          client={client}
-          instanceId={instanceId}
           guild={basePeek.guild}
           base={basePeek.base}
           baseIndex={basePeek.index}
-          onShowOnMap={(x, y) => {
-            setBasePeek(null);
-            setFocus({ x, y, n: Date.now() });
-          }}
           onOpenDetail={() => {
             setBaseFull(basePeek);
             setBasePeek(null);
           }}
-          onDeleted={onBaseDeleted}
           onClose={() => setBasePeek(null)}
         />
       )}
