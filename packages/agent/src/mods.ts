@@ -23,7 +23,15 @@ import { execInPod, readFileInPod, writeFileBytesInPod, makeDirInPod, deletePath
 
 const GH_REPOS: Record<
   ModComponent,
-  { repo: string; asset: RegExp; betaAsset?: RegExp; tag?: string; envUrl: string }
+  {
+    repo: string;
+    asset: RegExp;
+    assetName?: string;
+    betaAsset?: RegExp;
+    betaAssetName?: string;
+    tag?: string;
+    envUrl: string;
+  }
 > = {
   ue4ss: {
     // Palworld 專用的 Okaetsu fork(experimental-palworld);與 PalSchema 用的同一份,
@@ -31,7 +39,9 @@ const GH_REPOS: Record<
     repo: "Okaetsu/RE-UE4SS",
     tag: "experimental-palworld",
     asset: /^UE4SS-Palworld\.zip$/i, // 標準版
+    assetName: "UE4SS-Palworld.zip",
     betaAsset: /^UE4SS-Palworld_zDev\.zip$/i, // 開發版(含除錯主控台/工具,體積較大)
+    betaAssetName: "UE4SS-Palworld_zDev.zip",
     envUrl: "PALSERVER_UE4SS_URL",
   },
   paldefender: {
@@ -320,6 +330,36 @@ function releaseVersion(component: ModComponent, release: GitRelease): string {
   return release.tag_name;
 }
 
+/**
+ * 固定 tag 資產可直接下載,不需要 GitHub REST API。HEAD 跟隨到 CDN 後用 Last-Modified
+ * 保留原本的建置日期版本判斷;直鏈不存在才回 null 讓呼叫端走 API 相容路徑。
+ */
+export async function resolveFixedTagDownload(
+  component: ModComponent,
+  channel: "stable" | "beta",
+): Promise<{ version: string; url: string } | null> {
+  const cfg = GH_REPOS[component];
+  if (!cfg.tag) return null;
+  const assetName = channel === "beta" ? (cfg.betaAssetName ?? cfg.assetName) : cfg.assetName;
+  if (!assetName) return null;
+  const url = `https://github.com/${cfg.repo}/releases/download/${encodeURIComponent(cfg.tag)}/${encodeURIComponent(assetName)}`;
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      headers: { "user-agent": "palserver-gui" },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) return null;
+    const modified = res.headers.get("last-modified");
+    const timestamp = modified ? Date.parse(modified) : NaN;
+    const date = Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(0, 10) : null;
+    return { version: date ? `${cfg.tag} (${date})` : cfg.tag, url };
+  } catch {
+    return null;
+  }
+}
+
 /** 各元件的最新穩定版 tag(6 小時記憶體快取;查詢失敗回 null,不丟錯)。
  *  給「有新版可更新」徽章用 —— 改版日玩家最需要知道模組能不能更了。 */
 const latestCache = new Map<ModComponent, { tag: string | null; at: number }>();
@@ -334,6 +374,14 @@ export async function latestModVersions(): Promise<Record<ModComponent, string |
     }
     try {
       const cfg = GH_REPOS[component];
+      if (cfg.tag) {
+        const direct = await resolveFixedTagDownload(component, "stable");
+        if (direct) {
+          latestCache.set(component, { tag: direct.version, at: Date.now() });
+          out[component] = direct.version;
+          continue;
+        }
+      }
       // 固定 tag 的元件(如 UE4SS Okaetsu fork)直接查該 tag,否則查 latest。
       const endpoint = cfg.tag
         ? `https://api.github.com/repos/${cfg.repo}/releases/tags/${cfg.tag}`
@@ -359,6 +407,9 @@ async function resolveDownload(
   const { repo, asset, betaAsset, tag, envUrl } = GH_REPOS[component];
   const override = process.env[envUrl];
   if (override) return { version: "custom", url: override };
+
+  const direct = await resolveFixedTagDownload(component, channel);
+  if (direct) return direct;
 
   // 固定 tag 的元件(UE4SS Okaetsu fork = experimental-palworld)兩個通道都用同一 release,
   // 靠不同資產區分(stable=標準版、beta=zDev 開發版)。否則:stable="latest"(排除 pre-release)、
