@@ -32,9 +32,10 @@ const BOSS_MARKER_REL = `${WIN64_REL}/.palserver-boss-reporter.json`;
 
 /**
  * 遠端交付:boss-reporter Lua 的原始碼在獨立 repo(io-software-ai/palserver-boss-reporter)管理,
- * agent 安裝時抓其 GitHub Release 最新版的 main.lua(沿用 mods.ts 的 GitHub Releases 模式),
+ * agent 安裝時抓其 GitHub Release 最新版的 main.lua,
  * 讓 mod 修正不必等 GUI 改版就能送達。**不再內嵌於 agent**——抓不到(無網路 / repo 或 release
- * 尚未建立 / rate limit)就讓安裝失敗並提示,不做內嵌 fallback。repo 與直接下載 URL 皆可 env 覆寫。
+ * 尚未建立)就讓安裝失敗並提示,不做內嵌 fallback。repo 與直接下載 URL 皆可 env 覆寫。
+ * 優先走 GitHub 的 latest/download 直鏈,避免匿名 REST API 每小時 60 次的共享 IP 限流。
  */
 const BOSS_REPORTER_REPO = process.env.PALSERVER_BOSS_REPORTER_REPO || "io-software-ai/palserver-boss-reporter";
 const BOSS_REPORTER_URL_OVERRIDE = process.env.PALSERVER_BOSS_REPORTER_URL; // 直接指定 main.lua 下載 URL
@@ -46,11 +47,43 @@ interface GhRelease {
   assets: { name: string; browser_download_url: string }[];
 }
 
+function latestBossReporterAssetUrl(): string {
+  return `https://github.com/${BOSS_REPORTER_REPO}/releases/latest/download/main.lua`;
+}
+
+export function versionFromReleaseUrl(url: string): string | null {
+  const match = url.match(/\/releases\/download\/([^/]+)\/main\.lua(?:[?#]|$)/i);
+  return match ? stripV(decodeURIComponent(match[1])) : null;
+}
+
+/**
+ * latest/download 會先 302 到 /releases/download/<tag>/main.lua。手動接住第一跳即可同時取得
+ * 實際資產 URL 與版本,全程不消耗 GitHub REST API 配額。
+ */
+export async function resolveLatestBossReporterAsset(): Promise<{ url: string; version: string | null } | null> {
+  const latestUrl = latestBossReporterAssetUrl();
+  try {
+    const res = await fetch(latestUrl, { headers: { "user-agent": "palserver-gui" }, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      if (!location) return null;
+      const url = new URL(location, latestUrl).toString();
+      return { url, version: versionFromReleaseUrl(url) };
+    }
+    return res.ok ? { url: latestUrl, version: versionFromReleaseUrl(res.url) } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 最新版查詢:6h 記憶體快取、非阻塞——冷取回 null 並在背景刷新,不拖慢 status 輪詢。 */
 let latestCache: { tag: string | null; at: number } | null = null;
 let latestRefreshing = false;
 const LATEST_TTL = 6 * 60 * 60 * 1000;
 async function fetchLatestBossReporterTag(): Promise<string | null> {
+  const direct = await resolveLatestBossReporterAsset();
+  if (direct?.version) return direct.version;
+  // 非標準 Release/資產名稱才回退 API;正常 main.lua 發布完全不消耗 API 配額。
   try {
     const res = await fetch(`https://api.github.com/repos/${BOSS_REPORTER_REPO}/releases/latest`, {
       headers: GH_HEADERS,
@@ -71,21 +104,27 @@ function latestBossReporterVersion(): string | null {
   return latestCache?.tag ?? null; // 冷啟第一次回舊值(或 null),下次輪詢就有
 }
 
-/** 抓遠端最新 Lua(release 的 *.lua 資產);抓不到/內容不對回 null 讓呼叫端退回內嵌。 */
-async function fetchRemoteBossLua(): Promise<{ lua: string; version: string } | null> {
+/** 抓遠端最新 Lua;latest/download 直鏈優先,非標準資產名稱才回退 Releases API。 */
+export async function fetchRemoteBossLua(): Promise<{ lua: string; version: string } | null> {
   try {
     let url = BOSS_REPORTER_URL_OVERRIDE;
     let version = "custom";
     if (!url) {
-      const res = await fetch(`https://api.github.com/repos/${BOSS_REPORTER_REPO}/releases/latest`, {
-        headers: GH_HEADERS,
-      });
-      if (!res.ok) return null;
-      const rel = (await res.json()) as GhRelease;
-      const asset = rel.assets.find((a) => /\.lua$/i.test(a.name));
-      if (!asset) return null;
-      url = asset.browser_download_url;
-      version = stripV(rel.tag_name);
+      const direct = await resolveLatestBossReporterAsset();
+      if (direct) {
+        url = direct.url;
+        version = direct.version ?? "latest";
+      } else {
+        const res = await fetch(`https://api.github.com/repos/${BOSS_REPORTER_REPO}/releases/latest`, {
+          headers: GH_HEADERS,
+        });
+        if (!res.ok) return null;
+        const rel = (await res.json()) as GhRelease;
+        const asset = rel.assets.find((a) => /\.lua$/i.test(a.name));
+        if (!asset) return null;
+        url = asset.browser_download_url;
+        version = stripV(rel.tag_name);
+      }
     }
     const luaRes = await fetch(url, { headers: { "user-agent": "palserver-gui" } });
     if (!luaRes.ok) return null;
