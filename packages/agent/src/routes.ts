@@ -99,6 +99,7 @@ import {
 } from "./config-backup.js";
 import { getPalDefenderConfig, writePalDefenderConfig } from "./paldefender-config.js";
 import { getPlayerDetail, getPdPlayers, getPdGuilds, getPdGuild, getPdRestStatus, setPdRestEnabled, setPdRestPort, provisionPdToken, deleteBase } from "./paldefender-rest.js";
+import { mergeKnownPlayers } from "./player-roster.js";
 import { setTelemetryEnabled, telemetryStatus, track } from "./telemetry.js";
 import { licenseStatus, setLicenseKey, clearLicenseKey, featureEnabled } from "./license.js";
 import { giveCustomPal } from "./pals.js";
@@ -1483,25 +1484,7 @@ export function registerRoutes(
     const own = presence.knownPlayers(rec.id);
     const pd = await getPdPlayers(rec, ctxOf(rec));
     if (!pd.available) return own;
-    const byId = new Map(own.map((p) => [p.userId, p]));
-    const merged: KnownPlayer[] = pd.players.map((p) => {
-      const prev = byId.get(p.userId);
-      byId.delete(p.userId);
-      return {
-        userId: p.userId,
-        name: p.name || prev?.name || "",
-        accountName: prev?.accountName ?? "",
-        online: p.online,
-        firstSeen: prev?.firstSeen ?? "",
-        lastSeen: prev?.lastSeen ?? "",
-        sessions: prev?.sessions ?? 0,
-        playtimeSeconds: prev?.playtimeSeconds ?? 0,
-        lastLevel: prev?.lastLevel ?? 0,
-        ...(p.guildName ? { guildName: p.guildName } : {}),
-      };
-    });
-    for (const leftover of byId.values()) merged.push(leftover);
-    return merged;
+    return mergeKnownPlayers(own, pd.players);
   };
 
   app.get("/api/instances/:id/players/known", async (req) => {
