@@ -802,6 +802,13 @@ async function spawnServer(rec: InstanceRecord, ctx: DriverContext): Promise<voi
   writeIni(rec, ctx);
   const root = serverRoot(rec, ctx);
 
+  // PalDefender's plain Source RCON path cannot carry Unicode reliably.
+  // Switch its transport before launch so every client and server packet agrees.
+  if (IS_WIN) {
+    const pdRest = await import("./paldefender-rest.js");
+    pdRest.preprovisionPdRconBase64(rec, ctx);
+  }
+
   const serverArgs = [
     `-port=${rec.gamePort}`,
     // 每台唯一的 Steam 查詢埠;不帶的話全部搶 27015,第二台就死在 ::bind。
@@ -1241,11 +1248,30 @@ export function newestPalDefenderLogLines(
   const file = newestFile(dir, sinceMs);
   if (!file) return [];
   try {
-    return fs.readFileSync(file, "utf8").split(/\r?\n/).filter((l) => l.trim()).slice(-n);
+    return decodeNativeLog(fs.readFileSync(file)).split(/\r?\n/).filter((l) => l.trim()).slice(-n);
   } catch {
     return [];
   }
 }
+
+/** Some Windows libraries format system errors using the active Chinese ANSI
+ * code page even when the rest of the server log is UTF-8. */
+export function decodeWindowsLog(bytes: Buffer): string {
+  const decodeLine = (line: Buffer): string => {
+    const utf8 = line.toString("utf8");
+    return utf8.includes("\uFFFD") ? new TextDecoder("gb18030").decode(line) : utf8;
+  };
+  const lines: string[] = [];
+  let start = 0;
+  for (let end = bytes.indexOf(0x0a, start); end !== -1; end = bytes.indexOf(0x0a, start)) {
+    lines.push(decodeLine(bytes.subarray(start, end)) + "\n");
+    start = end + 1;
+  }
+  if (start < bytes.length) lines.push(decodeLine(bytes.subarray(start)));
+  return lines.join("");
+}
+
+const decodeNativeLog = (bytes: Buffer): string => IS_WIN ? decodeWindowsLog(bytes) : bytes.toString("utf8");
 
 function newestFile(dir: string, sinceMs?: number): string | null {
   try {
@@ -1305,7 +1331,7 @@ export function linesToReplay(existing: string[], replay: number): string[] {
 function followFile(file: string, onLine: (line: string) => void, replay = 200): () => void {
   let attached = false;
   let position = 0;
-  let buffer = "";
+  let pending = Buffer.alloc(0);
   const timer = setInterval(() => {
     let size: number;
     try {
@@ -1317,26 +1343,29 @@ function followFile(file: string, onLine: (line: string) => void, replay = 200):
     if (!attached) {
       // replay=0(如 log-event-tracker)只跟新行,連讀檔都跳過、直接位移到檔尾;
       // replay>0(如 UI log 視窗)才讀出既有行、補送最後 replay 行。
-      const existing = replay > 0 ? fs.readFileSync(file, "utf8").split("\n").filter(Boolean) : [];
+      const existing = replay > 0 ? decodeNativeLog(fs.readFileSync(file)).split("\n").filter(Boolean) : [];
       for (const line of linesToReplay(existing, replay)) onLine(line);
       position = size;
-      buffer = "";
+      pending = Buffer.alloc(0);
       attached = true;
       return;
     }
     if (size < position) {
       // truncated or rotated in place (UE starts a fresh Pal.log per boot)
       position = 0;
-      buffer = "";
+      pending = Buffer.alloc(0);
     }
     if (size === position) return;
     const stream = fs.createReadStream(file, { start: position, end: size - 1 });
     position = size;
     stream.on("data", (chunk) => {
-      buffer += chunk.toString();
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) if (line.length > 0) onLine(line);
+      pending = Buffer.concat([pending, Buffer.from(chunk)]);
+      let newline: number;
+      while ((newline = pending.indexOf(0x0a)) !== -1) {
+        const line = decodeNativeLog(pending.subarray(0, newline));
+        pending = pending.subarray(newline + 1);
+        if (line.length > 0) onLine(line);
+      }
     });
   }, 500);
   return () => clearInterval(timer);

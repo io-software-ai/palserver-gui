@@ -93,6 +93,7 @@ export const PALDEFENDER_OPTIONS = {
   OilrigGoalBoxLocktime: { type: "int", default: 300, min: 0, max: 3600, category: "misc", label: "鑽油平台目標寶箱鎖定時間(秒)" },
   RCONTimeout: { type: "float", default: 5, min: 1, max: 60, step: 0.5, category: "misc", label: "RCON 連線逾時(秒)" },
   RCONUsePacketIdFix: { type: "bool", default: false, category: "misc", label: "修正 RCON 封包 ID 問題" },
+  RCONbase64: { type: "bool", default: true, category: "misc", label: "使用 Base64 RCON 文字編碼", hint: "讓 RCON 指令可安全傳送中文、日文與其他非 ASCII 文字。" },
 } as const satisfies Record<string, PdOptionMeta>;
 
 export type PdOptionKey = keyof typeof PALDEFENDER_OPTIONS;

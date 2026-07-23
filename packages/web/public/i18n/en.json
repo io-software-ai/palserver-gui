@@ -1905,5 +1905,7 @@
   "駐守工作帕魯明細": "Stationed worker Pals",
   "駐守工作帕魯": "Stationed worker Pals",
   "這個據點沒有駐守工作帕魯。": "This base has no stationed worker Pals.",
-  "工作帕魯": "Worker Pals"
+  "工作帕魯": "Worker Pals",
+  "使用 Base64 RCON 文字編碼": "Use Base64 RCON text encoding",
+  "讓 RCON 指令可安全傳送中文、日文與其他非 ASCII 文字。": "Allows RCON commands to safely transmit Chinese, Japanese, and other non-ASCII text."
 }
