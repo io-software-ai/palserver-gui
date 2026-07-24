@@ -106,7 +106,8 @@ export function PerformanceTab({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Stat icon={<FiCpu className="size-4" />} label={t("CPU")} value={cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`} sub={t("佔總算力")} />
           <Stat icon={<FiHardDrive className="size-4" />} label={t("記憶體")} value={stats ? fmtBytes(stats.memoryBytes) : "—"} sub={stats && hasFiniteLimit(memoryLimit) ? `／ ${fmtBytes(memoryLimit)}` : undefined} />
-          <Stat icon={<FiZap className="size-4" />} label={t("伺服器 FPS")} value={metrics ? String(metrics.serverfps) : "—"} sub={metrics ? t("影格 {ms} ms", { ms: metrics.serverframetime.toFixed(1) }) : t("需啟用 REST API")} />
+          <Stat icon={<FiZap className="size-4" />} label={t("伺服器 FPS")} value={metrics ? String(metrics.serverfps) : "—"} sub={metrics ? undefined : t("需啟用 REST API")} />
+          {metrics && <Stat icon={<FiActivity className="size-4" />} label={t("影格時間")} value={`${metrics.serverframetime.toFixed(1)} ms`} />}
           <Stat icon={<FiClock className="size-4" />} label={t("運行時間")} value={stats?.uptimeSeconds != null ? fmtDuration(stats.uptimeSeconds) : "—"} sub={stats?.processCount != null ? t("{n} 個行程", { n: stats.processCount }) : undefined} />
           {metrics && <Stat icon={<FiLayers className="size-4" />} label={t("伺服器運行")} value={fmtDuration(metrics.uptime)} />}
         </div>
@@ -152,7 +153,7 @@ export function PerformanceTab({
         {perCore != null && perCore.length > 0 && (
           <div className="border-t border-line pt-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-bold text-ink-muted">{t("各執行緒")}</span>
+              <span className="text-xs font-bold text-ink-muted">{t("CPU% · 各執行緒")}</span>
               <span className="text-xs text-ink-muted">{perCore.length}</span>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -193,6 +194,9 @@ function ThreadChart({ values, lastVal }: { values: Array<number | null>; lastVa
 
   return (
     <div className="rounded-lg border border-line bg-card-soft p-1.5" title={lastVal == null ? undefined : `${lastVal.toFixed(0)}%`}>
+      <div className="mb-0.5 flex items-baseline justify-between">
+        <span className="text-[8px] font-bold text-ink-muted">{lastVal == null ? "—" : `${lastVal.toFixed(0)}%`}</span>
+      </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-12 w-full" preserveAspectRatio="none">
         {segments.some((s) => s.length > 1) && (
           <>
