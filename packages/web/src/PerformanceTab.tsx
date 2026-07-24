@@ -100,7 +100,6 @@ export function PerformanceTab({
       {/* CPU 概要(總用量 + per-thread 框框,每個執行緒各自帶折線圖+Y 軸) */}
       <CpuOverview
         cpuPercent={cpuPercent}
-        cores={cores}
         perCore={perCore}
         perCoreScope={perCoreScope}
         history={history}
@@ -204,22 +203,19 @@ export function PerformanceTab({
   );
 }
 
-/** CPU 概要圖卡:總用量數字 + per-thread 框框(每個邏輯處理器一格,各自帶折線圖+XY 軸)。 */
+/** CPU 概要圖卡:總用量數字 + per-thread 框框(純折線圖+Y 軸,不標任何文字)。 */
 function CpuOverview({
   cpuPercent,
-  cores,
   perCore,
   perCoreScope,
   history,
 }: {
   cpuPercent: number | null;
-  cores: number;
   perCore: (number | null)[] | null;
   perCoreScope: "system" | "container" | null;
   history: Sample[];
 }) {
   const scopeLabel = perCoreScope === "system" ? t("系統全執行緒") : perCoreScope === "container" ? t("伺服器專屬") : null;
-  const threadCount = perCore?.length ?? cores;
   const hasPerCore = perCore != null && perCore.length > 0;
 
   return (
@@ -232,20 +228,15 @@ function CpuOverview({
           <span className="text-2xl font-extrabold">{cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`}</span>
           <span className="text-xs text-ink-muted">{t("佔總算力")}</span>
         </div>
-        <span className="text-xs text-ink-muted">
-          {t("{n} 執行緒", { n: threadCount })}
-          {scopeLabel ? ` · ${scopeLabel}` : ""}
-        </span>
+        {scopeLabel && <span className="text-xs text-ink-muted">{scopeLabel}</span>}
       </div>
-      {/* per-thread 框框:每個邏輯處理器一格,各自帶完整折線圖 + Y 軸(0–100%) */}
+      {/* per-thread 框框:每個邏輯處理器一格,純折線圖+Y 軸,框框數量即執行緒數 */}
       {hasPerCore ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
           {perCore!.map((_, threadIdx) => {
             const threadValues = history.map((h) => h.perCore?.[threadIdx] ?? null);
             const lastVal = perCore![threadIdx];
-            return (
-              <ThreadChart key={threadIdx} index={threadIdx} values={threadValues} lastVal={lastVal} />
-            );
+            return <ThreadChart key={threadIdx} values={threadValues} lastVal={lastVal} />;
           })}
         </div>
       ) : (
@@ -255,19 +246,18 @@ function CpuOverview({
   );
 }
 
-/** 單一執行緒的框框:標題 + 當前值 + 折線圖(含 Y 軸 0–100% 標示)。 */
-function ThreadChart({ index, values, lastVal }: { index: number; values: Array<number | null>; lastVal: number | null }) {
-  const W = 120;
-  const H = 50;
-  const paddingTop = 4;
-  const paddingBottom = 4;
-  const plotH = H - paddingTop - paddingBottom;
-  // Y 軸:0–100%,固定刻度(0/50/100),讓每個框框比例一致可比較。
+/** 單一執行緒框框:純折線圖 + Y 軸(0–100%),不標任何文字標籤。 */
+function ThreadChart({ values, lastVal }: { values: Array<number | null>; lastVal: number | null }) {
+  const W = 100;
+  const H = 44;
+  const padTop = 2;
+  const padBottom = 2;
+  const plotH = H - padTop - padBottom;
   const yTicks = [0, 50, 100];
   const pts = values.map((v, i) => {
     if (v == null || !Number.isFinite(v)) return null;
     const x = values.length > 1 ? (i / (values.length - 1)) * W : 0;
-    const y = paddingTop + plotH - Math.max(0, Math.min(v / 100, 1)) * plotH;
+    const y = padTop + plotH - Math.max(0, Math.min(v / 100, 1)) * plotH;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
   const segments: string[][] = [];
@@ -277,30 +267,22 @@ function ThreadChart({ index, values, lastVal }: { index: number; values: Array<
     else seg.push(p);
   }
   if (seg.length) segments.push(seg);
-  const lastDisplay = lastVal == null ? "—" : `${lastVal.toFixed(0)}%`;
+  // 高載(>80%)用橘色警示,其餘藍色;hover title 顯示數值。
+  const stroke = lastVal == null ? "#666" : lastVal > 80 ? "#F4A64D" : "#7BB0E8";
 
   return (
-    <div className="rounded-lg border border-line bg-card-soft p-2">
-      <div className="mb-1 flex items-baseline justify-between">
-        <span className="text-xs font-bold text-ink-muted">{t("執行緒 {n}", { n: index })}</span>
-        <span className="text-sm font-extrabold text-pal">{lastDisplay}</span>
+    <div className="flex gap-0.5 rounded-md border border-line bg-card-soft p-1" title={lastVal == null ? undefined : `${lastVal.toFixed(0)}%`}>
+      {/* Y 軸標示(0/50/100) */}
+      <div className="flex shrink-0 flex-col justify-between py-0.5 text-[7px] leading-none text-ink-muted">
+        {yTicks.map((tick) => <span key={tick}>{tick}</span>)}
       </div>
-      <div className="flex gap-1">
-        {/* Y 軸標示 */}
-        <div className="flex shrink-0 flex-col justify-between py-0.5 text-[8px] leading-none text-ink-muted">
-          {yTicks.map((tick) => (
-            <span key={tick}>{tick}</span>
-          ))}
-        </div>
-        {/* 折線圖本體 */}
-        <svg viewBox={`0 0 ${W} ${H}`} className="h-12 flex-1 overflow-visible" preserveAspectRatio="none">
-          {/* Y=50% 參考線 */}
-          <line x1="0" y1={paddingTop + plotH * 0.5} x2={W} y2={paddingTop + plotH * 0.5} stroke="currentColor" strokeWidth="0.5" className="text-line" opacity="0.4" />
-          {segments.map((s, i) => s.length > 1 && (
-            <polyline key={i} points={s.join(" ")} fill="none" stroke="#F4A64D" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-          ))}
-        </svg>
-      </div>
+      {/* 折線圖 */}
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-11 flex-1 overflow-visible" preserveAspectRatio="none">
+        <line x1="0" y1={padTop + plotH * 0.5} x2={W} y2={padTop + plotH * 0.5} stroke="currentColor" strokeWidth="0.5" className="text-line" opacity="0.3" />
+        {segments.map((s, i) => s.length > 1 && (
+          <polyline key={i} points={s.join(" ")} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+        ))}
+      </svg>
     </div>
   );
 }
