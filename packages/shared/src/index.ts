@@ -201,9 +201,9 @@ export interface InstanceStats {
   cpuPercent: number | null;
   /** 主機/容器可用的邏輯核心數,讓前端判讀 cpuPercent 的滿載基準。 */
   cpuCores: number;
-  /** per-core 使用率(0–100);null = 尚未累積兩筆取樣或 backend 不支援。 */
+  /** per-thread 使用率(0–100%),每個邏輯處理器一個值;null = 尚未累積兩筆取樣或 backend 不支援。 */
   perCore?: (number | null)[] | null;
-  /** per-core 語意:"system"=系統全核(含其他行程);"container"=伺服器專屬。 */
+  /** per-thread 語意:"system"=系統全部執行緒(含其他行程);"container"=伺服器專屬執行緒。 */
   perCoreScope?: "system" | "container";
   memoryBytes: number;
   memoryLimitBytes: number;

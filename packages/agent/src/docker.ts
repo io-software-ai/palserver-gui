@@ -186,18 +186,19 @@ export async function getStats(rec: InstanceRecord): Promise<InstanceStats | nul
   const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
   const sysDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
   const cpuCount = stats.cpu_stats.online_cpus || 1;
-  // per-core:percpu_usage[i] 是容器在核心 i 的累計 jiffies;與 precpu 差分後除以全系統差分。
-  // sysDelta = 全系統 jiffies 差分,每核 delta/sysDelta*cpuCount = 該核佔該核滿載的比例。
+  // per-thread:percpu_usage[i] 是容器在邏輯處理器 i 的累計 jiffies;與 precpu 差分後
+  // 除以全系統差分 = 該執行緒佔全系統的比例(0–100%)。不乘 cpuCount(否則破百)。
   const percpu = stats.cpu_stats.cpu_usage.percpu_usage;
   const prePercpu = stats.precpu_stats.cpu_usage.percpu_usage;
   const perCore: (number | null)[] | null = percpu && prePercpu && sysDelta > 0
     ? percpu.map((v, i) => {
         const delta = v - (prePercpu[i] ?? 0);
-        return delta > 0 ? Math.min((delta / sysDelta) * cpuCount * 100, 100) : 0;
+        return Math.max(0, Math.min((delta / sysDelta) * 100, 100));
       })
     : null;
   return {
-    cpuPercent: sysDelta > 0 ? (cpuDelta / sysDelta) * cpuCount * 100 : 0,
+    // cpuDelta/sysDelta = 容器佔全系統 CPU 比例(0–100%),不乘 cpuCount(否則可破百)。
+    cpuPercent: sysDelta > 0 ? Math.min((cpuDelta / sysDelta) * 100, 100) : 0,
     cpuCores: cpuCount,
     perCore,
     perCoreScope: "container",

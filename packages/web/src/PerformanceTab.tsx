@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FiCpu, FiActivity, FiClock, FiLayers, FiZap, FiHardDrive, FiChevronDown } from "react-icons/fi";
+import { FiCpu, FiActivity, FiClock, FiLayers, FiZap, FiHardDrive } from "react-icons/fi";
 import type { InstanceStats, LiveStatus } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { t, useI18n } from "./i18n";
@@ -97,7 +97,7 @@ export function PerformanceTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CPU 概要(總用量 + per-core 框框 + 抽屜展開多核走勢) */}
+      {/* CPU 概要(總用量 + per-thread 框框,每個執行緒各自帶折線圖+Y 軸) */}
       <CpuOverview
         cpuPercent={cpuPercent}
         cores={cores}
@@ -204,7 +204,7 @@ export function PerformanceTab({
   );
 }
 
-/** CPU 概要圖卡:總用量數字 + per-core 框框 + 抽屜展開 per-core 摺線圖。 */
+/** CPU 概要圖卡:總用量數字 + per-thread 框框(每個邏輯處理器一格,各自帶折線圖+XY 軸)。 */
 function CpuOverview({
   cpuPercent,
   cores,
@@ -218,83 +218,56 @@ function CpuOverview({
   perCoreScope: "system" | "container" | null;
   history: Sample[];
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const scopeLabel = perCoreScope === "system" ? t("系統全核") : perCoreScope === "container" ? t("伺服器專屬") : null;
+  const scopeLabel = perCoreScope === "system" ? t("系統全執行緒") : perCoreScope === "container" ? t("伺服器專屬") : null;
+  const threadCount = perCore?.length ?? cores;
   const hasPerCore = perCore != null && perCore.length > 0;
 
   return (
-    <div className={`${card} flex flex-col gap-2`}>
+    <div className={`${card} flex flex-col gap-3`}>
       <div className="flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted">
-          <FiCpu className="size-4" /> CPU
+        <div className="flex items-baseline gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted">
+            <FiCpu className="size-4" /> CPU
+          </span>
+          <span className="text-2xl font-extrabold">{cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`}</span>
+          <span className="text-xs text-ink-muted">{t("佔總算力")}</span>
+        </div>
+        <span className="text-xs text-ink-muted">
+          {t("{n} 執行緒", { n: threadCount })}
+          {scopeLabel ? ` · ${scopeLabel}` : ""}
         </span>
-        {scopeLabel && <span className="text-xs text-ink-muted">{scopeLabel}</span>}
       </div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-extrabold">{cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`}</span>
-        <span className="text-xs text-ink-muted">{t("共 {cores} 核 · 佔總算力", { cores })}</span>
-      </div>
-      {/* per-core 框框(像工作管理員):每核一格,填色高度按使用率 */}
-      {hasPerCore && (
-        <div className="flex flex-wrap gap-1">
-          {perCore!.map((usage, i) => {
-            const pct = usage == null ? null : Math.max(0, Math.min(usage, 100));
+      {/* per-thread 框框:每個邏輯處理器一格,各自帶完整折線圖 + Y 軸(0–100%) */}
+      {hasPerCore ? (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {perCore!.map((_, threadIdx) => {
+            const threadValues = history.map((h) => h.perCore?.[threadIdx] ?? null);
+            const lastVal = perCore![threadIdx];
             return (
-              <div
-                key={i}
-                className="relative h-8 w-4 overflow-hidden rounded-sm bg-card-soft"
-                title={pct == null ? t("核心 {n}", { n: i }) : t("核心 {n}: {pct}%", { n: i, pct: pct.toFixed(0) })}
-              >
-                {pct != null && (
-                  <div
-                    className="absolute bottom-0 left-0 right-0 rounded-sm bg-pal transition-all"
-                    style={{ height: `${pct}%` }}
-                  />
-                )}
-              </div>
+              <ThreadChart key={threadIdx} index={threadIdx} values={threadValues} lastVal={lastVal} />
             );
           })}
         </div>
-      )}
-      {/* 抽屜:展開 per-core 摺線圖 */}
-      {hasPerCore && (
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-xs font-bold text-ink-muted transition-transform"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          <FiChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
-          {expanded ? t("收合多核走勢") : t("展開多核走勢")}
-        </button>
-      )}
-      {expanded && hasPerCore && (
-        <div className="flex flex-col gap-2 border-t border-line pt-2">
-          {perCore!.map((_, coreIdx) => {
-            const coreValues = history.map((h) => h.perCore?.[coreIdx] ?? null);
-            const lastVal = coreValues.filter((v): v is number => v != null).at(-1) ?? null;
-            return (
-              <div key={coreIdx} className="flex items-center gap-2">
-                <span className="w-12 shrink-0 text-xs text-ink-muted">{t("核{n}", { n: coreIdx })}</span>
-                <CoreSparkline values={coreValues} lastVal={lastVal} />
-              </div>
-            );
-          })}
-        </div>
+      ) : (
+        <p className="text-xs text-ink-muted">{t("per-thread 資料累積中,稍待幾秒即出現。")}</p>
       )}
     </div>
   );
 }
 
-/** per-core 迷你摺線圖(每核一條)。 */
-function CoreSparkline({ values, lastVal }: { values: Array<number | null>; lastVal: number | null }) {
-  const W = 200;
-  const H = 24;
-  const known = values.filter((v): v is number => v != null && Number.isFinite(v));
+/** 單一執行緒的框框:標題 + 當前值 + 折線圖(含 Y 軸 0–100% 標示)。 */
+function ThreadChart({ index, values, lastVal }: { index: number; values: Array<number | null>; lastVal: number | null }) {
+  const W = 120;
+  const H = 50;
+  const paddingTop = 4;
+  const paddingBottom = 4;
+  const plotH = H - paddingTop - paddingBottom;
+  // Y 軸:0–100%,固定刻度(0/50/100),讓每個框框比例一致可比較。
+  const yTicks = [0, 50, 100];
   const pts = values.map((v, i) => {
     if (v == null || !Number.isFinite(v)) return null;
     const x = values.length > 1 ? (i / (values.length - 1)) * W : 0;
-    const y = H - Math.max(0, Math.min(v / 100, 1)) * (H - 2) - 1;
+    const y = paddingTop + plotH - Math.max(0, Math.min(v / 100, 1)) * plotH;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
   const segments: string[][] = [];
@@ -304,14 +277,30 @@ function CoreSparkline({ values, lastVal }: { values: Array<number | null>; last
     else seg.push(p);
   }
   if (seg.length) segments.push(seg);
+  const lastDisplay = lastVal == null ? "—" : `${lastVal.toFixed(0)}%`;
+
   return (
-    <div className="flex flex-1 items-center gap-2">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-6 flex-1" preserveAspectRatio="none">
-        {segments.map((s, i) => s.length > 1 && (
-          <polyline key={i} points={s.join(" ")} fill="none" stroke="#F4A64D" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-        ))}
-      </svg>
-      <span className="w-10 shrink-0 text-right text-xs font-bold text-pal">{lastVal == null ? "—" : `${lastVal.toFixed(0)}%`}</span>
+    <div className="rounded-lg border border-line bg-card-soft p-2">
+      <div className="mb-1 flex items-baseline justify-between">
+        <span className="text-xs font-bold text-ink-muted">{t("執行緒 {n}", { n: index })}</span>
+        <span className="text-sm font-extrabold text-pal">{lastDisplay}</span>
+      </div>
+      <div className="flex gap-1">
+        {/* Y 軸標示 */}
+        <div className="flex shrink-0 flex-col justify-between py-0.5 text-[8px] leading-none text-ink-muted">
+          {yTicks.map((tick) => (
+            <span key={tick}>{tick}</span>
+          ))}
+        </div>
+        {/* 折線圖本體 */}
+        <svg viewBox={`0 0 ${W} ${H}`} className="h-12 flex-1 overflow-visible" preserveAspectRatio="none">
+          {/* Y=50% 參考線 */}
+          <line x1="0" y1={paddingTop + plotH * 0.5} x2={W} y2={paddingTop + plotH * 0.5} stroke="currentColor" strokeWidth="0.5" className="text-line" opacity="0.4" />
+          {segments.map((s, i) => s.length > 1 && (
+            <polyline key={i} points={s.join(" ")} fill="none" stroke="#F4A64D" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+          ))}
+        </svg>
+      </div>
     </div>
   );
 }
