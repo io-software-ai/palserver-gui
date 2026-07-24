@@ -591,6 +591,8 @@ function CreateDialog({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [platform, setPlatform] = useState<string | null>(null);
+  const [arch, setArch] = useState<string | null>(null);
+  const [wineAvailable, setWineAvailable] = useState(false);
   const [availableBackends, setAvailableBackends] = useState<Backend[]>(["native"]);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [showDirPicker, setShowDirPicker] = useState(false);
@@ -601,6 +603,8 @@ function CreateDialog({
   const [enhanced, setEnhanced] = useState(false);
   // k8s 是把伺服器跑在叢集裡(agent 只是遙控),所以 agent 這台是不是 macOS 無所謂。
   const isMac = platform === "darwin" && backend !== "k8s";
+  // arm64 不支援 wine(wine Dockerfile 是 x86 + i386 only),隱藏 wine checkbox。
+  const isArm64 = platform === "linux" && arch === "arm64";
   const k8sIncomplete = backend === "k8s" && (!k8sNamespace.trim() || !k8sStatefulSet.trim());
 
   // agent 在 macOS 時,主機無法實際執行 Palworld 伺服器(SteamCMD 32-bit 在
@@ -608,6 +612,8 @@ function CreateDialog({
   useEffect(() => {
     client.info().then((i) => {
       setPlatform(i.platform);
+      setArch(i.arch ?? null);
+      setWineAvailable(i.wineAvailable ?? false);
       if (i.availableBackends && i.availableBackends.length > 0) {
         setAvailableBackends(i.availableBackends);
         if (!i.availableBackends.includes(backend)) {
@@ -628,7 +634,8 @@ function CreateDialog({
         // 強化 = 啟動安裝完伺服器檔案後,自動裝 UE4SS + PalDefender(agent 端 autoEnhance)
         flavor: enhanced ? "modded" : "vanilla",
         gamePort: gamePort.trim() === "" ? undefined : Number(gamePort),
-        runtime: useWine ? "wine" : undefined,
+        // Linux native + 強化 = 自動走 Wine(抓 Windows binary + autoEnhance 裝 mod)。
+        runtime: useWine || (enhanced && platform === "linux") ? "wine" : undefined,
         serverDir: backend === "native" && serverDir.trim() ? serverDir.trim() : undefined,
         dockerImage: backend === "docker" && dockerImage.trim() ? dockerImage.trim() : undefined,
         k8sNamespace: backend === "k8s" ? k8sNamespace.trim() : undefined,
@@ -644,7 +651,10 @@ function CreateDialog({
     }
   };
 
-  const enhanceAvailable = backend === "native" && platform === "win32";
+  const enhanceAvailable = backend === "native" && (
+    platform === "win32" ||
+    (platform === "linux" && wineAvailable && arch !== "arm64")
+  );
   const STEP_TITLES = [t("基本資料"), t("玩法"), t("模組")];
   const canNext = step === 0 ? name.trim() !== "" && !k8sIncomplete : true;
   const selectedPreset = WORLD_PRESETS.find((x) => x.id === preset);
@@ -804,7 +814,7 @@ function CreateDialog({
                     </span>
                   </label>
                 )}
-                {backend === "docker" && (
+                {backend === "docker" && !isArm64 && (
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -814,7 +824,7 @@ function CreateDialog({
                     {t("Wine 模式(Windows binary,支援 PalDefender)")}
                   </label>
                 )}
-                {backend === "k8s" && (
+                {backend === "k8s" && !isArm64 && (
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -987,7 +997,9 @@ function CreateDialog({
                 <p className="mt-1 text-xs font-bold text-ink-muted">
                   {backend !== "native"
                     ? t("強化模式目前僅支援「原生」運行方式。")
-                    : t("模組(UE4SS/PalDefender)僅支援 Windows 主機。")}
+                    : platform === "linux" && arch !== "arm64"
+                      ? t("需要安裝 Wine 才能在 Linux 上使用強化模式(UE4SS/PalDefender 是 Windows DLL)。")
+                      : t("模組(UE4SS/PalDefender)僅支援 Windows 或已安裝 Wine 的 Linux x86 主機。")}
                 </p>
               )}
               {enhanced && (

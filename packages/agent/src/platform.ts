@@ -10,6 +10,8 @@ import type { InstanceRecord } from "./store.js";
 /** The OS the game server process runs on, not the agent's OS. */
 export function serverPlatform(rec: InstanceRecord): "windows" | "linux" {
   if (rec.backend === "native") {
+    // Linux native + runtime="wine":抓 Windows binary 透過 Wine 啟動(用於 modded 強化)。
+    if (rec.runtime === "wine") return "windows";
     return process.platform === "win32" ? "windows" : "linux";
   }
   // docker/k8s: runtime="wine" runs a Windows binary under Wine.

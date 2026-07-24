@@ -12,6 +12,7 @@ import { mergeEnginePatch } from "./engine-ini-merge.js";
 import { rest } from "./restapi.js";
 import { emitAgentEvent } from "./events.js";
 import { DATA_DIR } from "./env.js";
+import { serverPlatform, configPlatformDir } from "./platform.js";
 
 const execFileP = promisify(execFile);
 
@@ -19,8 +20,11 @@ const PALWORLD_APP_ID = "2394010";
 const DEPOTDOWNLOADER_VERSION = "3.4.0";
 
 const IS_WIN = process.platform === "win32";
-export const SERVER_LAUNCHER = IS_WIN ? "PalServer.exe" : "PalServer.sh";
-const CONFIG_PLATFORM_DIR = IS_WIN ? "WindowsServer" : "LinuxServer";
+
+/** 伺服器啟動器檔名:Wine(Windows binary)用 PalServer.exe,Linux 原生用 PalServer.sh。 */
+export function serverLauncher(rec: InstanceRecord): string {
+  return serverPlatform(rec) === "windows" ? "PalServer.exe" : "PalServer.sh";
+}
 
 /** Linux ARM64(樹莓派/NanoPi/Ampere…):官方只出 x86-64 伺服器執行檔,
  * 直接 exec 會被核心拒絕(shell 誤當腳本解析、噴 Syntax error),
@@ -54,8 +58,11 @@ export function serverRoot(rec: InstanceRecord, ctx: DriverContext): string {
  * is adopted as-is, an empty or not-yet-existing directory becomes the
  * install target, anything else is rejected (likely a typo — installing
  * would dump 20GB into the wrong place). */
-export function classifyServerDir(dir: string): "adopt" | "install" | "not-a-server" {
-  if (fs.existsSync(path.join(dir, SERVER_LAUNCHER))) return "adopt";
+export function classifyServerDir(
+  dir: string,
+  launcherName: string = IS_WIN ? "PalServer.exe" : "PalServer.sh",
+): "adopt" | "install" | "not-a-server" {
+  if (fs.existsSync(path.join(dir, launcherName))) return "adopt";
   if (!fs.existsSync(dir) || fs.readdirSync(dir).length === 0) return "install";
   return "not-a-server";
 }
@@ -290,21 +297,24 @@ async function ensureInstalled(
   onProgress?: (percent: number) => void,
 ): Promise<void> {
   const root = serverRoot(rec, ctx);
+  const launcher = serverLauncher(rec);
   if (rec.serverDir && !rec.serverDirManaged) {
     // Adopted install: never download into it — a missing launcher means the
     // configured dir is wrong (or the drive is gone), not "please install".
-    if (!fs.existsSync(path.join(root, SERVER_LAUNCHER))) {
+    if (!fs.existsSync(path.join(root, launcher))) {
       throw Object.assign(
-        new Error(`"${SERVER_LAUNCHER}" not found in configured server dir: ${root}`),
+        new Error(`"${launcher}" not found in configured server dir: ${root}`),
         { statusCode: 409 },
       );
     }
     return;
   }
-  if (fs.existsSync(path.join(root, SERVER_LAUNCHER))) return;
+  if (fs.existsSync(path.join(root, launcher))) return;
 
   onLine(`[palserver] installing Palworld dedicated server into ${root} ...`);
-  await runDepotDownloaderWithRecovery(root, onLine, onProgress);
+  // Wine(modded)抓 Windows binary;否則抓對應平台的原生 binary。
+  const osFlag = serverPlatform(rec) === "windows" ? "windows" : "linux";
+  await runDepotDownloaderWithRecovery(root, osFlag, onLine, onProgress);
 }
 
 /** DepotDownloader / OS 在磁碟寫滿時吐的字樣(跨平台、含 .NET IOException)。 */
@@ -375,10 +385,10 @@ const DD_PROGRESS_RE = /^\s*(\d{1,3}(?:[.,]\d+)?)%\s/;
 function runDepotDownloader(
   dd: string,
   root: string,
+  osFlag: string,
   onLine: (line: string) => void,
   onProgress?: (percent: number) => void,
 ): Promise<void> {
-  const osFlag = IS_WIN ? "windows" : "linux";
   return new Promise<void>((resolve, reject) => {
     let sawDiskFull = false;
     let sawLocked = false;
@@ -436,19 +446,20 @@ function runDepotDownloader(
  *  exit 3762504530 = 0xE0434352 .NET 例外),自我修復比叫使用者刪資料夾實際。 */
 async function runDepotDownloaderWithRecovery(
   root: string,
+  osFlag: string,
   onLine: (line: string) => void,
   onProgress?: (percent: number) => void,
 ): Promise<void> {
   const dd = await ensureDepotDownloader();
   try {
-    await runDepotDownloader(dd, root, onLine, onProgress);
+    await runDepotDownloader(dd, root, osFlag, onLine, onProgress);
   } catch (err) {
     if (!(err as { ddEarlyCrash?: boolean }).ddEarlyCrash) throw err;
     onLine("[palserver] 下載器啟動即異常(工具檔可能損毀),正在重新下載 DepotDownloader 後重試…");
     fs.rmSync(depotDownloaderDir(), { recursive: true, force: true });
     const freshDd = await ensureDepotDownloader();
     try {
-      await runDepotDownloader(freshDd, root, onLine, onProgress);
+      await runDepotDownloader(freshDd, root, osFlag, onLine, onProgress);
     } catch (err2) {
       if ((err2 as { ddEarlyCrash?: boolean }).ddEarlyCrash) {
         throw new Error(
@@ -461,7 +472,7 @@ async function runDepotDownloaderWithRecovery(
 }
 
 const worldIniPath = (rec: InstanceRecord, ctx: DriverContext) =>
-  path.join(serverRoot(rec, ctx), "Pal", "Saved", "Config", CONFIG_PLATFORM_DIR, "PalWorldSettings.ini");
+  path.join(serverRoot(rec, ctx), "Pal", "Saved", "Config", configPlatformDir(rec), "PalWorldSettings.ini");
 /** 「agent 上次寫進 PalWorldSettings.ini 的內容」快照,用來偵測使用者的手動編輯。 */
 const worldAppliedPath = (ctx: DriverContext) => path.join(ctx.instanceDir, "world-applied.json");
 
@@ -471,7 +482,7 @@ export function writeWorldIni(rec: InstanceRecord, ctx: DriverContext): void {
 }
 
 function writeIni(rec: InstanceRecord, ctx: DriverContext): void {
-  const configDir = path.join(serverRoot(rec, ctx), "Pal", "Saved", "Config", CONFIG_PLATFORM_DIR);
+  const configDir = path.join(serverRoot(rec, ctx), "Pal", "Saved", "Config", configPlatformDir(rec));
   fs.mkdirSync(configDir, { recursive: true });
   fs.writeFileSync(path.join(configDir, "PalWorldSettings.ini"), renderPalWorldSettingsIni(rec.settings));
   // 記下這次寫入的內容;下次開機用它比對出「哪些是使用者手動改的」(見 detectManualIniEdits)。
@@ -657,7 +668,7 @@ export function updateServer(rec: InstanceRecord, ctx: DriverContext, fresh = fa
       // 否則 DepotDownloader 開檔 IOException、重灌刪檔 EPERM
       await killLeftoverProcessesUnder(rec, serverRoot(rec, ctx), appendLog);
       if (fresh) wipeGameFiles(serverRoot(rec, ctx), appendLog);
-      await runDepotDownloaderWithRecovery(serverRoot(rec, ctx), appendLog, (pct) =>
+      await runDepotDownloaderWithRecovery(serverRoot(rec, ctx), serverPlatform(rec) === "windows" ? "windows" : "linux", appendLog, (pct) =>
         installProgress.set(rec.id, pct),
       );
       appendLog("[palserver] 更新完成");
@@ -815,27 +826,34 @@ async function spawnServer(rec: InstanceRecord, ctx: DriverContext): Promise<voi
   // 會另開一個帶自己 console 的子行程,那個 console 才是遊戲日誌、我們接不到。直接啟動
   // shipping 才能把它的 stdout/stderr 導進 game.log(唯一拿得到原生日誌的方式)。找不到
   // shipping(佈局不同/未來改版)就退回 launcher —— 伺服器照常啟動,只是遊戲日誌會是空的。
-  const shipping = shippingExe(root);
+  const isWine = serverPlatform(rec) === "windows" && !IS_WIN;
+  const shipping = shippingExe(root, rec);
   const useShipping = fs.existsSync(shipping);
-  const exe = useShipping ? shipping : path.join(root, SERVER_LAUNCHER);
+  const launcher = serverLauncher(rec);
+  const exe = useShipping ? shipping : path.join(root, launcher);
   // shipping 需要第一個參數是 UE 專案名(launcher 平常會幫你帶上)。
   const args = useShipping ? ["Pal", ...serverArgs] : serverArgs;
 
   // DepotDownloader(與從別處複製來的 adopt 安裝)在 Linux 不會保留可執行位元。
-  if (!IS_WIN) fs.chmodSync(exe, 0o755);
+  // Wine 跑的是 Windows .exe,不需要 chmod。
+  if (!IS_WIN && !isWine) fs.chmodSync(exe, 0o755);
 
   // 繞過 PalServer.sh 直接啟動 shipping 時,要補做該腳本的開場工作:把 Steam 的
   // linux64/steamclient.so 放到執行檔旁,否則伺服器載入不到 steamclient。
-  if (useShipping && !IS_WIN) {
+  // (Wine 跑 Windows binary,不需要 steamclient.so。)
+  if (useShipping && !IS_WIN && !isWine) {
     const scSrc = path.join(root, "linux64", "steamclient.so");
     const scDst = path.join(root, "Pal", "Binaries", "Linux", "steamclient.so");
     if (fs.existsSync(scSrc) && !fs.existsSync(scDst)) fs.copyFileSync(scSrc, scDst);
   }
 
-  // Linux ARM64:x86-64 執行檔須經轉譯器啟動(見 IS_LINUX_ARM64 註解)。
+  // 決定 spawn 方式:Wine → wine exe;ARM64 → 轉譯器;否則直接 exe。
   let spawnExe = exe;
   let spawnArgs = args;
-  if (IS_LINUX_ARM64) {
+  if (isWine) {
+    spawnArgs = [exe, ...args];
+    spawnExe = "wine";
+  } else if (IS_LINUX_ARM64) {
     const emulator = findX64Emulator();
     if (!emulator) {
       throw new Error(
@@ -848,9 +866,10 @@ async function spawnServer(rec: InstanceRecord, ctx: DriverContext): Promise<voi
     spawnExe = emulator;
   }
 
+  const viaHint = isWine ? "(via Wine)" : IS_LINUX_ARM64 ? "(經 x86-64 轉譯器)" : "";
   fs.appendFileSync(
     logFile(ctx),
-    `[palserver] starting ${useShipping ? "PalServer (shipping, 日誌已擷取)" : "PalServer launcher(找不到 shipping,遊戲日誌將為空)"}${IS_LINUX_ARM64 ? "(經 x86-64 轉譯器)" : ""}...\n`,
+    `[palserver] starting ${useShipping ? "PalServer (shipping, 日誌已擷取)" : "PalServer launcher(找不到 shipping,遊戲日誌將為空)"}${viaHint}...\n`,
   );
   // 遊戲 console 輸出 → game.log(每次開機重來一份,UE 本來也是一次一份)。
   const gameOut = fs.openSync(gameLogFile(ctx), "w");
@@ -954,7 +973,7 @@ async function autoEnhance(
   ctx: DriverContext,
   log: (line: string) => void,
 ): Promise<void> {
-  if (rec.flavor !== "modded" || !IS_WIN) return;
+  if (rec.flavor !== "modded" || serverPlatform(rec) !== "windows") return;
   const mods = await import("./mods.js");
   for (const component of ["ue4ss", "paldefender"] as const) {
     try {
@@ -999,7 +1018,7 @@ export const nativeDriver: ServerDriver = {
     fs.mkdirSync(ctx.instanceDir, { recursive: true });
     const appendLog = (line: string) => fs.appendFileSync(logFile(ctx), line + "\n");
 
-    const alreadyInstalled = fs.existsSync(path.join(serverRoot(rec, ctx), SERVER_LAUNCHER));
+    const alreadyInstalled = fs.existsSync(path.join(serverRoot(rec, ctx), serverLauncher(rec)));
     if (alreadyInstalled) {
       // Fast path: spawn synchronously so errors surface in the response.
       await ensureInstalled(rec, ctx, appendLog); // validates adopted dirs
@@ -1208,9 +1227,10 @@ export const nativeDriver: ServerDriver = {
 const gameLogFile = (ctx: DriverContext) => path.join(ctx.instanceDir, "game.log");
 
 /** 真正的遊戲執行檔(不是 launcher)。它的 stdout 才是遊戲日誌;PalServer.exe 只是
- *  轉手再開一個帶自己 console 的子行程,那個 console 的輸出我們接不到。 */
-const shippingExe = (root: string): string =>
-  IS_WIN
+ *  轉手再開一個帶自己 console 的子行程,那個 console 的輸出我們接不到。
+ *  Wine(modded)時指 Win64 shipping exe(Windows binary),否則依平台。 */
+const shippingExe = (root: string, rec: InstanceRecord): string =>
+  serverPlatform(rec) === "windows"
     ? path.join(root, "Pal", "Binaries", "Win64", "PalServer-Win64-Shipping-Cmd.exe")
     : path.join(root, "Pal", "Binaries", "Linux", "PalServer-Linux-Shipping");
 

@@ -43,3 +43,10 @@ test("configPlatformDir: maps to WindowsServer or LinuxServer", () => {
   assert.equal(configPlatformDir(dockerWineRec), "WindowsServer");
   assert.equal(configPlatformDir(k8sWineRec), "WindowsServer");
 });
+
+test("serverPlatform: native + Linux + runtime=wine → windows", () => {
+  // Linux native 選「強化」(modded)時 runtime=wine,走 Windows binary + Wine。
+  const nativeWineRec: InstanceRecord = { ...baseRec, backend: "native", runtime: "wine" } as InstanceRecord;
+  assert.equal(serverPlatform(nativeWineRec), "windows");
+  assert.equal(configPlatformDir(nativeWineRec), "WindowsServer");
+});

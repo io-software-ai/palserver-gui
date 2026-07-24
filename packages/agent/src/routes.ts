@@ -55,7 +55,7 @@ import { configPlatformDir, serverPlatform } from "./platform.js";
 import * as dockerOps from "./docker.js";
 
 import { k8sDriver } from "./k8s.js";
-import { SERVER_LAUNCHER, classifyServerDir, detectManualIniEdits, installProgressOf, isInstalling, lastInstallError, moveServerFiles, nativeDriver, serverRoot, updateServer, writeWorldIni } from "./native.js";
+import { serverLauncher, classifyServerDir, detectManualIniEdits, installProgressOf, isInstalling, lastInstallError, moveServerFiles, nativeDriver, serverRoot, updateServer, writeWorldIni } from "./native.js";
 import { cachedVersionSummary, getVersionStatus } from "./version.js";
 import { getConnectionInfo } from "./connectivity.js";
 import { getModsStatus, installComponent, latestModVersions, setModEnabled, installedEnhancements, removeComponent, setLuaModEnabled } from "./mods.js";
@@ -300,8 +300,14 @@ export function registerRoutes(
       gameVersion,
       updateAvailable,
       enhancements,
-      installError: rec.backend === "native" ? lastInstallError(rec.id) : null,
-      installProgress: rec.backend === "native" ? installProgressOf(rec.id) : null,
+      installError:
+        rec.backend === "native" ? lastInstallError(rec.id)
+        : rec.backend === "docker" ? dockerOps.lastBuildError(rec.id)
+        : null,
+      installProgress:
+        rec.backend === "native" ? installProgressOf(rec.id)
+        : rec.backend === "docker" ? dockerOps.buildProgressOf(rec.id)
+        : null,
     };
   };
 
@@ -314,6 +320,24 @@ export function registerRoutes(
     }
     return rec;
   };
+
+  /** 偵測 host 是否安裝 Wine(Linux only);結果快取避免每次 /api/info 都 fork。 */
+  let wineAvailableCache: boolean | null = null;
+  function detectWineAvailable(): boolean {
+    if (wineAvailableCache !== null) return wineAvailableCache;
+    if (process.platform === "win32") {
+      wineAvailableCache = false;
+      return false;
+    }
+    try {
+      const { execFileSync } = require("node:child_process");
+      execFileSync("wine", ["--version"], { stdio: "ignore", timeout: 3000 });
+      wineAvailableCache = true;
+    } catch {
+      wineAvailableCache = false;
+    }
+    return wineAvailableCache;
+  }
 
   app.get("/api/info", async (req): Promise<AgentInfo> => {
     const dockerVersion = await dockerOps.docker
@@ -330,6 +354,8 @@ export function registerRoutes(
       instanceCount: store.list().length,
       authenticated,
       platform: process.platform,
+      arch: process.arch,
+      wineAvailable: detectWineAvailable(),
       // docker 在 Unix 系統（Linux/macOS）提供；Windows WSL2 的 UDP 不可靠，
       // 不能跑遊戲伺服器。所有平台都可管理遠端 k8s 實例。
       availableBackends:
@@ -592,11 +618,14 @@ export function registerRoutes(
       if (store.list().some((r) => r.serverDir && path.resolve(r.serverDir) === serverDir)) {
         return reply.code(409).send({ error: `server dir already used by another instance: ${serverDir}` });
       }
-      const kind = classifyServerDir(serverDir);
+      const launcherName = input.runtime === "wine"
+        ? "PalServer.exe"
+        : process.platform === "win32" ? "PalServer.exe" : "PalServer.sh";
+      const kind = classifyServerDir(serverDir, launcherName);
       if (kind === "not-a-server") {
         return reply.code(409).send({
           error:
-            `"${SERVER_LAUNCHER}" not found in ${serverDir} and the directory is not empty — ` +
+            `"${launcherName}" not found in ${serverDir} and the directory is not empty — ` +
             `point at an existing PalServer install, or at an empty/new folder to install into`,
         });
       }
@@ -819,11 +848,12 @@ export function registerRoutes(
     const hasFiles = fs.existsSync(currentRoot) && fs.readdirSync(currentRoot).length > 0;
     if (!hasFiles) {
       // 目前沒有檔案可搬:單純改指向(採用既有安裝 / 當成安裝目標)。
-      const kind = classifyServerDir(newRoot);
+      const launcherName = serverLauncher(rec);
+      const kind = classifyServerDir(newRoot, launcherName);
       if (kind === "not-a-server") {
         return reply.code(409).send({
           error:
-            `"${SERVER_LAUNCHER}" not found in ${newRoot} and the directory is not empty — ` +
+            `"${launcherName}" not found in ${newRoot} and the directory is not empty — ` +
             `point at an existing PalServer install, or at an empty/new folder to install into`,
         });
       }
