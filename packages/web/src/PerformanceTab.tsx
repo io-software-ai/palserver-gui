@@ -13,6 +13,7 @@ interface Sample {
   perCore: (number | null)[] | null; // per-core 使用率(0–100);null = backend 不支援或首筆
   memPct: number | null;
   fps: number | null;
+  frametime: number | null; // 伺服器影格時間(ms)
 }
 
 /**
@@ -56,6 +57,7 @@ export function PerformanceTab({
         liveMiss.current = l.metrics ? 0 : liveMiss.current + 1;
       }
       const fps = l?.metrics?.serverfps ?? null;
+      const frametime = l?.metrics?.serverframetime ?? null;
       if (s) {
         const cpuPercent = knownCpuSample(s.cpuPercent) ? s.cpuPercent : null;
         setHistory((prev) =>
@@ -68,6 +70,7 @@ export function PerformanceTab({
                 ? clampRatio(s.memoryBytes / s.memoryLimitBytes)
                 : null,
               fps,
+              frametime,
             },
           ].slice(-HISTORY),
         );
@@ -102,14 +105,22 @@ export function PerformanceTab({
         <h3 className="inline-flex items-center gap-2 text-sm font-extrabold">
           <FiActivity className="size-4 text-pal" /> {t("即時數值")}
         </h3>
+        {/* 第一行:CPU / 記憶體 / 伺服器運行時間 */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Stat icon={<FiCpu className="size-4" />} label={t("CPU")} value={cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`} />
           <Stat icon={<FiHardDrive className="size-4" />} label={t("記憶體")} value={stats ? (hasFiniteLimit(memoryLimit) ? `${fmtBytes(stats.memoryBytes)} / ${fmtBytes(memoryLimit)}` : fmtBytes(stats.memoryBytes)) : "—"} />
-          <Stat icon={<FiZap className="size-4" />} label={t("伺服器 FPS")} value={metrics ? String(metrics.serverfps) : "—"} sub={metrics ? undefined : t("需啟用 REST API")} />
-          {metrics && <Stat icon={<FiActivity className="size-4" />} label={t("影格時間")} value={`${metrics.serverframetime.toFixed(1)} ms`} />}
-          <Stat icon={<FiClock className="size-4" />} label={t("運行時間")} value={stats?.uptimeSeconds != null ? fmtDuration(stats.uptimeSeconds) : "—"} />
-          {metrics && <Stat icon={<FiLayers className="size-4" />} label={t("伺服器運行")} value={fmtDuration(metrics.uptime)} />}
+          {metrics && <Stat icon={<FiClock className="size-4" />} label={t("伺服器運行時間")} value={fmtDuration(metrics.uptime)} />}
         </div>
+        {/* 第二行:伺服器 FPS / 影格時間 / 遊戲時間(需 REST API) */}
+        {metrics ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Stat icon={<FiZap className="size-4" />} label={t("伺服器 FPS")} value={String(metrics.serverfps)} />
+            <Stat icon={<FiActivity className="size-4" />} label={t("影格時間")} value={`${metrics.serverframetime.toFixed(1)} ms`} />
+            <Stat icon={<FiLayers className="size-4" />} label={t("遊戲時間")} value={t("{n} 天", { n: metrics.days })} />
+          </div>
+        ) : (
+          <p className="text-xs text-ink-muted">{t("伺服器 FPS / 影格時間 / 遊戲時間需啟用 REST API")}</p>
+        )}
       </div>
 
       {/* ② 資源用量容器 — Meter 進度條 */}
@@ -158,11 +169,14 @@ export function PerformanceTab({
             </div>
           </div>
         )}
-        {/* 記憶體 + FPS 共享一行 */}
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* 記憶體 / FPS / 影格時間 三格自適應 */}
+        <div className="grid gap-4 sm:grid-cols-3">
           <Trend title={t("記憶體使用率")} unit="%" color="#7BB0E8" values={history.map((h) => (h.memPct == null ? null : h.memPct * 100))} max={100} />
           {metrics && (
             <Trend title={t("伺服器 FPS")} unit="" color="#8FCf8F" values={history.map((h) => h.fps)} max={Math.max(60, ...history.flatMap((h) => (h.fps == null ? [] : [h.fps])))} />
+          )}
+          {metrics && (
+            <Trend title={t("影格時間")} unit="ms" color="#C4A8E8" values={history.map((h) => h.frametime)} max={Math.max(33, ...history.flatMap((h) => (h.frametime == null ? [] : [h.frametime])))} />
           )}
         </div>
         {history.length < 2 && <p className="text-xs text-ink-muted">{t("收集資料中,稍待幾秒走勢就會出現。")}</p>}
