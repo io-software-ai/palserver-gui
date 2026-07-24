@@ -224,13 +224,11 @@ function Stat({
 }) {
   return (
     <div className={`${card} flex flex-col gap-1`}>
-      <div className="flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted">
-          {icon}
-          {label}
-        </span>
-        <span className="text-2xl font-extrabold">{value}</span>
-      </div>
+      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted">
+        {icon}
+        {label}
+      </span>
+      <span className="text-2xl font-extrabold">{value}</span>
       {sub && <span className="text-xs text-ink-muted">{sub}</span>}
     </div>
   );
