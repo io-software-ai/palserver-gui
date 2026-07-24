@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PassThrough } from "node:stream";
 import Docker from "dockerode";
-import type { InstanceStatus, InstanceStats, WorldSettings } from "@palserver/shared";
+import type { InstanceStatus, InstanceStats, InstallError, WorldSettings } from "@palserver/shared";
 import { buildLaunchArgs } from "@palserver/shared";
 import { CONTAINER_PREFIX, IMAGES, IMAGES_ARM64, IMAGES_WINE, INSTANCE_LABEL } from "./env.js";
 import { mergeEnginePatch } from "./engine-ini-merge.js";
@@ -11,6 +12,15 @@ import { configPlatformDir } from "./platform.js";
 import { diffIniAgainstSnapshot, renderPalWorldSettingsIni } from "./settings-ini.js";
 
 export const docker = new Docker(); // default: /var/run/docker.sock
+
+// ── image build/pull 狀態(仿 native.ts installing 模式)─────────────────
+const building = new Set<string>();
+export const isBuilding = (id: string): boolean => building.has(id);
+const buildProgress = new Map<string, number>();
+export const buildProgressOf = (id: string): number | null => buildProgress.get(id) ?? null;
+const buildErrors = new Map<string, InstallError>();
+export const lastBuildError = (id: string): InstallError | null =>
+  buildErrors.get(id) ?? null;
 
 /** ARM64 Linux 偵測(沿用 native.ts IS_LINUX_ARM64 模式;arm64 用 FEX 轉譯跑原生 server binary)。 */
 const IS_LINUX_ARM64 = process.platform === "linux" && process.arch === "arm64";
@@ -25,12 +35,34 @@ function resolveImage(rec: InstanceRecord): string {
   return IMAGES[rec.flavor];
 }
 
-/** 依 runtime / 平台 解析 build context 目錄名(錯誤訊息用,給使用者手動 docker build)。
+/** 依 runtime / 平台 解析 build context 子目錄名。
  * modded 無獨立目錄(mod 是執行期注入),共用 vanilla/wine/vanilla-arm64 base。 */
-function resolveBuildDir(rec: InstanceRecord): string {
+function resolveBuildSubdir(rec: InstanceRecord): string {
   if (rec.runtime === "wine") return "images/wine";
   if (IS_LINUX_ARM64) return "images/vanilla-arm64";
   return "images/vanilla";
+}
+
+/** 解析 repo 根目錄(含 images/ 的位置)。三段式:env → 執行檔旁 → import.meta.url。
+ *  找不到回 null(build context 不可用,退回 throw 409)。 */
+function resolveRepoRoot(): string | null {
+  const candidates: string[] = [];
+  if (process.env.PALSERVER_REPO_DIR) candidates.push(process.env.PALSERVER_REPO_DIR);
+  candidates.push(path.dirname(process.execPath));
+  try {
+    candidates.push(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../"));
+  } catch { /* CJS bundle:略過 */ }
+  for (const c of candidates) {
+    if (c && fs.existsSync(path.join(c, "images"))) return c;
+  }
+  return null;
+}
+
+/** build context 的絕對路徑;找不到 repo root 回 null。 */
+function resolveBuildDir(rec: InstanceRecord): string | null {
+  const root = resolveRepoRoot();
+  if (!root) return null;
+  return path.join(root, resolveBuildSubdir(rec));
 }
 
 function containerName(rec: InstanceRecord): string {
@@ -55,6 +87,8 @@ async function findContainer(rec: InstanceRecord): Promise<Docker.Container | nu
 export async function getStatus(
   rec: InstanceRecord,
 ): Promise<{ status: InstanceStatus; runtimeId: string | null }> {
+  // image 正在 build/pull 時回 installing,讓前端顯示進度條。
+  if (building.has(rec.id)) return { status: "installing", runtimeId: null };
   const container = await findContainer(rec);
   // No container yet (never started, or removed): treated as "created" —
   // starting the instance will (re)materialize it from stored settings.
@@ -106,6 +140,55 @@ function applyEngineIniDocker(rec: InstanceRecord, instanceDir: string): void {
   fs.writeFileSync(file, mergeEnginePatch(existing, rec.engineSettings));
 }
 
+/** image 不存在時自動 build(內建鏡像)或 pull(自訂鏡像)。成功後 image 已就緒。 */
+async function ensureImageExists(rec: InstanceRecord, image: string): Promise<void> {
+  const imageExists = await docker.getImage(image).inspect().then(() => true).catch(() => false);
+  if (imageExists) return;
+
+  const isCustom = !!rec.dockerImage?.trim();
+  building.add(rec.id);
+  buildProgress.set(rec.id, 0);
+  buildErrors.delete(rec.id);
+  try {
+    if (isCustom) {
+      // 自訂鏡像:從 registry pull。
+      const stream = await docker.pull(image);
+      await trackProgress(stream, rec.id);
+    } else {
+      // 內建鏡像:從 repo images/ build。
+      const ctx = resolveBuildDir(rec);
+      if (!ctx || !fs.existsSync(ctx)) {
+        throw Object.assign(
+          new Error(`找不到 build context(${resolveBuildSubdir(rec)})— 請確認 repo 的 images/ 目錄存在`),
+          { statusCode: 409 },
+        );
+      }
+      const src = fs.readdirSync(ctx).filter((f) => !f.startsWith("."));
+      const stream = await docker.buildImage({ context: ctx, src }, { t: image });
+      await trackProgress(stream, rec.id);
+    }
+  } finally {
+    building.delete(rec.id);
+    buildProgress.delete(rec.id);
+  }
+}
+
+/** 用 docker.followProgress 追蹤 build/pull 進度,寫入 buildProgress map。 */
+function trackProgress(stream: NodeJS.ReadableStream, id: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    docker.modem.followProgress(
+      stream,
+      (err: Error | null) => (err ? reject(err) : resolve()),
+      (evt: { progressDetail?: { current?: number; total?: number }; status?: string }) => {
+        const pd = evt.progressDetail;
+        if (pd?.current != null && pd?.total != null && pd.total > 0) {
+          buildProgress.set(id, Math.round((pd.current / pd.total) * 100));
+        }
+      },
+    );
+  });
+}
+
 export async function createContainer(
   rec: InstanceRecord,
   instanceDir: string,
@@ -133,21 +216,8 @@ export async function createContainer(
   ];
 
   const image = resolveImage(rec);
-  const imageExists = await docker
-    .getImage(image)
-    .inspect()
-    .then(() => true)
-    .catch(() => false);
-  if (!imageExists) {
-    const err = new Error(
-      rec.dockerImage?.trim()
-        ? `找不到自訂鏡像 "${image}" — 請先 docker pull 該鏡像,或確認名稱/標籤正確`
-        : `server image "${image}" not found — build it first: ` +
-            `docker build -t ${image} ${resolveBuildDir(rec)}`,
-    ) as Error & { statusCode: number };
-    err.statusCode = 409;
-    throw err;
-  }
+  // image 不存在時自動 build/pull(而非 throw 409 讓使用者手動處理)。
+  await ensureImageExists(rec, image);
 
   const container = await docker.createContainer({
     name: containerName(rec),
@@ -170,6 +240,40 @@ export async function createContainer(
 export async function startInstance(rec: InstanceRecord, instanceDir: string): Promise<void> {
   writeConfig(instanceDir, rec.settings);
   applyEngineIniDocker(rec, instanceDir);
+
+  // image 不存在時觸發背景 build/pull(IIFE),立刻回 installing 狀態;
+  // build 完成後繼續 createContainer + start。仿 native.ts slow path 模式。
+  const image = resolveImage(rec);
+  const imageExists = await docker.getImage(image).inspect().then(() => true).catch(() => false);
+  if (!imageExists) {
+    if (building.has(rec.id)) return; // 已在 build 中,不重複觸發
+    building.add(rec.id);
+    buildProgress.set(rec.id, 0);
+    buildErrors.delete(rec.id);
+    void (async () => {
+      try {
+        await ensureImageExists(rec, image);
+        let container = await findContainer(rec);
+        if (!container) {
+          await createContainer(rec, instanceDir);
+          container = await findContainer(rec);
+        }
+        await container!.start().catch((err: { statusCode?: number }) => {
+          if (err.statusCode !== 304) throw err;
+        });
+      } catch (err) {
+        buildErrors.set(rec.id, {
+          code: "error",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        building.delete(rec.id);
+        buildProgress.delete(rec.id);
+      }
+    })();
+    return;
+  }
+
   let container = await findContainer(rec);
   if (!container) {
     await createContainer(rec, instanceDir);

@@ -300,8 +300,14 @@ export function registerRoutes(
       gameVersion,
       updateAvailable,
       enhancements,
-      installError: rec.backend === "native" ? lastInstallError(rec.id) : null,
-      installProgress: rec.backend === "native" ? installProgressOf(rec.id) : null,
+      installError:
+        rec.backend === "native" ? lastInstallError(rec.id)
+        : rec.backend === "docker" ? dockerOps.lastBuildError(rec.id)
+        : null,
+      installProgress:
+        rec.backend === "native" ? installProgressOf(rec.id)
+        : rec.backend === "docker" ? dockerOps.buildProgressOf(rec.id)
+        : null,
     };
   };
 
