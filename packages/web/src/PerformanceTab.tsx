@@ -101,14 +101,13 @@ export function PerformanceTab({
       <div className={`${card} flex flex-col gap-3`}>
         <h3 className="inline-flex items-center gap-2 text-sm font-extrabold">
           <FiActivity className="size-4 text-pal" /> {t("即時數值")}
-          {perCoreScope && <span className="text-xs font-normal text-ink-muted">· {perCoreScope === "system" ? t("系統全執行緒") : t("伺服器專屬")}</span>}
         </h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Stat icon={<FiCpu className="size-4" />} label={t("CPU")} value={cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`} sub={t("佔總算力")} />
-          <Stat icon={<FiHardDrive className="size-4" />} label={t("記憶體")} value={stats ? fmtBytes(stats.memoryBytes) : "—"} sub={stats && hasFiniteLimit(memoryLimit) ? `／ ${fmtBytes(memoryLimit)}` : undefined} />
+          <Stat icon={<FiCpu className="size-4" />} label={t("CPU")} value={cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`} />
+          <Stat icon={<FiHardDrive className="size-4" />} label={t("記憶體")} value={stats ? (hasFiniteLimit(memoryLimit) ? `${fmtBytes(stats.memoryBytes)} / ${fmtBytes(memoryLimit)}` : fmtBytes(stats.memoryBytes)) : "—"} />
           <Stat icon={<FiZap className="size-4" />} label={t("伺服器 FPS")} value={metrics ? String(metrics.serverfps) : "—"} sub={metrics ? undefined : t("需啟用 REST API")} />
           {metrics && <Stat icon={<FiActivity className="size-4" />} label={t("影格時間")} value={`${metrics.serverframetime.toFixed(1)} ms`} />}
-          <Stat icon={<FiClock className="size-4" />} label={t("運行時間")} value={stats?.uptimeSeconds != null ? fmtDuration(stats.uptimeSeconds) : "—"} sub={stats?.processCount != null ? t("{n} 個行程", { n: stats.processCount }) : undefined} />
+          <Stat icon={<FiClock className="size-4" />} label={t("運行時間")} value={stats?.uptimeSeconds != null ? fmtDuration(stats.uptimeSeconds) : "—"} />
           {metrics && <Stat icon={<FiLayers className="size-4" />} label={t("伺服器運行")} value={fmtDuration(metrics.uptime)} />}
         </div>
       </div>
@@ -142,21 +141,15 @@ export function PerformanceTab({
           <FiActivity className="size-4 text-pal" /> {t("即時走勢")}
           <span className="text-xs font-normal text-ink-muted">{t("(最近約 5 分鐘)")}</span>
         </h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Trend title={t("CPU 佔總算力")} unit="%" color="#F4A64D" values={history.map((h) => h.cpu)} max={100} />
-          <Trend title={t("記憶體使用率")} unit="%" color="#7BB0E8" values={history.map((h) => (h.memPct == null ? null : h.memPct * 100))} max={100} />
-          {metrics && (
-            <Trend title={t("伺服器 FPS")} unit="" color="#8FCf8F" values={history.map((h) => h.fps)} max={Math.max(60, ...history.flatMap((h) => (h.fps == null ? [] : [h.fps])))} />
-          )}
-        </div>
-        {/* per-thread 框框:每個邏輯處理器一格,視覺同 Trend(area fill + polyline),框框數量即執行緒數 */}
+        {/* CPU Trend 獨立整行,下方接執行緒框框(視覺連貫) */}
+        <Trend title={t("CPU")} unit="%" color="#F4A64D" values={history.map((h) => h.cpu)} max={100} />
         {perCore != null && perCore.length > 0 && (
-          <div className="border-t border-line pt-3">
+          <div>
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-bold text-ink-muted">{t("CPU% · 各執行緒")}</span>
+              <span className="text-xs font-bold text-ink-muted">{t("執行緒")}</span>
               <span className="text-xs text-ink-muted">{perCore.length}</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
               {perCore.map((_, threadIdx) => {
                 const threadValues = history.map((h) => h.perCore?.[threadIdx] ?? null);
                 const lastVal = perCore[threadIdx];
@@ -165,6 +158,13 @@ export function PerformanceTab({
             </div>
           </div>
         )}
+        {/* 記憶體 + FPS 共享一行 */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Trend title={t("記憶體使用率")} unit="%" color="#7BB0E8" values={history.map((h) => (h.memPct == null ? null : h.memPct * 100))} max={100} />
+          {metrics && (
+            <Trend title={t("伺服器 FPS")} unit="" color="#8FCf8F" values={history.map((h) => h.fps)} max={Math.max(60, ...history.flatMap((h) => (h.fps == null ? [] : [h.fps])))} />
+          )}
+        </div>
         {history.length < 2 && <p className="text-xs text-ink-muted">{t("收集資料中,稍待幾秒走勢就會出現。")}</p>}
       </div>
     </div>
