@@ -330,6 +330,7 @@ export function registerRoutes(
       instanceCount: store.list().length,
       authenticated,
       platform: process.platform,
+      arch: process.arch,
       // docker 在 Unix 系統（Linux/macOS）提供；Windows WSL2 的 UDP 不可靠，
       // 不能跑遊戲伺服器。所有平台都可管理遠端 k8s 實例。
       availableBackends:

@@ -1138,6 +1138,8 @@ export interface AgentInfo {
   authenticated: boolean;
   /** agent 所在主機平台(process.platform:darwin / win32 / linux)。前端用來提示 macOS 限制。 */
   platform: string;
+  /** agent 主機 CPU 架構(process.arch:arm64 / x64 / arm 等)。arm64 不支援 wine,前端據此隱藏 wine checkbox。 */
+  arch: string;
   /** 此平台可用的 backend 清單。前端依此動態顯示/隱藏 backend 選項。
    * Windows 只支援 native（Docker Desktop UDP 不可靠）；
    * Linux 支援 native/docker/k8s；macOS 只支援 native（無 Palworld server binary）。 */

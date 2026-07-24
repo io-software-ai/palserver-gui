@@ -591,6 +591,7 @@ function CreateDialog({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [platform, setPlatform] = useState<string | null>(null);
+  const [arch, setArch] = useState<string | null>(null);
   const [availableBackends, setAvailableBackends] = useState<Backend[]>(["native"]);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [showDirPicker, setShowDirPicker] = useState(false);
@@ -601,6 +602,8 @@ function CreateDialog({
   const [enhanced, setEnhanced] = useState(false);
   // k8s 是把伺服器跑在叢集裡(agent 只是遙控),所以 agent 這台是不是 macOS 無所謂。
   const isMac = platform === "darwin" && backend !== "k8s";
+  // arm64 不支援 wine(wine Dockerfile 是 x86 + i386 only),隱藏 wine checkbox。
+  const isArm64 = platform === "linux" && arch === "arm64";
   const k8sIncomplete = backend === "k8s" && (!k8sNamespace.trim() || !k8sStatefulSet.trim());
 
   // agent 在 macOS 時,主機無法實際執行 Palworld 伺服器(SteamCMD 32-bit 在
@@ -608,6 +611,7 @@ function CreateDialog({
   useEffect(() => {
     client.info().then((i) => {
       setPlatform(i.platform);
+      setArch(i.arch ?? null);
       if (i.availableBackends && i.availableBackends.length > 0) {
         setAvailableBackends(i.availableBackends);
         if (!i.availableBackends.includes(backend)) {
@@ -804,7 +808,7 @@ function CreateDialog({
                     </span>
                   </label>
                 )}
-                {backend === "docker" && (
+                {backend === "docker" && !isArm64 && (
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -814,7 +818,7 @@ function CreateDialog({
                     {t("Wine 模式(Windows binary,支援 PalDefender)")}
                   </label>
                 )}
-                {backend === "k8s" && (
+                {backend === "k8s" && !isArm64 && (
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
