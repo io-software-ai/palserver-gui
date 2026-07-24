@@ -197,10 +197,14 @@ export interface InstanceDetail extends InstanceSummary {
 }
 
 export interface InstanceStats {
-  /** null when a backend has not collected two valid samples yet. */
+  /** 佔總算力 0–100%(正規化後,不再可破百)。null = 尚未累積兩筆有效取樣。 */
   cpuPercent: number | null;
   /** 主機/容器可用的邏輯核心數,讓前端判讀 cpuPercent 的滿載基準。 */
   cpuCores: number;
+  /** per-core 使用率(0–100);null = 尚未累積兩筆取樣或 backend 不支援。 */
+  perCore?: (number | null)[] | null;
+  /** per-core 語意:"system"=系統全核(含其他行程);"container"=伺服器專屬。 */
+  perCoreScope?: "system" | "container";
   memoryBytes: number;
   memoryLimitBytes: number;
   /** 伺服器行程樹的行程數(native);docker 省略。 */

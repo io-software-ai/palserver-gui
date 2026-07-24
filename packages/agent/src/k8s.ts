@@ -253,12 +253,58 @@ export const k8sDriver: ServerDriver = {
       const memoryLimitV1 = await readFirst(rec, ["/sys/fs/cgroup/memory/memory.limit_in_bytes"]);
       const memoryLimitBytes = parseMemoryLimit(memoryMax ?? memoryLimitV1);
 
+      // per-core 優先序:cgroup v1 usage_percpu(容器專屬)→ /proc/stat(host 全核)。
+      const perCpuRaw = await readFirst(rec, ["/sys/fs/cgroup/cpuacct/cpuacct.usage_percpu"]);
+      const perCpuMicros = parseUsagePerCpu(perCpuRaw); // 奈秒陣列
+      const perCpuMicrosNorm = perCpuMicros?.map((ns) => ns / 1000) ?? null; // → 微秒
+      const isContainerScope = perCpuMicrosNorm !== null;
+      // cgroup v2 無 per-core → fallback /proc/stat(host 全核)。
+      const procStat = !isContainerScope
+        ? parseProcStatPerCore(await readFirst(rec, ["/proc/stat"]))
+        : null;
+
       const previous = usageMicros === null ? undefined : k8sStatsSamples.get(rec.id);
       const cpuPercent = usageMicros === null || previous?.podName !== podName
         ? null
         : computeCpuPercent(previous, usageMicros, now);
+
+      // per-core 差分(兩種來源各自算)。
+      let perCore: (number | null)[] | null = null;
+      let perCoreScope: "system" | "container" | undefined = undefined;
+      if (perCpuMicrosNorm !== null) {
+        perCoreScope = "container";
+        const prevPerCore = previous?.perCoreMicros;
+        if (prevPerCore && previous.podName === podName) {
+          const wallMicros = (now - previous.atMs) * 1000;
+          perCore = perCpuMicrosNorm.map((cur, i) => {
+            const p = prevPerCore[i] ?? 0;
+            return wallMicros > 0 && cur >= p ? Math.min(((cur - p) / wallMicros) * 100, 100) : null;
+          });
+        }
+      } else if (procStat !== null) {
+        perCoreScope = "system";
+        const prevProcStat = previous?.procStatPerCore;
+        if (prevProcStat && previous.podName === podName) {
+          perCore = procStat.map((cur, i) => {
+            const p = prevProcStat[i];
+            if (!p) return null;
+            const totalDelta = cur.total - p.total;
+            if (totalDelta <= 0) return null;
+            const idleDelta = cur.idle - p.idle;
+            const idleRatio = Math.max(0, Math.min(idleDelta / totalDelta, 1));
+            return Math.round((1 - idleRatio) * 1000) / 10;
+          });
+        }
+      }
+
       if (usageMicros === null) k8sStatsSamples.delete(rec.id);
-      else k8sStatsSamples.set(rec.id, { podName, usageMicros, atMs: now });
+      else k8sStatsSamples.set(rec.id, {
+        podName,
+        usageMicros,
+        atMs: now,
+        perCoreMicros: perCpuMicrosNorm,
+        procStatPerCore: procStat ?? undefined,
+      });
 
       // uptime：從 /proc/uptime 的第一欄（秒）
       let uptimeSeconds: number | undefined;
@@ -287,6 +333,8 @@ export const k8sDriver: ServerDriver = {
       return {
         cpuPercent,
         cpuCores,
+        perCore,
+        perCoreScope,
         memoryBytes,
         memoryLimitBytes,
         processCount,
@@ -347,7 +395,15 @@ export const k8sDriver: ServerDriver = {
   },
 };
 
-type K8sStatsSample = { podName: string; usageMicros: number; atMs: number };
+type K8sStatsSample = {
+  podName: string;
+  usageMicros: number;
+  atMs: number;
+  /** per-core 歷史:cgroup v1 usage_percpu(微秒)或 null。 */
+  perCoreMicros?: number[] | null;
+  /** per-core 歷史:/proc/stat 每核 {idle, total}(jiffies);cgroup v2 fallback 用。 */
+  procStatPerCore?: Array<{ idle: number; total: number }> | null;
+};
 const k8sStatsSamples = new Map<string, K8sStatsSample>();
 
 async function readFirst(rec: InstanceRecord, paths: string[]): Promise<string | null> {
@@ -412,6 +468,32 @@ export function parseProcStatStartTicks(raw: string): number | null {
   const fields = raw.slice(commEnd + 2).trim().split(/\s+/);
   const startTicks = Number(fields[19]); // field 22; fields start at field 3
   return Number.isFinite(startTicks) && startTicks >= 0 ? startTicks : null;
+}
+
+/** 解析 cgroup v1 cpuacct.usage_percpu:空白分隔的每核奈秒陣列(如 "56000000 48000000 ...")。 */
+export function parseUsagePerCpu(raw: string | null): number[] | null {
+  if (!raw) return null;
+  const parts = raw.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return null;
+  const vals = parts.map(Number);
+  return vals.every((v) => Number.isFinite(v) && v >= 0) ? vals : null;
+}
+
+/** 解析 /proc/stat 的 per-core 行:每行 "cpuN user nice sys idle iowait irq softirq steal ..."。
+ *  回傳每核 {idle, total}(jiffies);total = user+nice+sys+idle+iowait+irq+softirq+steal。 */
+export function parseProcStatPerCore(raw: string | null): Array<{ idle: number; total: number }> | null {
+  if (!raw) return null;
+  const result: Array<{ idle: number; total: number }> = [];
+  for (const line of raw.split("\n")) {
+    const m = /^cpu(\d+)\s+(.*)$/.exec(line.trim());
+    if (!m) continue; // 跳過 aggregate "cpu " 行(無數字)
+    const vals = m[2].trim().split(/\s+/).map(Number);
+    if (vals.length < 4 || vals.some((v) => !Number.isFinite(v))) continue;
+    // [user, nice, sys, idle, iowait, irq, softirq, steal, ...]
+    const [user, nice, sys, idle, iowait = 0, irq = 0, softirq = 0, steal = 0] = vals;
+    result.push({ idle, total: user + nice + sys + idle + iowait + irq + softirq + steal });
+  }
+  return result.length > 0 ? result : null;
 }
 
 export function computeContainerUptimeSeconds(

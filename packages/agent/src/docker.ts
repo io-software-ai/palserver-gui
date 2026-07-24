@@ -186,9 +186,21 @@ export async function getStats(rec: InstanceRecord): Promise<InstanceStats | nul
   const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
   const sysDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
   const cpuCount = stats.cpu_stats.online_cpus || 1;
+  // per-core:percpu_usage[i] 是容器在核心 i 的累計 jiffies;與 precpu 差分後除以全系統差分。
+  // sysDelta = 全系統 jiffies 差分,每核 delta/sysDelta*cpuCount = 該核佔該核滿載的比例。
+  const percpu = stats.cpu_stats.cpu_usage.percpu_usage;
+  const prePercpu = stats.precpu_stats.cpu_usage.percpu_usage;
+  const perCore: (number | null)[] | null = percpu && prePercpu && sysDelta > 0
+    ? percpu.map((v, i) => {
+        const delta = v - (prePercpu[i] ?? 0);
+        return delta > 0 ? Math.min((delta / sysDelta) * cpuCount * 100, 100) : 0;
+      })
+    : null;
   return {
     cpuPercent: sysDelta > 0 ? (cpuDelta / sysDelta) * cpuCount * 100 : 0,
     cpuCores: cpuCount,
+    perCore,
+    perCoreScope: "container",
     memoryBytes: stats.memory_stats.usage ?? 0,
     memoryLimitBytes: stats.memory_stats.limit ?? 0,
   };

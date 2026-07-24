@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FiCpu, FiActivity, FiClock, FiLayers, FiZap, FiHardDrive } from "react-icons/fi";
+import { FiCpu, FiActivity, FiClock, FiLayers, FiZap, FiHardDrive, FiChevronDown } from "react-icons/fi";
 import type { InstanceStats, LiveStatus } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { t, useI18n } from "./i18n";
@@ -9,9 +9,10 @@ import { EmptyState, card } from "./ui";
 const HISTORY = 60;
 
 interface Sample {
-  cpu: number | null; // 佔單核的百分比；null 代表尚未取得有效取樣
-  memPct: number | null; // 記憶體用量佔上限；null 代表沒有有限上限
-  fps: number | null; // 伺服器 FPS(需 REST API)
+  cpu: number | null; // 佔總算力 0–100%(後端正規化後);null 代表尚未取得有效取樣
+  perCore: (number | null)[] | null; // per-core 使用率(0–100);null = backend 不支援或首筆
+  memPct: number | null;
+  fps: number | null;
 }
 
 /**
@@ -62,6 +63,7 @@ export function PerformanceTab({
             ...prev,
             {
               cpu: cpuPercent,
+              perCore: s.perCore ?? null,
               memPct: hasFiniteLimit(s.memoryLimitBytes)
                 ? clampRatio(s.memoryBytes / s.memoryLimitBytes)
                 : null,
@@ -87,21 +89,25 @@ export function PerformanceTab({
 
   const metrics = live?.metrics ?? null;
   const cores = stats && Number.isFinite(stats.cpuCores) && stats.cpuCores > 0 ? stats.cpuCores : 1;
-  const cpuPercent = stats && knownCpuSample(stats.cpuPercent) ? stats.cpuPercent : null;
-  const cpuOfTotal = cpuPercent == null ? null : clampRatio(cpuPercent / (cores * 100)); // 佔總算力
+  const cpuPercent = stats && knownCpuSample(stats.cpuPercent) ? stats.cpuPercent : null; // 佔總算力 0–100%(後端正規化)
+  const perCore = stats?.perCore ?? null;
+  const perCoreScope = stats?.perCoreScope ?? null;
   const memoryLimit = stats?.memoryLimitBytes ?? 0;
   const memoryRatio = stats && hasFiniteLimit(memoryLimit) ? clampRatio(stats.memoryBytes / memoryLimit) : null;
 
   return (
     <div className="flex flex-col gap-4">
+      {/* CPU 概要(總用量 + per-core 框框 + 抽屜展開多核走勢) */}
+      <CpuOverview
+        cpuPercent={cpuPercent}
+        cores={cores}
+        perCore={perCore}
+        perCoreScope={perCoreScope}
+        history={history}
+      />
+
       {/* 概要數字磚 */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat
-          icon={<FiCpu className="size-4" />}
-          label="CPU"
-          value={cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`}
-          sub={cpuOfTotal == null ? undefined : t("共 {cores} 核 · 佔總算力 {pct}%", { cores, pct: (cpuOfTotal * 100).toFixed(0) })}
-        />
         <Stat
           icon={<FiHardDrive className="size-4" />}
           label={t("記憶體")}
@@ -131,8 +137,8 @@ export function PerformanceTab({
           <>
             <Meter
               label={t("CPU（佔總算力）")}
-              text={cpuOfTotal == null ? "—" : `${(cpuOfTotal * 100).toFixed(1)}%`}
-              ratio={cpuOfTotal}
+              text={cpuPercent == null ? "—" : `${cpuPercent.toFixed(1)}%`}
+              ratio={cpuPercent == null ? null : clampRatio(cpuPercent / 100)}
             />
             <Meter
               label={t("記憶體")}
@@ -156,7 +162,7 @@ export function PerformanceTab({
             title={t("CPU 佔總算力")}
             unit="%"
             color="#F4A64D"
-            values={history.map((h) => (h.cpu == null ? null : clampRatio(h.cpu / (cores * 100)) * 100))}
+            values={history.map((h) => h.cpu)}
             max={100}
           />
           <Trend
@@ -194,6 +200,118 @@ export function PerformanceTab({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+/** CPU 概要圖卡:總用量數字 + per-core 框框 + 抽屜展開 per-core 摺線圖。 */
+function CpuOverview({
+  cpuPercent,
+  cores,
+  perCore,
+  perCoreScope,
+  history,
+}: {
+  cpuPercent: number | null;
+  cores: number;
+  perCore: (number | null)[] | null;
+  perCoreScope: "system" | "container" | null;
+  history: Sample[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const scopeLabel = perCoreScope === "system" ? t("系統全核") : perCoreScope === "container" ? t("伺服器專屬") : null;
+  const hasPerCore = perCore != null && perCore.length > 0;
+
+  return (
+    <div className={`${card} flex flex-col gap-2`}>
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted">
+          <FiCpu className="size-4" /> CPU
+        </span>
+        {scopeLabel && <span className="text-xs text-ink-muted">{scopeLabel}</span>}
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-2xl font-extrabold">{cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`}</span>
+        <span className="text-xs text-ink-muted">{t("共 {cores} 核 · 佔總算力", { cores })}</span>
+      </div>
+      {/* per-core 框框(像工作管理員):每核一格,填色高度按使用率 */}
+      {hasPerCore && (
+        <div className="flex flex-wrap gap-1">
+          {perCore!.map((usage, i) => {
+            const pct = usage == null ? null : Math.max(0, Math.min(usage, 100));
+            return (
+              <div
+                key={i}
+                className="relative h-8 w-4 overflow-hidden rounded-sm bg-card-soft"
+                title={pct == null ? t("核心 {n}", { n: i }) : t("核心 {n}: {pct}%", { n: i, pct: pct.toFixed(0) })}
+              >
+                {pct != null && (
+                  <div
+                    className="absolute bottom-0 left-0 right-0 rounded-sm bg-pal transition-all"
+                    style={{ height: `${pct}%` }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {/* 抽屜:展開 per-core 摺線圖 */}
+      {hasPerCore && (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-xs font-bold text-ink-muted transition-transform"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <FiChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+          {expanded ? t("收合多核走勢") : t("展開多核走勢")}
+        </button>
+      )}
+      {expanded && hasPerCore && (
+        <div className="flex flex-col gap-2 border-t border-line pt-2">
+          {perCore!.map((_, coreIdx) => {
+            const coreValues = history.map((h) => h.perCore?.[coreIdx] ?? null);
+            const lastVal = coreValues.filter((v): v is number => v != null).at(-1) ?? null;
+            return (
+              <div key={coreIdx} className="flex items-center gap-2">
+                <span className="w-12 shrink-0 text-xs text-ink-muted">{t("核{n}", { n: coreIdx })}</span>
+                <CoreSparkline values={coreValues} lastVal={lastVal} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** per-core 迷你摺線圖(每核一條)。 */
+function CoreSparkline({ values, lastVal }: { values: Array<number | null>; lastVal: number | null }) {
+  const W = 200;
+  const H = 24;
+  const known = values.filter((v): v is number => v != null && Number.isFinite(v));
+  const pts = values.map((v, i) => {
+    if (v == null || !Number.isFinite(v)) return null;
+    const x = values.length > 1 ? (i / (values.length - 1)) * W : 0;
+    const y = H - Math.max(0, Math.min(v / 100, 1)) * (H - 2) - 1;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const segments: string[][] = [];
+  let seg: string[] = [];
+  for (const p of pts) {
+    if (p == null) { if (seg.length) segments.push(seg); seg = []; }
+    else seg.push(p);
+  }
+  if (seg.length) segments.push(seg);
+  return (
+    <div className="flex flex-1 items-center gap-2">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-6 flex-1" preserveAspectRatio="none">
+        {segments.map((s, i) => s.length > 1 && (
+          <polyline key={i} points={s.join(" ")} fill="none" stroke="#F4A64D" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+        ))}
+      </svg>
+      <span className="w-10 shrink-0 text-right text-xs font-bold text-pal">{lastVal == null ? "—" : `${lastVal.toFixed(0)}%`}</span>
     </div>
   );
 }
