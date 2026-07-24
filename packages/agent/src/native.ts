@@ -923,8 +923,43 @@ interface CpuSample {
   /** 取樣時刻(Date.now() 毫秒) */
   at: number;
   stats: InstanceStats;
+  /** per-core 差分用的 os.cpus() 快照:每核 {idle, total} 累計毫秒。 */
+  osCpus?: Array<{ idle: number; total: number }>;
 }
 const cpuSamples = new Map<string, CpuSample>();
+
+/** 由 os.cpus() 各核 times 計算 per-core 使用率(0–100)。
+ *  total = user+nice+sys+idle+irq(不含 iowait/softirq/steal,足夠算閒置率);
+ *  每核 idle 差 / total 差 = 閒置率 → 100 - 閒置率 = 使用率。
+ *  prev/cur 長度不同(熱插拔,極罕見)→ 只比共同前綴;totalDelta≤0 → null(首筆/計數器回退)。 */
+export function computePerCore(
+  prev: Array<{ idle: number; total: number }> | undefined,
+  cur: Array<{ idle: number; total: number }>,
+): (number | null)[] | null {
+  if (!prev || prev.length === 0 || cur.length === 0) return null;
+  const len = Math.min(prev.length, cur.length);
+  const result: (number | null)[] = [];
+  for (let i = 0; i < len; i++) {
+    const totalDelta = cur[i].total - prev[i].total;
+    const idleDelta = cur[i].idle - prev[i].idle;
+    if (totalDelta <= 0) {
+      result.push(null);
+    } else {
+      const idleRatio = Math.max(0, Math.min(idleDelta / totalDelta, 1));
+      result.push(Math.round((1 - idleRatio) * 1000) / 10);
+    }
+  }
+  return result;
+}
+
+/** 把 os.cpus() 壓縮成 per-core {idle, total}(供差分用)。 */
+function snapshotOsCpus(): Array<{ idle: number; total: number }> {
+  return os.cpus().map((c) => {
+    const t = c.times;
+    const total = t.user + t.nice + t.sys + t.idle + t.irq;
+    return { idle: t.idle, total };
+  });
+}
 
 /** CPU%(單核基準,行程樹加總可破百;export 供單元測試):
  *  有上一筆且 ctime 沒回退(行程沒換)→ Δctime/Δt 毫秒精度差分;
@@ -1159,16 +1194,23 @@ export const nativeDriver: ServerDriver = {
     // 改用 ctime(累計 CPU 毫秒,與取樣間隔無關)配 Date.now() 毫秒精度自算差分。
     const ctimeMs = alive.reduce((sum, u) => sum + u.ctime, 0);
     const at = Date.now();
-    const cpuPercent = computeCpuPercent(prev ?? null, ctimeMs, at, mainElapsed ?? null);
+    const coreCount = os.cpus().length;
+    const osCpus = snapshotOsCpus();
+    // computeCpuPercent 回單核基準(可破百);正規化為佔總算力 0–100%。
+    const raw = computeCpuPercent(prev ?? null, ctimeMs, at, mainElapsed ?? null);
+    const cpuPercent = coreCount > 0 ? Math.max(0, Math.min(raw / coreCount, 100)) : null;
+    const perCore = computePerCore(prev?.osCpus, osCpus);
     const stats = {
       cpuPercent,
-      cpuCores: os.cpus().length,
+      cpuCores: coreCount,
+      perCore,
+      perCoreScope: "system" as const,
       memoryBytes: alive.reduce((sum, u) => sum + u.memory, 0),
       memoryLimitBytes: os.totalmem(),
       processCount: alive.length,
       uptimeSeconds: mainElapsed ? Math.round(mainElapsed / 1000) : undefined,
     } satisfies InstanceStats;
-    cpuSamples.set(ctx.instanceDir, { ctimeMs, at, stats });
+    cpuSamples.set(ctx.instanceDir, { ctimeMs, at, stats, osCpus });
     return stats;
   },
 

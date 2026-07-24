@@ -9,9 +9,11 @@ import { EmptyState, card } from "./ui";
 const HISTORY = 60;
 
 interface Sample {
-  cpu: number | null; // 佔單核的百分比；null 代表尚未取得有效取樣
-  memPct: number | null; // 記憶體用量佔上限；null 代表沒有有限上限
-  fps: number | null; // 伺服器 FPS(需 REST API)
+  cpu: number | null; // 佔總算力 0–100%(後端正規化後);null 代表尚未取得有效取樣
+  perCore: (number | null)[] | null; // per-core 使用率(0–100);null = backend 不支援或首筆
+  memPct: number | null;
+  fps: number | null;
+  frametime: number | null; // 伺服器影格時間(ms)
 }
 
 /**
@@ -55,6 +57,7 @@ export function PerformanceTab({
         liveMiss.current = l.metrics ? 0 : liveMiss.current + 1;
       }
       const fps = l?.metrics?.serverfps ?? null;
+      const frametime = l?.metrics?.serverframetime ?? null;
       if (s) {
         const cpuPercent = knownCpuSample(s.cpuPercent) ? s.cpuPercent : null;
         setHistory((prev) =>
@@ -62,10 +65,12 @@ export function PerformanceTab({
             ...prev,
             {
               cpu: cpuPercent,
+              perCore: s.perCore ?? null,
               memPct: hasFiniteLimit(s.memoryLimitBytes)
                 ? clampRatio(s.memoryBytes / s.memoryLimitBytes)
                 : null,
               fps,
+              frametime,
             },
           ].slice(-HISTORY),
         );
@@ -87,42 +92,35 @@ export function PerformanceTab({
 
   const metrics = live?.metrics ?? null;
   const cores = stats && Number.isFinite(stats.cpuCores) && stats.cpuCores > 0 ? stats.cpuCores : 1;
-  const cpuPercent = stats && knownCpuSample(stats.cpuPercent) ? stats.cpuPercent : null;
-  const cpuOfTotal = cpuPercent == null ? null : clampRatio(cpuPercent / (cores * 100)); // 佔總算力
+  const cpuPercent = stats && knownCpuSample(stats.cpuPercent) ? stats.cpuPercent : null; // 佔總算力 0–100%(後端正規化)
+  const perCore = stats?.perCore ?? null;
+  const perCoreScope = stats?.perCoreScope ?? null;
   const memoryLimit = stats?.memoryLimitBytes ?? 0;
   const memoryRatio = stats && hasFiniteLimit(memoryLimit) ? clampRatio(stats.memoryBytes / memoryLimit) : null;
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 概要數字磚 */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat
-          icon={<FiCpu className="size-4" />}
-          label="CPU"
-          value={cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`}
-          sub={cpuOfTotal == null ? undefined : t("共 {cores} 核 · 佔總算力 {pct}%", { cores, pct: (cpuOfTotal * 100).toFixed(0) })}
-        />
-        <Stat
-          icon={<FiHardDrive className="size-4" />}
-          label={t("記憶體")}
-          value={stats ? fmtBytes(stats.memoryBytes) : "—"}
-          sub={stats && hasFiniteLimit(memoryLimit) ? `／ ${fmtBytes(memoryLimit)}` : undefined}
-        />
-        <Stat
-          icon={<FiZap className="size-4" />}
-          label={t("伺服器 FPS")}
-          value={metrics ? String(metrics.serverfps) : "—"}
-          sub={metrics ? t("影格 {ms} ms", { ms: metrics.serverframetime.toFixed(1) }) : t("需啟用 REST API")}
-        />
-        <Stat
-          icon={<FiClock className="size-4" />}
-          label={t("運行時間")}
-          value={stats?.uptimeSeconds != null ? fmtDuration(stats.uptimeSeconds) : "—"}
-          sub={stats?.processCount != null ? t("{n} 個行程", { n: stats.processCount }) : undefined}
-        />
+      {/* ① 純數字容器 — 所有當前數值快照 */}
+      <div className={`${card} flex flex-col gap-3`}>
+        <h3 className="inline-flex items-center gap-2 text-sm font-extrabold">
+          <FiActivity className="size-4 text-pal" /> {t("即時數值")}
+        </h3>
+        {/* 第一行:CPU / 遊戲時間 / 伺服器運行時間 */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Stat icon={<FiCpu className="size-4" />} label={t("CPU")} value={cpuPercent == null ? "—" : `${cpuPercent.toFixed(0)}%`} />
+          <Stat icon={<FiLayers className="size-4" />} label={t("遊戲時間")} value={metrics ? t("{n} 天", { n: metrics.days }) : "—"} />
+          <Stat icon={<FiClock className="size-4" />} label={t("伺服器運行時間")} value={metrics ? fmtDuration(metrics.uptime) : "—"} />
+        </div>
+        {/* 第二行:記憶體 / 伺服器 FPS / 影格時間 */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Stat icon={<FiHardDrive className="size-4" />} label={t("記憶體")} value={stats ? (hasFiniteLimit(memoryLimit) ? `${fmtBytes(stats.memoryBytes)} / ${fmtBytes(memoryLimit)}` : fmtBytes(stats.memoryBytes)) : "—"} />
+          <Stat icon={<FiZap className="size-4" />} label={t("伺服器 FPS")} value={metrics ? String(metrics.serverfps) : "—"} />
+          <Stat icon={<FiActivity className="size-4" />} label={t("影格時間")} value={metrics ? `${metrics.serverframetime.toFixed(1)} ms` : "—"} />
+        </div>
+        {!metrics && <p className="text-xs text-ink-muted">{t("伺服器 FPS / 影格時間 / 遊戲時間需啟用 REST API")}</p>}
       </div>
 
-      {/* 詳細用量條 */}
+      {/* ② 資源用量容器 — Meter 進度條 */}
       <div className={`${card} flex flex-col gap-4`}>
         <h3 className="inline-flex items-center gap-2 text-sm font-extrabold">
           <FiActivity className="size-4 text-pal" /> {t("資源用量")}
@@ -130,9 +128,9 @@ export function PerformanceTab({
         {stats ? (
           <>
             <Meter
-              label={t("CPU（佔總算力）")}
-              text={cpuOfTotal == null ? "—" : `${(cpuOfTotal * 100).toFixed(1)}%`}
-              ratio={cpuOfTotal}
+              label={t("CPU")}
+              text={cpuPercent == null ? "—" : `${cpuPercent.toFixed(1)}%`}
+              ratio={cpuPercent == null ? null : clampRatio(cpuPercent / 100)}
             />
             <Meter
               label={t("記憶體")}
@@ -145,55 +143,81 @@ export function PerformanceTab({
         )}
       </div>
 
-      {/* 走勢圖 */}
+      {/* ③ 即時走勢容器 — 折線圖 + per-thread 框框 */}
       <div className={`${card} flex flex-col gap-4`}>
         <h3 className="inline-flex items-center gap-2 text-sm font-extrabold">
           <FiActivity className="size-4 text-pal" /> {t("即時走勢")}
           <span className="text-xs font-normal text-ink-muted">{t("(最近約 5 分鐘)")}</span>
         </h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Trend
-            title={t("CPU 佔總算力")}
-            unit="%"
-            color="#F4A64D"
-            values={history.map((h) => (h.cpu == null ? null : clampRatio(h.cpu / (cores * 100)) * 100))}
-            max={100}
-          />
-          <Trend
-            title={t("記憶體使用率")}
-            unit="%"
-            color="#7BB0E8"
-            values={history.map((h) => (h.memPct == null ? null : h.memPct * 100))}
-            max={100}
-          />
+        {/* CPU Trend 獨立整行,下方接執行緒框框(視覺連貫) */}
+        <Trend title={t("CPU")} unit="%" color="#F4A64D" values={history.map((h) => h.cpu)} max={100} />
+        {perCore != null && perCore.length > 0 && (
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-bold text-ink-muted">{t("執行緒")}</span>
+              <span className="text-xs text-ink-muted">{perCore.length}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+              {perCore.map((_, threadIdx) => {
+                const threadValues = history.map((h) => h.perCore?.[threadIdx] ?? null);
+                const lastVal = perCore[threadIdx];
+                return <ThreadChart key={threadIdx} values={threadValues} lastVal={lastVal} />;
+              })}
+            </div>
+          </div>
+        )}
+        {/* 記憶體 / FPS / 影格時間 三格自適應 */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Trend title={t("記憶體使用率")} unit="%" color="#7BB0E8" values={history.map((h) => (h.memPct == null ? null : h.memPct * 100))} max={100} />
           {metrics && (
-            <Trend
-              title={t("伺服器 FPS")}
-              unit=""
-              color="#8FCf8F"
-              values={history.map((h) => h.fps)}
-              max={Math.max(60, ...history.flatMap((h) => (h.fps == null ? [] : [h.fps])))}
-            />
+            <Trend title={t("伺服器 FPS")} unit="" color="#8FCf8F" values={history.map((h) => h.fps)} max={Math.max(60, ...history.flatMap((h) => (h.fps == null ? [] : [h.fps])))} />
+          )}
+          {metrics && (
+            <Trend title={t("影格時間")} unit="ms" color="#C4A8E8" values={history.map((h) => h.frametime)} max={Math.max(33, ...history.flatMap((h) => (h.frametime == null ? [] : [h.frametime])))} />
           )}
         </div>
         {history.length < 2 && <p className="text-xs text-ink-muted">{t("收集資料中,稍待幾秒走勢就會出現。")}</p>}
       </div>
+    </div>
+  );
+}
 
-      {metrics && (
-        <div className={`${card} flex flex-col gap-3`}>
-          <h3 className="inline-flex items-center gap-2 text-sm font-extrabold">
-            <FiLayers className="size-4 text-pal" /> {t("伺服器效能")}
-          </h3>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-            <Row k={t("伺服器 FPS")} v={String(metrics.serverfps)} />
-            <Row k={t("影格時間")} v={`${metrics.serverframetime.toFixed(1)} ms`} />
-            <Row k={t("伺服器運行")} v={fmtDuration(metrics.uptime)} />
-          </dl>
-          <p className="text-xs text-ink-muted">
-            {t("伺服器 FPS 越接近設定的目標越流暢;明顯偏低代表 CPU 吃緊,可到「引擎微調」分頁調整。")}
-          </p>
-        </div>
-      )}
+/** 單一執行緒框框:折線圖 + area fill,視覺對齊 Trend;不標文字(hover title 顯示數值)。 */
+function ThreadChart({ values, lastVal }: { values: Array<number | null>; lastVal: number | null }) {
+  const W = 120;
+  const H = 48;
+  const pts = values.map((v, i) => {
+    if (v == null || !Number.isFinite(v)) return null;
+    const x = values.length > 1 ? (i / (values.length - 1)) * W : 0;
+    const y = H - Math.max(0, Math.min(v / 100, 1)) * (H - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const segments: string[][] = [];
+  let seg: string[] = [];
+  for (const p of pts) {
+    if (p == null) { if (seg.length) segments.push(seg); seg = []; }
+    else seg.push(p);
+  }
+  if (seg.length) segments.push(seg);
+  const area = values.length > 1 && pts.every((p) => p != null) ? `0,${H} ${pts.join(" ")} ${W},${H}` : "";
+  // 高載(>80%)用橘色警示,其餘藍色。
+  const color = lastVal == null ? "#666" : lastVal > 80 ? "#F4A64D" : "#7BB0E8";
+
+  return (
+    <div className="rounded-lg border border-line bg-card-soft p-1.5" title={lastVal == null ? undefined : `${lastVal.toFixed(0)}%`}>
+      <div className="mb-0.5 flex items-baseline justify-end">
+        <span className="text-[8px] font-bold text-ink-muted">{lastVal == null ? "—" : `${lastVal.toFixed(0)}%`}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-12 w-full" preserveAspectRatio="none">
+        {segments.some((s) => s.length > 1) && (
+          <>
+            {area && <polygon points={area} fill={color} opacity="0.12" />}
+            {segments.map((s, i) => (
+              <polyline key={i} points={s.join(" ")} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            ))}
+          </>
+        )}
+      </svg>
     </div>
   );
 }
